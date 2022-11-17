@@ -1,0 +1,42 @@
+name: Geoinformatics
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+    - python=3.9    # Python version 3.9, 3.6 original
+    - ipython       # IPython interpreter and tools
+    - jupyter       # Jupyter federation architecture
+    - jupyterlab    # Jupyter Lab environment
+    - matplotlib    # 2D plotting library
+    - numpy         # N-d array and numerics
+    - pandas        # Labeled array library
+    - pyjanitor       # Cleans up Pandas dataframe column names
+    - scipy         # Common math/stats/science functions
+    - seaborn       # Statistical visualizations
+    - cartopy       # Geographic plotting toolkit
+    - flake8
+    - pep8
+    - geopandas
+    - packaging
+    - gmt
+    - pygmt
+    - scikit-learn
+    - pathlib
+    - pytorch
+    - tabula-py
+    - pip
+    - pip:
+        - mc3
+        - fenics
+        - hyperspy[all]
+        - pykrige
+        - uncertainties
+        - xarray
+        - netCDF4
+        - wheel
+        - openpyxl
+        - kneed
+        - Thermobar
+        - VESIcal
+        - pyrolite
+        - tabulate
