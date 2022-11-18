@@ -315,7 +315,7 @@ phase_props = ['Na_K_A_Amp', 'Amp_Cation_Sum', 'Ca_CaMgFe_Cpx', 'Cpx_Cation_Sum'
         'Ca_P_Ap', 'Ap_Cation_Sum', 'Si_Al_Bt', 'Bt_Cation_Sum', 
         'Si_Al_Qz', 'Qz_Cation_Sum', 'Mg_MgFeCa_Gt', 'Gt_Cation_Sum', 
         'Na_Ca_M_Kspar', 'Kspar_Cation_Sum']
-pd.plotting.scatter_matrix(LEPR_AllPhases[phase_props], figsize = (15, 15), hist_kwds={'bins':20})
+pd.plotting.scatter_matrix(LEPR_AllPhases[phase_props], figsize = (35, 35), hist_kwds={'bins':20})
 
 
 LEPR_wt = LEPR_AllPhases[oxides]
@@ -499,7 +499,7 @@ for i in range(len(phase)):
 ax[0].legend(prop={'size': 10})
 ax[0].set_title('No Normalization or Scaling wt% - PCA')
 ax[0].set_xlabel('PC1')
-ax[0].set_xlabel('PC2')
+ax[0].set_ylabel('PC2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -508,7 +508,7 @@ for i in range(len(phase)):
 ax[1].legend(prop={'size': 10})
 ax[1].set_title('Normalization wt% - PCA')
 ax[1].set_xlabel('PC1')
-ax[1].set_xlabel('PC2')
+ax[1].set_ylabel('PC2')
 
 # Scaling
 for i in range(len(phase)):
@@ -517,7 +517,7 @@ for i in range(len(phase)):
 ax[2].legend(prop={'size': 10})
 ax[2].set_title('Scaling wt% - PCA')
 ax[2].set_xlabel('PC1')
-ax[2].set_xlabel('PC2')
+ax[2].set_ylabel('PC2')
 
 # Softmax
 for i in range(len(phase)):
@@ -526,7 +526,7 @@ for i in range(len(phase)):
 ax[3].legend(prop={'size': 10})
 ax[3].set_title('Softmax wt% - PCA')
 ax[3].set_xlabel('PC1')
-ax[3].set_xlabel('PC2')
+ax[3].set_ylabel('PC2')
 
 
 for i in range(len(phase)):
@@ -535,7 +535,7 @@ for i in range(len(phase)):
 ax[4].legend(prop={'size': 10})
 ax[4].set_title('No Normalization or Scaling mol prop - PCA')
 ax[4].set_xlabel('PC1')
-ax[4].set_xlabel('PC2')
+ax[4].set_ylabel('PC2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -544,7 +544,7 @@ for i in range(len(phase)):
 ax[5].legend(prop={'size': 10})
 ax[5].set_title('Normalization mol prop - PCA')
 ax[5].set_xlabel('PC1')
-ax[5].set_xlabel('PC2')
+ax[5].set_ylabel('PC2')
 
 # Scaling
 for i in range(len(phase)):
@@ -553,7 +553,7 @@ for i in range(len(phase)):
 ax[6].legend(prop={'size': 10})
 ax[6].set_title('Scaling mol prop - PCA')
 ax[6].set_xlabel('PC1')
-ax[6].set_xlabel('PC2')
+ax[6].set_ylabel('PC2')
 
 # Softmax
 for i in range(len(phase)):
@@ -562,10 +562,44 @@ for i in range(len(phase)):
 ax[7].legend(prop={'size': 10})
 ax[7].set_title('Softmax mol prop - PCA')
 ax[7].set_xlabel('PC1')
-ax[7].set_xlabel('PC2')
+ax[7].set_ylabel('PC2')
 
 plt.tight_layout()
 plt.show()
+
+# %% 
+
+
+# phase = ['Oxide',
+#  'Apatite',
+#  'Biotite',
+#  'Quartz',
+#  'Clinopyroxene',
+#  'Olivine',
+#  'Garnet',
+#  'KSpar',
+#  'Spinel',
+#  'Amphibole',
+#  'Orthopyroxene',
+#  'Plagioclase']
+# # list(set(LEPR_AllPhases.Phase))
+# z = range(1,len(phase))
+
+# tab = plt.get_cmap('tab20')
+# cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
+# scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+
+# fig, ax = plt.subplots(1, 1, figsize = (8, 8))
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax.scatter(df_wt_pca[indx][:, 0], df_wt_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax.legend(prop={'size': 10})
+# ax.set_title('LEPR_AllPhases PCA Latent Space Representation')
+# ax.set_xlabel('PC1')
+# ax.set_ylabel('PC2')
+# plt.tight_layout()
+# plt.savefig('./LEPR/PCA_LS.pdf',)
+
 
 # %% Weight percent, kernel PCA -- rbf works decently well, sigmoid too
 
@@ -602,7 +636,7 @@ for i in range(len(phase)):
 ax[0].legend(prop={'size': 10})
 ax[0].set_title('No Normalization or Scaling wt% - Kernel PCA')
 ax[0].set_xlabel('Kernel PC1')
-ax[0].set_xlabel('Kernel PC2')
+ax[0].set_ylabel('Kernel PC2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -611,7 +645,7 @@ for i in range(len(phase)):
 ax[1].legend(prop={'size': 10})
 ax[1].set_title('Normalization wt% - Kernel PCA')
 ax[1].set_xlabel('Kernel PC1')
-ax[1].set_xlabel('Kernel PC2')
+ax[1].set_ylabel('Kernel PC2')
 
 # Scaling
 for i in range(len(phase)):
@@ -620,7 +654,7 @@ for i in range(len(phase)):
 ax[2].legend(prop={'size': 10})
 ax[2].set_title('Scaling wt% - Kernel PCA')
 ax[2].set_xlabel('Kernel PC1')
-ax[2].set_xlabel('Kernel PC2')
+ax[2].set_ylabel('Kernel PC2')
 
 # Softmax
 for i in range(len(phase)):
@@ -629,7 +663,7 @@ for i in range(len(phase)):
 ax[3].legend(prop={'size': 10})
 ax[3].set_title('Softmax wt% - Kernel PCA')
 ax[3].set_xlabel('Kernel PC1')
-ax[3].set_xlabel('Kernel PC2')
+ax[3].set_ylabel('Kernel PC2')
 
 
 
@@ -639,7 +673,7 @@ for i in range(len(phase)):
 ax[4].legend(prop={'size': 10})
 ax[4].set_title('No Normalization or Scaling mol prop - Kernel PCA')
 ax[4].set_xlabel('Kernel PC1')
-ax[4].set_xlabel('Kernel PC2')
+ax[4].set_ylabel('Kernel PC2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -648,7 +682,7 @@ for i in range(len(phase)):
 ax[5].legend(prop={'size': 10})
 ax[5].set_title('Normalization mol prop - Kernel PCA')
 ax[5].set_xlabel('Kernel PC1')
-ax[5].set_xlabel('Kernel PC2')
+ax[5].set_ylabel('Kernel PC2')
 
 # Scaling
 for i in range(len(phase)):
@@ -657,7 +691,7 @@ for i in range(len(phase)):
 ax[6].legend(prop={'size': 10})
 ax[6].set_title('Scaling mol prop - Kernel PCA')
 ax[6].set_xlabel('Kernel PC1')
-ax[6].set_xlabel('Kernel PC2')
+ax[6].set_ylabel('Kernel PC2')
 
 # Softmax
 for i in range(len(phase)):
@@ -666,7 +700,7 @@ for i in range(len(phase)):
 ax[7].legend(prop={'size': 10})
 ax[7].set_title('Softmax mol prop - Kernel PCA')
 ax[7].set_xlabel('Kernel PC1')
-ax[7].set_xlabel('Kernel PC2')
+ax[7].set_ylabel('Kernel PC2')
 
 
 plt.tight_layout()
@@ -703,7 +737,7 @@ for i in range(len(phase)):
 ax[0].legend(prop={'size': 10})
 ax[0].set_title('No Normalization or Scaling wt % - LLE')
 ax[0].set_xlabel('Latent Variable 1')
-ax[0].set_xlabel('Latent Variable 2')
+ax[0].set_ylabel('Latent Variable 2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 # for i in range(len(phase)):
@@ -712,7 +746,7 @@ ax[0].set_xlabel('Latent Variable 2')
 # ax[1].legend(prop={'size': 10})
 # ax[1].set_title('Normalization wt % - LLE')
 # ax[1].set_xlabel('Latent Variable 1')
-# ax[1].set_xlabel('Latent Variable 2')
+# ax[1].set_ylabel('Latent Variable 2')
 
 # Scaling
 for i in range(len(phase)):
@@ -721,7 +755,7 @@ for i in range(len(phase)):
 ax[2].legend(prop={'size': 10})
 ax[2].set_title('Scaling - LLE')
 ax[2].set_xlabel('Latent Variable 1')
-ax[2].set_xlabel('Latent Variable 2')
+ax[2].set_ylabel('Latent Variable 2')
 
 # Softmax
 for i in range(len(phase)):
@@ -730,7 +764,7 @@ for i in range(len(phase)):
 ax[3].legend(prop={'size': 10})
 ax[3].set_title('Softmax wt % - LLE')
 ax[3].set_xlabel('Latent Variable 1')
-ax[3].set_xlabel('Latent Variable 2')
+ax[3].set_ylabel('Latent Variable 2')
 
 
 
@@ -740,7 +774,7 @@ for i in range(len(phase)):
 ax[4].legend(prop={'size': 10})
 ax[4].set_title('No Normalization or Scaling mol prop - PCA')
 ax[4].set_xlabel('Latent Variable 1')
-ax[4].set_xlabel('Latent Variable 2')
+ax[4].set_ylabel('Latent Variable 2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 # for i in range(len(phase)):
@@ -749,7 +783,7 @@ ax[4].set_xlabel('Latent Variable 2')
 # ax[5].legend(prop={'size': 10})
 # ax[5].set_title('Normalization mol prop - PCA')
 # ax[5].set_xlabel('Latent Variable 1')
-# ax[5].set_xlabel('Latent Variable 2')
+# ax[5].set_ylabel('Latent Variable 2')
 
 # Scaling
 for i in range(len(phase)):
@@ -758,7 +792,7 @@ for i in range(len(phase)):
 ax[6].legend(prop={'size': 10})
 ax[6].set_title('Scaling mol prop - PCA')
 ax[6].set_xlabel('Latent Variable 1')
-ax[6].set_xlabel('Latent Variable 2')
+ax[6].set_ylabel('Latent Variable 2')
 
 # Softmax
 for i in range(len(phase)):
@@ -767,7 +801,7 @@ for i in range(len(phase)):
 ax[7].legend(prop={'size': 10})
 ax[7].set_title('Softmax mol prop - PCA')
 ax[7].set_xlabel('Latent Variable 1')
-ax[7].set_xlabel('Latent Variable 2')
+ax[7].set_ylabel('Latent Variable 2')
 
 plt.tight_layout()
 plt.show()
@@ -800,7 +834,7 @@ for i in range(len(phase)):
 ax[0].legend(prop={'size': 10})
 ax[0].set_title('No Normalization or Scaling wt % - Isomap')
 ax[0].set_xlabel('Latent Variable 1')
-ax[0].set_xlabel('Latent Variable 2')
+ax[0].set_ylabel('Latent Variable 2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -809,7 +843,7 @@ for i in range(len(phase)):
 ax[1].legend(prop={'size': 10})
 ax[1].set_title('Normalization wt % - Isomap')
 ax[1].set_xlabel('Latent Variable 1')
-ax[1].set_xlabel('Latent Variable 2')
+ax[1].set_ylabel('Latent Variable 2')
 
 # Scaling
 for i in range(len(phase)):
@@ -818,7 +852,7 @@ for i in range(len(phase)):
 ax[2].legend(prop={'size': 10})
 ax[2].set_title('Scaling wt % - Isomap')
 ax[2].set_xlabel('Latent Variable 1')
-ax[2].set_xlabel('Latent Variable 2')
+ax[2].set_ylabel('Latent Variable 2')
 
 # Softmax
 for i in range(len(phase)):
@@ -827,7 +861,7 @@ for i in range(len(phase)):
 ax[3].legend(prop={'size': 10})
 ax[3].set_title('Softmax wt % - Isomap')
 ax[3].set_xlabel('Latent Variable 1')
-ax[3].set_xlabel('Latent Variable 2')
+ax[3].set_ylabel('Latent Variable 2')
 
 
 for i in range(len(phase)):
@@ -836,7 +870,7 @@ for i in range(len(phase)):
 ax[4].legend(prop={'size': 10})
 ax[4].set_title('No Normalization or Scaling mol prop - Isomap')
 ax[4].set_xlabel('Latent Variable 1')
-ax[4].set_xlabel('Latent Variable 2')
+ax[4].set_ylabel('Latent Variable 2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -845,7 +879,7 @@ for i in range(len(phase)):
 ax[5].legend(prop={'size': 10})
 ax[5].set_title('Normalization mol prop - Isomap')
 ax[5].set_xlabel('Latent Variable 1')
-ax[5].set_xlabel('Latent Variable 2')
+ax[5].set_ylabel('Latent Variable 2')
 
 # Scaling
 for i in range(len(phase)):
@@ -854,7 +888,7 @@ for i in range(len(phase)):
 ax[6].legend(prop={'size': 10})
 ax[6].set_title('Scaling mol prop- Isomap')
 ax[6].set_xlabel('Latent Variable 1')
-ax[6].set_xlabel('Latent Variable 2')
+ax[6].set_ylabel('Latent Variable 2')
 
 # Softmax
 for i in range(len(phase)):
@@ -863,7 +897,7 @@ for i in range(len(phase)):
 ax[7].legend(prop={'size': 10})
 ax[7].set_title('Softmax mol prop - Isomap')
 ax[7].set_xlabel('Latent Variable 1')
-ax[7].set_xlabel('Latent Variable 2')
+ax[7].set_ylabel('Latent Variable 2')
 
 plt.tight_layout()
 plt.show()
@@ -903,7 +937,7 @@ for i in range(len(phase)):
 ax[0].legend(prop={'size': 10})
 ax[0].set_title('No Normalization or Scaling wt % - TSNE')
 ax[0].set_xlabel('Latent Variable 1')
-ax[0].set_xlabel('Latent Variable 2')
+ax[0].set_ylabel('Latent Variable 2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -912,7 +946,7 @@ for i in range(len(phase)):
 ax[1].legend(prop={'size': 10})
 ax[1].set_title('Normalization wt % - TSNE')
 ax[1].set_xlabel('Latent Variable 1')
-ax[1].set_xlabel('Latent Variable 2')
+ax[1].set_ylabel('Latent Variable 2')
 
 # Scaling
 for i in range(len(phase)):
@@ -921,7 +955,7 @@ for i in range(len(phase)):
 ax[2].legend(prop={'size': 10})
 ax[2].set_title('Scaling wt % - TSNE')
 ax[2].set_xlabel('Latent Variable 1')
-ax[2].set_xlabel('Latent Variable 2')
+ax[2].set_ylabel('Latent Variable 2')
 
 # Softmax
 for i in range(len(phase)):
@@ -930,7 +964,7 @@ for i in range(len(phase)):
 ax[3].legend(prop={'size': 10})
 ax[3].set_title('Softmax wt % - TSNE')
 ax[3].set_xlabel('Latent Variable 1')
-ax[3].set_xlabel('Latent Variable 2')
+ax[3].set_ylabel('Latent Variable 2')
 
 
 for i in range(len(phase)):
@@ -939,7 +973,7 @@ for i in range(len(phase)):
 ax[4].legend(prop={'size': 10})
 ax[4].set_title('No Normalization or Scaling mol prop - TSNE')
 ax[4].set_xlabel('Latent Variable 1')
-ax[4].set_xlabel('Latent Variable 2')
+ax[4].set_ylabel('Latent Variable 2')
 
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
@@ -948,7 +982,7 @@ for i in range(len(phase)):
 ax[5].legend(prop={'size': 10})
 ax[5].set_title('Normalization mol prop - TSNE')
 ax[5].set_xlabel('Latent Variable 1')
-ax[5].set_xlabel('Latent Variable 2')
+ax[5].set_ylabel('Latent Variable 2')
 
 # Scaling
 for i in range(len(phase)):
@@ -957,7 +991,7 @@ for i in range(len(phase)):
 ax[6].legend(prop={'size': 10})
 ax[6].set_title('Scaling mol prop - TSNE')
 ax[6].set_xlabel('Latent Variable 1')
-ax[6].set_xlabel('Latent Variable 2')
+ax[6].set_ylabel('Latent Variable 2')
 
 # Softmax
 for i in range(len(phase)):
@@ -966,7 +1000,7 @@ for i in range(len(phase)):
 ax[7].legend(prop={'size': 10})
 ax[7].set_title('Softmax mol prop - TSNE')
 ax[7].set_xlabel('Latent Variable 1')
-ax[7].set_xlabel('Latent Variable 2')
+ax[7].set_ylabel('Latent Variable 2')
 
 plt.tight_layout()
 plt.show()
@@ -1043,7 +1077,7 @@ def autoencode(name):
     ax.set_ylabel("Loss")
     ax.legend(prop={'size': 10})
     plt.tight_layout()
-    plt.savefig('./LEPR/' + name + '_tanh_testtrainloss.pdf',)
+    # plt.savefig('./LEPR/' + name + '_tanh_testtrainloss.pdf',)
 
     #transform entire dataset to latent space
     z = getLatent(model, array_norm)
@@ -1064,16 +1098,16 @@ def autoencode(name):
     ax.set_title(name + " Tanh Latent Space Representation")
     ax.legend(prop={'size': 10})
     plt.tight_layout()
-    plt.savefig('./LEPR/' + name + '_latentspace.pdf',)
+    # plt.savefig('./LEPR/' + name + '_latentspace.pdf',)
 
     #save main model params
     model_path = './LEPR/' + name + "_tanh_params.pt"
-    save_model(model, optimizer, model_path)
+    # save_model(model, optimizer, model_path)
 
     #save all other params
     conc_file = name + "_tanh.npz"
-    np.savez('./LEPR/' + name + "_tanh.npz", batch_size = batch_size, epochs = epochs, input_size = input_size, 
-            conc_file = conc_file, z = z)
+    # np.savez('./LEPR/' + name + "_tanh.npz", batch_size = batch_size, epochs = epochs, input_size = input_size, 
+            # conc_file = conc_file, z = z)
 
 #start execute here
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
@@ -1087,11 +1121,6 @@ autoencode(names[i])
 print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
 
 
-# %%
-
-
-
-# %%
 # %%
 # %%
 # %% Decision Tree Classifier
