@@ -25,7 +25,6 @@ warnings.simplefilter('ignore', category=SparseEfficiencyWarning)
 
 from scipy.special import softmax
 
-from sklearn import datasets
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA, KernelPCA

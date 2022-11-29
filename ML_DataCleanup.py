@@ -78,16 +78,33 @@ def SiteCalculator(phase_filt, append, phase_name):
     phase_nosuf['Ca_CaMgFe_Cpx'] = cpx_sites['Ca_CaMgFe']
     phase_nosuf['Jd_Cpx'] = cpx_sites['Jd']
     phase_nosuf['DiHd_1996_Cpx'] = cpx_sites['DiHd_1996']
+
+    # DHZ pg 101
+    # cation occupation, Fe3+ technically also goes into Cpx. 
+    phase_nosuf['Si_Al_T_Cpx'] = cpx_sites['Si_Cpx_cat_6ox'] + cpx_sites['Al_Cpx_cat_6ox']
+    phase_nosuf['Al_Fe_Ti_Cr_Mg_Fe_Mn_M1_Cpx'] = cpx_sites['Al_Cpx_cat_6ox'] + cpx_sites['Fet_Cpx_cat_6ox'] 
+    + cpx_sites['Ti_Cpx_cat_6ox'] + cpx_sites['Cr_Cpx_cat_6ox'] + cpx_sites['Mg_Cpx_cat_6ox'] 
+    + cpx_sites['Fet_Cpx_cat_6ox'] + cpx_sites['Mn_Cpx_cat_6ox']
+    phase_nosuf['Mg_Fe_Mn_Ca_Na_M2_Cpx'] = cpx_sites['Mg_Cpx_cat_6ox'] + cpx_sites['Fet_Cpx_cat_6ox']
+    + cpx_sites['Mn_Cpx_cat_6ox'] + cpx_sites['Ca_Cpx_cat_6ox'] + cpx_sites['Na_Cpx_cat_6ox']
     phase_nosuf['Cpx_Cation_Sum'] = cpx_sites['Cation_Sum_Cpx']
 
+    # (Mg, Fe, Ca) (Mg, Fe, Al) (Si, Al)2O6.
     phase_nosuf['Ca_CaMgFe_Opx'] = opx_sites['Ca_CaMgFe']
+    phase_nosuf['Si_Al_T_Opx'] = opx_sites['Si_Opx_cat_6ox'] + opx_sites['Al_Opx_cat_6ox']
+    phase_nosuf['Mg_Fe_Ca_Al_M_Opx'] = opx_sites['Mg_Opx_cat_6ox'] + opx_sites['Fet_Opx_cat_6ox'] 
+    + opx_sites['Ca_Opx_cat_6ox'] + opx_sites['Al_Opx_cat_6ox']
     phase_nosuf['Opx_Cation_Sum'] = opx_sites['Cation_Sum_Opx']
+
+    # Orthopyroxenes have a general formula (Mg, Fe, Ca) (Mg, Fe, Al) (Si, Al)2O6. 
 
     phase_nosuf['Na_Ca_M_Plag'] = plag_sites['Na_Ca_M_Plag']
     phase_nosuf['Si_Al_T_Plag'] = plag_sites['Si_Al_T_Plag']
     phase_nosuf['Plag_Cation_Sum'] = plag_sites['Plag_Cation_Sum']
 
     phase_nosuf['Mg_Fe_M_Ol'] = ol_sites['Mg_Fe_M_Ol']
+    phase_nosuf['Si_T_Ol'] = ol_sites['Si_T_Ol']
+    phase_nosuf['Mg_Fe_Ca_Mn_M_Ol'] = ol_sites['Mg_Fe_Ca_Mn_M_Ol']
     phase_nosuf['Ol_Cation_Sum'] = ol_sites['Ol_Cation_Sum']
 
     # there must be some Fe3+ but don't have a great estimate of speciation
@@ -101,16 +118,18 @@ def SiteCalculator(phase_filt, append, phase_name):
     phase_nosuf['Ca_P_Ap'] = ap_sites['Ca_P_Ap']
     phase_nosuf['Ap_Cation_Sum'] = ap_sites['Ap_Cation_Sum']
 
-    phase_nosuf['Mg_Fe_Bt'] = bt_sites['Mg_Fe_Bt']
-    phase_nosuf['Si_Al_Bt'] = bt_sites['Si_Al_Bt']
+    phase_nosuf['Mg_Fe_M_Bt'] = bt_sites['Mg_Fe_M_Bt']
+    phase_nosuf['Si_Al_T_Bt'] = bt_sites['Si_Al_T_Bt']
     phase_nosuf['Bt_Cation_Sum'] = bt_sites['Bt_Cation_Sum']
 
-    phase_nosuf['Si_Al_Qz'] = qz_sites['Si_Al_Qz']
+    phase_nosuf['Si_Al_Ti_Qz'] = qz_sites['Si_Al_Ti_Qz']
     phase_nosuf['Qz_Cation_Sum'] = qz_sites['Qz_Cation_Sum']
 
     phase_nosuf['Mg_MgFeCa_Gt'] = gt_sites['Mg_MgFeCa_Gt']
     phase_nosuf['Fe_MgFeCa_Gt'] = gt_sites['Fe_MgFeCa_Gt']
     phase_nosuf['Ca_MgFeCa_Gt'] = gt_sites['Ca_MgFeCa_Gt']
+    phase_nosuf[''] = gt_sites['Ca_Mg_Fe_Mn_X_Gt']
+    phase_nosuf['Al_Fe_Mn_Cr_Y_Gt'] = gt_sites['Al_Fe_Mn_Cr_Y_Gt']
     phase_nosuf['Gt_Cation_Sum'] = gt_sites['Gt_Cation_Sum']
 
     phase_nosuf['Na_Ca_M_Kspar'] = kspar_sites['Na_Ca_M_Kspar']
@@ -231,7 +250,9 @@ def calculate_plagioclase_components(plag_comps, append):
     +plag_calc['Mg_Plag_cat_8ox']+plag_calc['Ca_Plag_cat_8ox']+plag_calc['Na_Plag_cat_8ox']
     +plag_calc['K_Plag_cat_8ox']+plag_calc['Cr_Plag_cat_8ox'])
 
+    # M site
     plag_calc['Na_Ca_M_Plag'] = plag_calc['Na_Plag_cat_8ox'] + plag_calc['Ca_Plag_cat_8ox']
+    # T site
     plag_calc['Si_Al_T_Plag'] = plag_calc['Si_Plag_cat_8ox'] + plag_calc['Al_Plag_cat_8ox']
 
     cat_prop = pt.calculate_cat_proportions_plagioclase(plag_comps=plag_comps)
@@ -251,6 +272,10 @@ def calculate_plagioclase_components(plag_comps, append):
     cat_frac_anhyd2 = pd.concat([plag_comps, plag_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
+
 
 def calculate_oxygens_olivine(ol_comps):
 
@@ -285,8 +310,6 @@ def calculate_oxygens_olivine(ol_comps):
     oxygens_anhyd.columns = [str(col) + '_ox' for col in oxygens_anhyd.columns]
 
     return oxygens_anhyd
-
-
 
 def calculate_4oxygens_olivine(ol_comps):
 
@@ -370,6 +393,14 @@ def calculate_olivine_components(ol_comps, append):
     ol_calc['Mg_Fe_M_Ol'] = ol_calc['Mg_Ol_cat_4ox'] + ol_calc['Fet_Ol_cat_4ox']
     ol_calc['Si_T_Ol'] = ol_calc['Si_Ol_cat_4ox'] 
 
+    # G. Cressey, R.A. Howie, in Encyclopedia of Geology, 2005
+    # Ni not often measured. 
+    # Mg-Fe olivines - Mg2+ and Fe2+ can occupy M1 and M2 with almost equal preference. Slight tendency for Fe2+ to occupy the M1 site rather than the M2 site
+    # Mg-Fe olivines - small proportion of Ca and Mn present. Substitution of Mn2+ for Fe2+ in fayalite also occurs.
+    # Ca olivines: Ca2+ occupies the (larger) M2 site, while Mg2+ and Fe2+ are randomly distributed on the M1 sites. 
+    ol_calc['Mg_Fe_Ca_Mn_M_Ol'] = ol_calc['Mg_Ol_cat_4ox'] + ol_calc['Fet_Ol_cat_4ox']
+    + ol_calc['Ca_Ol_cat_4ox'] + ol_calc['Mn_Ol_cat_4ox']
+
     cat_prop = pt.calculate_cat_proportions_olivine(ol_comps=ol_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
     cat_frac_anhyd = cat_prop.div(cat_prop['sum'], axis='rows')
@@ -379,6 +410,10 @@ def calculate_olivine_components(ol_comps, append):
     cat_frac_anhyd2 = pd.concat([ol_comps, ol_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
+
 
 def calculate_mol_proportions_spinel(sp_comps):
     
@@ -591,6 +626,8 @@ def calculate_spinel_components(sp_comps, append):
 
     sp_calc['Mg_Fe_M_Sp'] = sp_calc['Mg_Sp_cat_4ox'] + sp_calc['Fet_Sp_cat_4ox']
     sp_calc['Al_B_Sp'] = sp_calc['Al_Sp_cat_4ox']
+    sp_calc['Mg_Fe_Mn_M_Sp'] = sp_calc['Mg_Sp_cat_4ox'] + sp_calc['Fet_Sp_cat_4ox'] + sp_calc['Mn_Sp_cat_4ox']
+    sp_calc['Al_Ti_Cr_B_Sp'] = sp_calc['Al_Sp_cat_4ox'] + sp_calc['Ti_Sp_cat_4ox'] + sp_calc['Cr_Sp_cat_4ox']
 
     cat_prop = calculate_cat_proportions_spinel(sp_comps=sp_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
@@ -601,6 +638,10 @@ def calculate_spinel_components(sp_comps, append):
     cat_frac_anhyd2 = pd.concat([sp_comps, sp_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
+
 
 def calculate_mol_proportions_oxide(ox_comps):
 
@@ -772,8 +813,6 @@ def calculate_oxygens_oxide(ox_comps):
 
     return oxygens_anhyd
 
-
-
 def calculate_3oxygens_oxide(ox_comps):
 
     '''Import oxide compositions using ox_comps=My_Sps, returns cations on the basis of 4 oxygens.
@@ -854,7 +893,13 @@ def calculate_oxide_components(ox_comps, append):
     +ox_calc['Mg_Ox_cat_3ox']+ox_calc['Ca_Ox_cat_3ox']+ox_calc['Na_Ox_cat_3ox']
     +ox_calc['K_Ox_cat_3ox']+ox_calc['Cr_Ox_cat_3ox']+ox_calc['P_Ox_cat_3ox'])
 
-    ox_calc['Fe_Ti_Ox'] = ox_calc['Ti_Ox_cat_3ox'] + ox_calc['Fet_Ox_cat_3ox']
+    # Both octahedral sites
+    # Zr4+ substitutes for Ti4+.
+    # Cr and V substitute for Fe3+
+    # Hard to determine speciation
+    ox_calc['Fe_Ti_Ox'] = ox_calc['Fet_Ox_cat_3ox'] +  ox_calc['Ti_Ox_cat_3ox']
+    ox_calc['Fe_Mg_Mn_A_Ox'] = ox_calc['Fet_Ox_cat_3ox'] + ox_calc['Mg_Ox_cat_3ox'] + ox_calc['Mn_Ox_cat_3ox']
+    ox_calc['Ti_B_Ox'] = ox_calc['Ti_Ox_cat_3ox'] 
 
     cat_prop = calculate_cat_proportions_oxide(ox_comps=ox_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
@@ -865,6 +910,10 @@ def calculate_oxide_components(ox_comps, append):
     cat_frac_anhyd2 = pd.concat([ox_comps, ox_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
+
 
 def calculate_mol_proportions_apatite(ap_comps):
 
@@ -1077,7 +1126,11 @@ def calculate_apatite_components(ap_comps, append):
     +ap_calc['Mg_Ap_cat_12ox']+ap_calc['Ca_Ap_cat_12ox']+ap_calc['Na_Ap_cat_12ox']
     +ap_calc['K_Ap_cat_12ox']+ap_calc['Cr_Ap_cat_12ox']+ap_calc['P_Ap_cat_12ox'])
 
+    # OH, F, Cl not always measured. 
+    # Ca and P as cations
     ap_calc['Ca_P_Ap'] = ap_calc['Ca_Ap_cat_12ox'] + ap_calc['P_Ap_cat_12ox']
+    ap_calc['Ca_Mn_Na_M_Ap'] = ap_calc['Ca_Ap_cat_12ox'] + ap_calc['Mn_Ap_cat_12ox'] + ap_calc['Na_Ap_cat_12ox']
+    ap_calc['P_Si_T_Ap'] = ap_calc['P_Ap_cat_12ox'] + ap_calc['Si_Ap_cat_12ox']
 
     cat_prop = calculate_cat_proportions_apatite(ap_comps=ap_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
@@ -1088,6 +1141,10 @@ def calculate_apatite_components(ap_comps, append):
     cat_frac_anhyd2 = pd.concat([ap_comps, ap_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
+
 
 def calculate_mol_proportions_biotite(bt_comps):
 
@@ -1298,8 +1355,11 @@ def calculate_biotite_components(bt_comps, append):
     +bt_calc['Mg_Bt_cat_10ox']+bt_calc['Ca_Bt_cat_10ox']+bt_calc['Na_Bt_cat_10ox']
     +bt_calc['K_Bt_cat_10ox']+bt_calc['Cr_Bt_cat_10ox']+bt_calc['P_Bt_cat_10ox'])
 
-    bt_calc['Mg_Fe_Bt'] = bt_calc['Mg_Bt_cat_10ox'] + bt_calc['Fet_Bt_cat_10ox']
-    bt_calc['Si_Al_Bt'] = bt_calc['Si_Bt_cat_10ox'] + bt_calc['Al_Bt_cat_10ox']
+    bt_calc['Mg_Fe_M_Bt'] = bt_calc['Mg_Bt_cat_10ox'] + bt_calc['Fet_Bt_cat_10ox']
+    bt_calc['Si_Al_T_Bt'] = bt_calc['Si_Bt_cat_10ox'] + bt_calc['Al_Bt_cat_10ox']
+
+    bt_calc['Mg_Fe_Mn_Ti_M_Bt'] = bt_calc['Mg_Bt_cat_10ox'] + bt_calc['Fet_Bt_cat_10ox'] 
+    + bt_calc['Mn_Bt_cat_10ox'] + bt_calc['Ti_Bt_cat_10ox']
 
     cat_prop = calculate_cat_proportions_biotite(bt_comps=bt_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
@@ -1310,6 +1370,11 @@ def calculate_biotite_components(bt_comps, append):
     cat_frac_anhyd2 = pd.concat([bt_comps, bt_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
+
+
 
 def calculate_mol_proportions_quartz(qz_comps):
 
@@ -1521,7 +1586,7 @@ def calculate_quartz_components(qz_comps, append):
     +qz_calc['Mg_Qz_cat_2ox']+qz_calc['Ca_Qz_cat_2ox']+qz_calc['Na_Qz_cat_2ox']
     +qz_calc['K_Qz_cat_2ox']+qz_calc['Cr_Qz_cat_2ox']+qz_calc['P_Qz_cat_2ox'])
 
-    qz_calc['Si_Al_Qz'] = qz_calc['Si_Qz_cat_2ox'] + qz_calc['Al_Qz_cat_2ox']
+    qz_calc['Si_Al_Ti_Qz'] = qz_calc['Si_Qz_cat_2ox'] + qz_calc['Al_Qz_cat_2ox'] + qz_calc['Ti_Qz_cat_2ox']
 
     cat_prop = calculate_cat_proportions_quartz(qz_comps=qz_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
@@ -1532,6 +1597,9 @@ def calculate_quartz_components(qz_comps, append):
     cat_frac_anhyd2 = pd.concat([qz_comps, qz_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
 
 
 def calculate_mol_proportions_garnet(gt_comps):
@@ -1763,6 +1831,12 @@ def calculate_garnet_components(gt_comps, append):
     gt_calc['Cr_AlCr_Gt'] = gt_calc['Cr_Gt_cat_12ox'] / (gt_calc['Al_Gt_cat_12ox'] +\
      gt_calc['Cr_Gt_cat_12ox'])
 
+    # HOW TO HANDLE Fe2+ AND Fe3+
+    gt_calc['Ca_Mg_Fe_Mn_X_Gt'] = gt_calc['Ca_Gt_cat_12ox'] + gt_calc['Mg_Gt_cat_12ox']
+    + gt_calc['Fet_Gt_cat_12ox'] + gt_calc['Mn_Gt_cat_12ox']
+    gt_calc['Al_Fe_Mn_Cr_Y_Gt'] = gt_calc['Al_Gt_cat_12ox'] + gt_calc['Fet_Gt_cat_12ox']
+    + gt_calc['Mn_Gt_cat_12ox'] + gt_calc['Cr_Gt_cat_12ox']
+
     cat_prop = calculate_cat_proportions_garnet(gt_comps=gt_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
     cat_frac_anhyd = cat_prop.div(cat_prop['sum'], axis='rows')
@@ -1772,6 +1846,10 @@ def calculate_garnet_components(gt_comps, append):
     cat_frac_anhyd2 = pd.concat([gt_comps, gt_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
+
+
+
+
 
 def calculate_mol_proportions_kspar(kspar_comps):
     
@@ -2031,7 +2109,6 @@ ax[1].set_xlabel('Amp_Cation_Sum')
 ax[1].set_ylabel('Ca_B_Amp (B-site)')
 plt.tight_layout()
 
-
 # %% 
 
 LEPR_Cpx_PreFilt = pt.import_excel('MachineLearning_MinClass.xlsx', sheet_name="Cpx")['Cpxs']
@@ -2049,24 +2126,6 @@ ax[0].set_xlabel('SiO2')
 ax[0].set_ylabel('CaO')
 ax[1].scatter(LEPR_Cpx_cs['Cpx_Cation_Sum'], LEPR_Cpx_cs['Ca_CaMgFe_Cpx'], s = 5, color = 'r')
 ax[1].scatter(LEPR_Cpx_nosuf['Cpx_Cation_Sum'], LEPR_Cpx_nosuf['Ca_CaMgFe_Cpx'], s = 5, color = 'g')
-ax[1].set_xlabel('Cpx_Cation_Sum')
-ax[1].set_ylabel('Ca_CaMgFe')
-plt.tight_layout()
-
-
-# %%
-
-LEPR_Pig = LEPR_Cpx_PreFilt.loc[((LEPR_Cpx_cs.Cpx_Cation_Sum.between(3.95, 4.05)) & (LEPR_Cpx_cs.Ca_CaMgFe_Cpx.between(0.05, 2)) )]
-LEPR_Pig_nosuf = SiteCalculator(LEPR_Pig, '_Cpx', 'Pigeonite')
-
-fig, ax = plt.subplots(1, 2, figsize = (10, 5))
-ax = ax.flatten()
-ax[0].scatter(LEPR_Cpx_cs['SiO2_Cpx'], LEPR_Cpx_cs['CaO_Cpx'], s = 5, color = 'r')
-ax[0].scatter(LEPR_Pig['SiO2_Cpx'], LEPR_Pig['CaO_Cpx'], s = 5, color = 'g')
-ax[0].set_xlabel('SiO2')
-ax[0].set_ylabel('CaO')
-ax[1].scatter(LEPR_Cpx_cs['Cpx_Cation_Sum'], LEPR_Cpx_cs['Ca_CaMgFe_Cpx'], s = 5, color = 'r')
-ax[1].scatter(LEPR_Pig_nosuf['Cpx_Cation_Sum'], LEPR_Pig_nosuf['Ca_CaMgFe_Cpx'], s = 5, color = 'g')
 ax[1].set_xlabel('Cpx_Cation_Sum')
 ax[1].set_ylabel('Ca_CaMgFe')
 plt.tight_layout()
@@ -2209,14 +2268,14 @@ LEPR_Bt_nosuf = SiteCalculator(LEPR_Bt, '_Bt', 'Biotite')
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
-ax[0].scatter(LEPR_Bt_Pre['Bt_Cation_Sum'], LEPR_Bt_Pre['Mg_Fe_Bt'], s = 5, color = 'r')
-ax[0].scatter(LEPR_Bt_nosuf['Bt_Cation_Sum'], LEPR_Bt_nosuf['Mg_Fe_Bt'], s = 5, color = 'g')
+ax[0].scatter(LEPR_Bt_Pre['Bt_Cation_Sum'], LEPR_Bt_Pre['Mg_Fe_M_Bt'], s = 5, color = 'r')
+ax[0].scatter(LEPR_Bt_nosuf['Bt_Cation_Sum'], LEPR_Bt_nosuf['Mg_Fe_M_Bt'], s = 5, color = 'g')
 ax[0].set_xlabel('Bt_Cation_Sum')
-ax[0].set_ylabel('Mg_Fe_Bt')
-ax[1].scatter(LEPR_Bt_Pre['Bt_Cation_Sum'], LEPR_Bt_Pre['Si_Al_Bt'], s = 5, color = 'r')
-ax[1].scatter(LEPR_Bt_nosuf['Bt_Cation_Sum'], LEPR_Bt_nosuf['Si_Al_Bt'], s = 5, color = 'g')
+ax[0].set_ylabel('Mg_Fe_M_Bt')
+ax[1].scatter(LEPR_Bt_Pre['Bt_Cation_Sum'], LEPR_Bt_Pre['Si_Al_T_Bt'], s = 5, color = 'r')
+ax[1].scatter(LEPR_Bt_nosuf['Bt_Cation_Sum'], LEPR_Bt_nosuf['Si_Al_T_Bt'], s = 5, color = 'g')
 ax[1].set_xlabel('Bt_Cation_Sum')
-ax[1].set_ylabel('Si_Al_Bt')
+ax[1].set_ylabel('Si_Al_T_Bt')
 plt.tight_layout()
 
 
@@ -2257,7 +2316,7 @@ ax[0].set_ylabel('Mg_MgFeCa_Gt')
 ax[1].scatter(LEPR_Gt_Pre['Gt_Cation_Sum'], LEPR_Gt_Pre['Fe_MgFeCa_Gt'], s = 5, color = 'r')
 ax[1].scatter(LEPR_Gt_nosuf['Gt_Cation_Sum'], LEPR_Gt_nosuf['Fe_MgFeCa_Gt'], s = 5, color = 'g')
 ax[1].set_xlabel('Gt_Cation_Sum')
-ax[1].set_ylabel('Si_Al_Bt')
+ax[1].set_ylabel('Si_Al_T_Bt')
 plt.tight_layout()
 
 # %%
