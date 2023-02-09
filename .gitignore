@@ -1,1 +1,4 @@
+.DS_Store
 __pycache__
+GEOROC_minerals_filt/
+GEOROC_minerals_orig/

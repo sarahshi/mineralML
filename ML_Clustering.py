@@ -1,6 +1,6 @@
 # %% 
 
-""" Created on November 9, 2022 // @author: Sarah Shi and Penny Wieser """
+""" Created on November 9, 2022 // @author: Sarah Shi """
 
 import numpy as np
 import pandas as pd
@@ -25,6 +25,7 @@ warnings.simplefilter('ignore', category=SparseEfficiencyWarning)
 
 from scipy.special import softmax
 
+from sklearn import datasets
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA, KernelPCA
@@ -52,7 +53,6 @@ plt.rcParams['pdf.fonttype'] = 42
 pt.__version__
 
 # %% 
-
 
 def calculate_mol_proportions(comps):
 
@@ -298,7 +298,6 @@ def getLatent(model, dataset:np):
     return np.concatenate(latents, axis=0)
 
 
-
 # %% 
 
 
@@ -311,8 +310,8 @@ plt.show()
 phase_props = ['Na_K_A_Amp', 'Amp_Cation_Sum', 'Ca_CaMgFe_Cpx', 'Cpx_Cation_Sum', 
         'Na_Ca_M_Plag', 'Plag_Cation_Sum', 'Mg_Fe_M_Ol', 'Ol_Cation_Sum', 
         'Mg_Fe_M_Sp', 'Sp_Cation_Sum', 'Fe_Ti_Ox', 'Ox_Cation_Sum', 
-        'Ca_P_Ap', 'Ap_Cation_Sum', 'Si_Al_Bt', 'Bt_Cation_Sum', 
-        'Si_Al_Qz', 'Qz_Cation_Sum', 'Mg_MgFeCa_Gt', 'Gt_Cation_Sum', 
+        'Ca_P_Ap', 'Ap_Cation_Sum', 'Si_Al_T_Bt', 'Bt_Cation_Sum', 
+        'Si_Al_Ti_Qz', 'Qz_Cation_Sum', 'Mg_MgFeCa_Gt', 'Gt_Cation_Sum', 
         'Na_Ca_M_Kspar', 'Kspar_Cation_Sum']
 pd.plotting.scatter_matrix(LEPR_AllPhases[phase_props], figsize = (35, 35), hist_kwds={'bins':20})
 
@@ -333,7 +332,6 @@ ss = StandardScaler()
 LEPR_prop_scale = ss.fit_transform(LEPR_prop)
 LEPR_prop_softmax = softmax(LEPR_prop_norm, axis = 1)
 # LEPR_wt_standardscale = ss.fit_transform(LEPR_wt)
-
 
 # %% 
 
@@ -419,8 +417,8 @@ plt.tight_layout()
 fig, ax = plt.subplots(1, 1, figsize = (8, 8))
 for i in range(len(phase)):
     indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax.scatter(LEPR_AllPhases[indx]['Si_Al_Bt'], LEPR_AllPhases[indx]['Bt_Cation_Sum'], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax.set_xlabel('Si_Al_Bt')
+    ax.scatter(LEPR_AllPhases[indx]['Si_Al_T_Bt'], LEPR_AllPhases[indx]['Bt_Cation_Sum'], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+ax.set_xlabel('Si_Al_T_Bt')
 ax.set_ylabel('Bt_Cation_Sum')
 ax.legend(prop={'size': 10})
 plt.tight_layout()
@@ -429,8 +427,8 @@ plt.tight_layout()
 fig, ax = plt.subplots(1, 1, figsize = (8, 8))
 for i in range(len(phase)):
     indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax.scatter(LEPR_AllPhases[indx]['Si_Al_Qz'], LEPR_AllPhases[indx]['Qz_Cation_Sum'], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax.set_xlabel('Si_Al_Qz')
+    ax.scatter(LEPR_AllPhases[indx]['Si_Al_Ti_Qz'], LEPR_AllPhases[indx]['Qz_Cation_Sum'], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+ax.set_xlabel('Si_Al_Ti_Qz')
 ax.set_ylabel('Qz_Cation_Sum')
 ax.legend(prop={'size': 10})
 plt.tight_layout()
@@ -807,99 +805,99 @@ plt.show()
 
 # %% 
 
-start = time.time()
-isomap = Isomap(n_components=2) #resulting data has 2 dimensions, 'components'
-df_wt_isomap = isomap.fit_transform(LEPR_wt) #fit model and transform
-df_wt_norm_isomap = isomap.fit_transform(LEPR_wt_norm)
-df_wt_scale_isomap = isomap.fit_transform(LEPR_wt_scale)
-df_wt_softmax_isomap = isomap.fit_transform(LEPR_wt_softmax)
+# start = time.time()
+# isomap = Isomap(n_components=2) #resulting data has 2 dimensions, 'components'
+# df_wt_isomap = isomap.fit_transform(LEPR_wt) #fit model and transform
+# df_wt_norm_isomap = isomap.fit_transform(LEPR_wt_norm)
+# df_wt_scale_isomap = isomap.fit_transform(LEPR_wt_scale)
+# df_wt_softmax_isomap = isomap.fit_transform(LEPR_wt_softmax)
 
-df_prop_isomap = isomap.fit_transform(LEPR_prop)
-df_prop_norm_isomap = isomap.fit_transform(LEPR_prop_norm)
-df_prop_scale_isomap = isomap.fit_transform(LEPR_prop_scale)
-df_prop_softmax_isomap = isomap.fit_transform(LEPR_prop_softmax)
-end = time.time()
-print(str(end-start) + ' seconds elapsed')
-
-
-fig, ax = plt.subplots(2, 4, figsize = (32, 16))
-ax = ax.flatten()
+# df_prop_isomap = isomap.fit_transform(LEPR_prop)
+# df_prop_norm_isomap = isomap.fit_transform(LEPR_prop_norm)
+# df_prop_scale_isomap = isomap.fit_transform(LEPR_prop_scale)
+# df_prop_softmax_isomap = isomap.fit_transform(LEPR_prop_softmax)
+# end = time.time()
+# print(str(end-start) + ' seconds elapsed')
 
 
-# PCA on wt. % 
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[0].scatter(df_wt_isomap[indx][:, 0], df_wt_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[0].legend(prop={'size': 10})
-ax[0].set_title('No Normalization or Scaling wt % - Isomap')
-ax[0].set_xlabel('Latent Variable 1')
-ax[0].set_ylabel('Latent Variable 2')
-
-# My feature_normalisation function has the same function as normalization from sklearn.preprocessing
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[1].scatter(df_wt_norm_isomap[indx][:, 0], df_wt_norm_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[1].legend(prop={'size': 10})
-ax[1].set_title('Normalization wt % - Isomap')
-ax[1].set_xlabel('Latent Variable 1')
-ax[1].set_ylabel('Latent Variable 2')
-
-# Scaling
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[2].scatter(df_wt_scale_isomap[indx][:, 0], df_wt_scale_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[2].legend(prop={'size': 10})
-ax[2].set_title('Scaling wt % - Isomap')
-ax[2].set_xlabel('Latent Variable 1')
-ax[2].set_ylabel('Latent Variable 2')
-
-# Softmax
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[3].scatter(df_wt_softmax_isomap[indx][:, 0], df_wt_softmax_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[3].legend(prop={'size': 10})
-ax[3].set_title('Softmax wt % - Isomap')
-ax[3].set_xlabel('Latent Variable 1')
-ax[3].set_ylabel('Latent Variable 2')
+# fig, ax = plt.subplots(2, 4, figsize = (32, 16))
+# ax = ax.flatten()
 
 
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[4].scatter(df_prop_isomap[indx][:, 0], df_prop_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[4].legend(prop={'size': 10})
-ax[4].set_title('No Normalization or Scaling mol prop - Isomap')
-ax[4].set_xlabel('Latent Variable 1')
-ax[4].set_ylabel('Latent Variable 2')
+# # PCA on wt. % 
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[0].scatter(df_wt_isomap[indx][:, 0], df_wt_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[0].legend(prop={'size': 10})
+# ax[0].set_title('No Normalization or Scaling wt % - Isomap')
+# ax[0].set_xlabel('Latent Variable 1')
+# ax[0].set_ylabel('Latent Variable 2')
 
-# My feature_normalisation function has the same function as normalization from sklearn.preprocessing
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[5].scatter(df_prop_norm_isomap[indx][:, 0], df_prop_norm_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[5].legend(prop={'size': 10})
-ax[5].set_title('Normalization mol prop - Isomap')
-ax[5].set_xlabel('Latent Variable 1')
-ax[5].set_ylabel('Latent Variable 2')
+# # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[1].scatter(df_wt_norm_isomap[indx][:, 0], df_wt_norm_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[1].legend(prop={'size': 10})
+# ax[1].set_title('Normalization wt % - Isomap')
+# ax[1].set_xlabel('Latent Variable 1')
+# ax[1].set_ylabel('Latent Variable 2')
 
-# Scaling
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[6].scatter(df_prop_scale_isomap[indx][:, 0], df_prop_scale_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[6].legend(prop={'size': 10})
-ax[6].set_title('Scaling mol prop- Isomap')
-ax[6].set_xlabel('Latent Variable 1')
-ax[6].set_ylabel('Latent Variable 2')
+# # Scaling
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[2].scatter(df_wt_scale_isomap[indx][:, 0], df_wt_scale_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[2].legend(prop={'size': 10})
+# ax[2].set_title('Scaling wt % - Isomap')
+# ax[2].set_xlabel('Latent Variable 1')
+# ax[2].set_ylabel('Latent Variable 2')
 
-# Softmax
-for i in range(len(phase)):
-    indx = LEPR_AllPhases['Phase'] == phase[i]
-    ax[7].scatter(df_prop_softmax_isomap[indx][:, 0], df_prop_softmax_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[7].legend(prop={'size': 10})
-ax[7].set_title('Softmax mol prop - Isomap')
-ax[7].set_xlabel('Latent Variable 1')
-ax[7].set_ylabel('Latent Variable 2')
+# # Softmax
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[3].scatter(df_wt_softmax_isomap[indx][:, 0], df_wt_softmax_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[3].legend(prop={'size': 10})
+# ax[3].set_title('Softmax wt % - Isomap')
+# ax[3].set_xlabel('Latent Variable 1')
+# ax[3].set_ylabel('Latent Variable 2')
 
-plt.tight_layout()
-plt.show()
+
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[4].scatter(df_prop_isomap[indx][:, 0], df_prop_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[4].legend(prop={'size': 10})
+# ax[4].set_title('No Normalization or Scaling mol prop - Isomap')
+# ax[4].set_xlabel('Latent Variable 1')
+# ax[4].set_ylabel('Latent Variable 2')
+
+# # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[5].scatter(df_prop_norm_isomap[indx][:, 0], df_prop_norm_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[5].legend(prop={'size': 10})
+# ax[5].set_title('Normalization mol prop - Isomap')
+# ax[5].set_xlabel('Latent Variable 1')
+# ax[5].set_ylabel('Latent Variable 2')
+
+# # Scaling
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[6].scatter(df_prop_scale_isomap[indx][:, 0], df_prop_scale_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[6].legend(prop={'size': 10})
+# ax[6].set_title('Scaling mol prop- Isomap')
+# ax[6].set_xlabel('Latent Variable 1')
+# ax[6].set_ylabel('Latent Variable 2')
+
+# # Softmax
+# for i in range(len(phase)):
+#     indx = LEPR_AllPhases['Phase'] == phase[i]
+#     ax[7].scatter(df_prop_softmax_isomap[indx][:, 0], df_prop_softmax_isomap[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+# ax[7].legend(prop={'size': 10})
+# ax[7].set_title('Softmax mol prop - Isomap')
+# ax[7].set_xlabel('Latent Variable 1')
+# ax[7].set_ylabel('Latent Variable 2')
+
+# plt.tight_layout()
+# plt.show()
 
 # %% perplexity = 5 does not work well, higher perplexity better. 
 # this is for visualization though, does not work so well for clustering. 
