@@ -362,9 +362,7 @@ LEPR_Kspar_nosuf = mm.SiteCalculator(LEPR_Kspar, '_Kspar', 'KSpar')
 LEPR_Kspar_nosuf = LEPR_Kspar_nosuf.rename(columns=rename_columns('_Kspar'))
 LEPR_Kspar_nosuf = LEPR_Kspar_nosuf.drop(columns=['Sample_ID_Kspar'], errors='ignore')
 
-LEPR_AllPhases = pd.concat([LEPR_Amp_nosuf, LEPR_Cpx_nosuf, LEPR_Opx_nosuf, LEPR_Plag_nosuf, LEPR_Ol_nosuf, 
-    LEPR_Sp_nosuf, LEPR_Ox_nosuf, LEPR_Ap_nosuf, LEPR_Bt_nosuf, LEPR_Qz_nosuf, LEPR_Gt_nosuf, LEPR_Kspar_nosuf], 
-    axis = 0, ignore_index = True)
+LEPR_AllPhases = pd.concat([LEPR_Amp_nosuf, LEPR_Cpx_nosuf, LEPR_Opx_nosuf, LEPR_Plag_nosuf, LEPR_Ol_nosuf, LEPR_Sp_nosuf, LEPR_Ox_nosuf, LEPR_Ap_nosuf, LEPR_Bt_nosuf, LEPR_Qz_nosuf, LEPR_Gt_nosuf, LEPR_Kspar_nosuf], axis = 0, ignore_index = True)
 
 # %% 
 
