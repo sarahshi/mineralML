@@ -761,9 +761,7 @@ same_seeds(42)
 min_df = pd.read_csv('TrainingData/mindf_filt.csv')
 
 
-
 def main(df, name, hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner):
-    # Load your dataset
 
     # Define the parameter ranges for hyperparameter tuning
     hidden_layer_large = hidden_layer_large
@@ -789,7 +787,7 @@ if __name__ == '__main__':
     n_splits_outer = 5
     n_splits_inner = 5
 
-    names = ["nn_nested_kfold_crossval_cores", ""]
+    names = ["nn_nested_kfold_crossval_cores_itertools", ""]
     i = 0 
     name = names[i]
 
