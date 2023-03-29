@@ -31,7 +31,6 @@ from sklearn.decomposition import PCA, KernelPCA
 from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE
 from sklearn.preprocessing import scale, normalize, StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, f1_score, precision_recall_fscore_support
-# from imblearn.over_sampling import RandomOverSampler
 
 # %% 
 
@@ -446,29 +445,6 @@ def train_nn(model, optimizer, label, train_loader, test_loader, n_epoch, criter
     return train_output, test_output, avg_train_loss, avg_test_loss
 
 
-# def balance(train_data_x, train_data_y):
-
-#     oversample = RandomOverSampler(sampling_strategy='minority', random_state=42)
-
-#     # Resample the dataset
-#     x_balanced, y_balanced = oversample.fit_resample(train_data_x, train_data_y)
-
-#     df_resampled = pd.DataFrame(x_balanced)
-#     df_resampled['Mineral'] = y_balanced
-
-#     df_balanced = pd.DataFrame()
-#     for class_label in df_resampled['Mineral'].unique():
-#         df_class = df_resampled[df_resampled['Mineral'] == class_label]
-#         df_balanced = pd.concat([df_balanced, df_class.sample(n=1000, replace = True, random_state=42)])
-
-#     # Reset the index of the balanced dataframe
-#     df_balanced = df_balanced.reset_index(drop=True)
-#     train_data_x = df_balanced.iloc[:, :-1].to_numpy()
-#     train_data_y = df_balanced.iloc[:, -1].to_numpy()
-
-#     return train_data_x, train_data_y
-
-
 def neuralnetwork(df, name, hidden_layer_sizes, epochs, n): #, balanced): 
 
     oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
@@ -771,10 +747,11 @@ def main(df, name, hidden_layer_large, hidden_layer_small, learning_rates, weigh
     epochs = epochs
 
     n_splits_outer = 5
-    n_splits_inner = 5
+    n_splits_inner = 3
 
     reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params = nested_cross_val(df, name, hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
     # You can now use the returned values for further processing or analysis.
+    return reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params
 
 if __name__ == '__main__':
     freeze_support()
@@ -785,7 +762,7 @@ if __name__ == '__main__':
     hidden_layer_large = [128, 64, 32]
     hidden_layer_small = [64, 32, 16]
     n_splits_outer = 5
-    n_splits_inner = 5
+    n_splits_inner = 3
 
     names = ["nn_nested_kfold_crossval_cores_itertools", ""]
     i = 0 

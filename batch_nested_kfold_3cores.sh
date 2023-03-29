@@ -4,16 +4,16 @@
 #SBATCH --mail-user=scs76@cam.ac.uk
 
 #----- Specify your job name (without space). This appears in the notificaiton mails:
-#SBATCH --job-name=cluster
+#SBATCH --job-name=MIN_ML
 
 #----- Specify minimum nodes required (optional):
-#SBATCH --nodes=3
+#SBATCH --nodes=1
 
 #----- Specify minimum RAM/Memory required per CPU (optional):
 #SBATCH --mem-per-cpu=8G
 
 #----- Specify minimum CPU cores required (optional):
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=40
 
 #------------------------------------------------------------------------#
 #SBATCH --mail-type=START,FAIL,END

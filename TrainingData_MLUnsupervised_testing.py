@@ -12,6 +12,9 @@ import json
 import random
 import pickle
 import warnings
+import itertools 
+import concurrent.futures
+from multiprocessing import freeze_support
 
 from scipy.sparse import (SparseEfficiencyWarning)
 warnings.simplefilter('ignore', category=(FutureWarning,SparseEfficiencyWarning))
@@ -49,23 +52,6 @@ def load_model(model, optimizer=None, path=''):
     if optimizer is not None:
         optimizer.load_state_dict(check_point['potimizer'])
 
-def getLatent(model, dataset:np):
-    #transform real data to latent space using the trained model
-    latents=[]
-    model.to(device)
-
-    dataset_ = FeatureDataset(dataset)
-    loader = DataLoader(dataset_,batch_size=20,shuffle=False)
-    
-    model.eval()
-    with torch.no_grad():
-        for i, data in enumerate(loader):
-            x = data.to(device)
-            z = model.encoded(x)
-            latents.append(z.detach().cpu().numpy())
-    
-    return np.concatenate(latents, axis=0)
-
 def same_seeds(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
@@ -75,236 +61,6 @@ def same_seeds(seed):
     random.seed(seed)  # Python random module.
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
-
-# %% 
-
-class FeatureDataset(Dataset):
-    def __init__(self, x):
-        if len(x.shape)==2:
-            self.x = x
-        else:
-            self.x = x.reshape(-1, x.shape[-1]) #dataset keeps the right shape for training
-
-    def __len__(self):
-        return self.x.shape[0] 
-    
-    def __getitem__(self, n): 
-        return torch.Tensor(self.x[n])
-
-class Autoencoder(nn.Module):
-    def __init__(self,input_dim = 10, latent_dim = 2, hidden_layer_sizes=(512, 256, 128)):
-        super(Autoencoder, self).__init__()
-        self.input_dim = input_dim
-        self.latent_dim = latent_dim
-        self.hls = hidden_layer_sizes
-
-        def element(in_channel, out_channel):
-            return [
-                nn.Linear(in_channel, out_channel),
-                nn.LayerNorm(out_channel),
-                nn.LeakyReLU(0.02),
-            ]
-
-        encoder = element(self.input_dim, self.hls[0])
-        for i in range(len(self.hls) - 1):
-            encoder += element(self.hls[i], self.hls[i + 1])
-        encoder += [nn.Linear(self.hls[-1], latent_dim)]
-
-        decoder = element(latent_dim, self.hls[-1])
-        for i in range(len(self.hls) - 1, 0, -1):
-            decoder += element(self.hls[i], self.hls[i - 1])
-        decoder += [nn.Linear(self.hls[0], self.input_dim)] # nn.Softmax()]
-
-        self.encode = nn.Sequential(*encoder)
-        self.decode = nn.Sequential(*decoder)
-
-        self.apply(weights_init)
-
-    def encoded(self, x):
-        #encodes data to latent space
-        return self.encode(x)
-
-    def decoded(self, x):
-        #decodes latent space data to 'real' space
-        return self.decode(x)
-
-    def forward(self, x):
-        en = self.encoded(x)
-        de = self.decoded(en)
-        return de
-
-class Tanh_Autoencoder(nn.Module):
-    def __init__(self,input_dim = 10, latent_dim = 2, hidden_layer_sizes=(64, 32)):
-        super(Tanh_Autoencoder, self).__init__()
-        self.input_dim = input_dim
-        self.latent_dim = latent_dim
-        self.hls = hidden_layer_sizes
-
-        def element(in_channel, out_channel):
-            return [
-                nn.Linear(in_channel, out_channel),
-                nn.LayerNorm(out_channel),
-                nn.Tanh(),
-            ]
-
-        encoder = element(self.input_dim, self.hls[0])
-        for i in range(len(self.hls) - 1):
-            encoder += element(self.hls[i], self.hls[i + 1])
-        encoder += [nn.Linear(self.hls[-1], latent_dim)]
-
-        decoder = element(latent_dim, self.hls[-1])
-        for i in range(len(self.hls) - 1, 0, -1):
-            decoder += element(self.hls[i], self.hls[i - 1])
-        decoder += [nn.Linear(self.hls[0], self.input_dim)] # nn.Softmax()]
-
-        self.encode = nn.Sequential(*encoder)
-        self.decode = nn.Sequential(*decoder)
-
-        self.apply(weights_init)
-
-    def encoded(self, x):
-        #encodes data to latent space
-        return self.encode(x)
-
-    def decoded(self, x):
-        #decodes latent space data to 'real' space
-        return self.decode(x)
-
-    def forward(self, x):
-        en = self.encoded(x)
-        de = self.decoded(en)
-        return de
-
-def train(model, optimizer, train_loader, test_loader, n_epoch, criterion):
-    
-    avg_train_loss = []
-    avg_test_loss = []
-
-    for epoch in range(n_epoch):
-        # Training
-        model.train()
-        t = time.time()
-        train_loss = []
-        for i, data in enumerate(train_loader):
-            x = data.to(device)
-            x_recon = model(x)
-            loss = criterion(x_recon, x)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            train_loss.append(loss.detach().item())
-        
-        # Testing
-        model.eval()
-        test_loss = []
-        for i, test in enumerate(test_loader):
-            x = test.to(device)
-            x_recon = model(x)
-            loss = criterion(x_recon, x)
-            test_loss.append(loss.detach().item())
-        
-        # Logging
-        avg_loss = sum(train_loss) / len(train_loss)
-        avg_test = sum(test_loss) / len(test_loss)
-        avg_train_loss.append(avg_loss)
-        avg_test_loss.append(avg_test)
-        
-        training_time = time.time() - t
-        
-        print(f'[{epoch+1:03}/{n_epoch:03}] train_loss: {avg_loss:.6f}, test_loss: {avg_test:.6f}, time: {training_time:.2f} s')
-
-    return avg_train_loss, avg_test_loss
-
-def autoencode(df, name, AE_Model, hidden_layer_sizes):
-
-    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-
-    wt = df[oxides].fillna(0)
-    mol = mm.calculate_mol_proportions(wt)
-    wt = wt.to_numpy()
-    mol = mol.to_numpy()
-
-    #perform z-score normalisation
-    array_norm_wt = normalize(wt)
-
-    ss = StandardScaler()
-    array_norm = ss.fit_transform(wt)
-
-    #split the dataset into train and test sets
-    train_data, test_data = train_test_split(array_norm, test_size=0.1, stratify = df['Mineral'], random_state=42)
-
-    #define datasets to be used with PyTorch - see autoencoder file for details
-    feature_dataset = FeatureDataset(train_data)
-    test_dataset = FeatureDataset(test_data)   
-
-    #autoencoder params:
-    lr = 5e-4
-    wd = 0
-    batch_size = 256
-    epochs = 50
-    input_size = feature_dataset.__getitem__(0).size(0)
-
-    #define data loaders
-    feature_loader = DataLoader(feature_dataset, batch_size=batch_size,shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size,shuffle=True)
-    np.savez('autoencoder_parametermatrix/' + name + '_features.npz', feature_loader = feature_loader, test_loader = test_loader)
-
-
-    #define model
-    model = AE_Model(input_dim=input_size, hidden_layer_sizes = hidden_layer_sizes).to(device)
-
-    #use ADAM optimizer with mean squared error loss function
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr,weight_decay=wd) 
-    criterion = nn.MSELoss()
-
-    #train model using pre-defined function
-    train_loss, test_loss = train(model, optimizer, feature_loader, test_loader, epochs, criterion)
-    np.savez('autoencoder_parametermatrix/' + name + '_tanh_loss.npz', train_loss = train_loss, test_loss = test_loss)
-
-    
-    fig, ax = plt.subplots(1, 2, figsize = (16, 8))
-    ax = ax.flatten()
-    ax[0].plot(np.linspace(1, epochs, epochs), train_loss, '.-', label = 'Train Loss')
-    ax[0].plot(np.linspace(1, epochs, epochs), test_loss, '.-', label = 'Test Loss')
-    ax[0].set_xlabel("Epochs")
-    ax[0].set_ylabel("Loss")
-    ax[0].legend(prop={'size': 10})
-
-    #transform entire dataset to latent space
-    z = getLatent(model, array_norm)
-
-    phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
-        'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
-        'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])
-    phasez = range(1,len(phase))
-    tab = plt.get_cmap('tab20')
-    cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
-    scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
-
-    # plot latent representation
-    for i in range(len(phase)):
-        indx = df['Mineral'] == phase[i]
-        ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized = True)
-    ax[1].set_xlabel("Latent Variable 1")
-    ax[1].set_ylabel("Latent Variable 2")
-    ax[1].set_title(name + " Latent Space Representation")
-    ax[1].legend(prop={'size': 8})
-    plt.tight_layout()
-    plt.savefig('autoencoder_parametermatrix/' + name + '_loss_latentspace.pdf',)
-
-    # save main model params
-    model_path = name + "_tanh_params.pt"
-    save_model(model, optimizer, model_path)
-
-    # save all other params
-    conc_file = name + "_tanh.npz"
-    np.savez('autoencoder_parametermatrix/' + name + "_tanh.npz", batch_size = batch_size, epochs = epochs, input_size = input_size, 
-            conc_file = conc_file, z = z)
-
-    return z 
 
 
 # %% 
@@ -390,11 +146,11 @@ def train_nn(model, optimizer, label, train_loader, test_loader, n_epoch, criter
     best_test_loss = float('inf')
     best_epoch = 0
     patience_counter = 0
+    start_time = time.time()
 
     for epoch in range(n_epoch):
         # Training
         model.train()
-        t = time.time()
         train_loss = []
         for i, (data, labels) in enumerate(train_loader):
             x = data.to(device)
@@ -425,9 +181,9 @@ def train_nn(model, optimizer, label, train_loader, test_loader, n_epoch, criter
         avg_train_loss.append(avg_train)
         avg_test_loss.append(avg_test)
         
-        training_time = time.time() - t
- 
-        print(f'[{epoch+1:03}/{n_epoch:03}] train_loss: {avg_train:.6f}, test_loss: {avg_test:.6f}, time: {training_time:.2f} s')
+        if (epoch + 1) % 25 == 0:
+            training_time = time.time() - start_time
+            print(f'[{epoch+1:03}/{n_epoch:03}] train_loss: {avg_train:.6f}, test_loss: {avg_test:.6f}, time: {training_time:.2f} s')
 
         # Early stopping
         if avg_test < best_test_loss:
@@ -443,29 +199,6 @@ def train_nn(model, optimizer, label, train_loader, test_loader, n_epoch, criter
     return train_output, test_output, avg_train_loss, avg_test_loss
 
 
-# def balance(train_data_x, train_data_y):
-
-#     oversample = RandomOverSampler(sampling_strategy='minority', random_state=42)
-
-#     # Resample the dataset
-#     x_balanced, y_balanced = oversample.fit_resample(train_data_x, train_data_y)
-
-#     df_resampled = pd.DataFrame(x_balanced)
-#     df_resampled['Mineral'] = y_balanced
-
-#     df_balanced = pd.DataFrame()
-#     for class_label in df_resampled['Mineral'].unique():
-#         df_class = df_resampled[df_resampled['Mineral'] == class_label]
-#         df_balanced = pd.concat([df_balanced, df_class.sample(n=1000, replace = True, random_state=42)])
-
-#     # Reset the index of the balanced dataframe
-#     df_balanced = df_balanced.reset_index(drop=True)
-#     train_data_x = df_balanced.iloc[:, :-1].to_numpy()
-#     train_data_y = df_balanced.iloc[:, -1].to_numpy()
-
-#     return train_data_x, train_data_y
-
-
 def neuralnetwork(df, name, hidden_layer_sizes, epochs, n): #, balanced): 
 
     oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
@@ -479,9 +212,6 @@ def neuralnetwork(df, name, hidden_layer_sizes, epochs, n): #, balanced):
 
     #split the dataset into train and test sets
     train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm, pd.Categorical(df['Mineral']).codes, test_size=n, stratify = pd.Categorical(df['Mineral']).codes, random_state=42)
-
-    # if balanced == True: 
-    #     train_data_x, train_data_y = balance(train_data_x, train_data_y)
 
     #define datasets to be used with PyTorch - see autoencoder file for details
     feature_dataset = FeatureDataset_nn(train_data_x, train_data_y)
@@ -524,13 +254,6 @@ def neuralnetwork(df, name, hidden_layer_sizes, epochs, n): #, balanced):
     train_report = classification_report(train_data_y, train_pred_classes, target_names = sort_mapping.values(), zero_division=0)
     test_report = classification_report(test_data_y, test_pred_classes, target_names = sort_mapping.values(), zero_division=0)
 
-    fig, ax = plt.subplots(1, 1, figsize = (8, 8))
-    ax.plot(np.linspace(1, epochs, epochs), train_loss, '.-', label = 'Train Loss')
-    ax.plot(np.linspace(1, epochs, epochs), test_loss, '.-', label = 'Test Loss')
-    ax.set_xlabel("Epochs")
-    ax.set_ylabel("Loss")
-    ax.legend(prop={'size': 10})
-
     return train_pred_classes, test_pred_classes, train_report, test_report
 
 
@@ -543,7 +266,6 @@ class MultiClassClassifier_optim(nn.Module):
         self.input_dim = input_dim
         self.hls = (hidden_layer_large, hidden_layer_small)
         self.classes = classes
-        # self.dropout_rate = dr
 
         def element(in_channel, out_channel):
             return [
@@ -598,56 +320,60 @@ def nested_cross_val(df, name, hidden_layer_large, hidden_layer_small, learning_
 
     reports_dict = {}  # Create a dictionary to store train and test reports for each trial
 
+    log_file = 'training.log'
+
+    outer_loop_count = 0
+
     for train_idx, test_idx in outer_cv.split(X, y):
         X_train, X_test = X[train_idx], X[test_idx]
         y_train, y_test = y[train_idx], y[test_idx]
 
+        nn_count = 0 
         best_val_score = 0
         best_hll = None
         best_hls = None
         best_learning_rate = None
         best_weight_decay = None
         best_epochs = None 
-        nn_count = 0 
 
-        for hll in hidden_layer_large:
-            for hls in hidden_layer_small: 
-                for lr in learning_rates:
-                    for wd in weight_decays:
-                        for ep in epochs: 
-                            val_scores = []
+        param_combinations = list(itertools.product(hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs))
 
-                            for train_inner_idx, test_inner_idx in inner_cv.split(X_train, y_train):
+        for nn_count, (hll, hls, lr, wd, ep) in enumerate(param_combinations):
+            params_list = [
+                (train_inner_idx, test_inner_idx, df, X_train, y_train, name, hll, hls, lr, wd, ep)
+                for train_inner_idx, test_inner_idx in inner_cv.split(X_train, y_train)
+            ]
 
-                                X_train_inner, X_test_inner = X_train[train_inner_idx], X_train[test_inner_idx]
-                                y_train_inner, y_test_inner = y_train[train_inner_idx], y_train[test_inner_idx]
-                                
-                                print('nn_count = {}, hidden_layer_large = {}, hidden_layer_small = {}, learning rate = {:.4f}, weight_decay = {:.4f}, epochs = {}'.format(nn_count, hll, hls, lr, wd, ep))
-                                train_pred_classes_inner, test_pred_classes_inner, train_report_inner, test_report_inner = neuralnetwork_kfold(df, X_train_inner, y_train_inner, X_test_inner, y_test_inner, name, hll, hls, lr, wd, ep)
+            message = f'[{nn_count:03}] hll: {hll}, hls: {hls}, lr: {lr}, wd: {wd}, ep: {ep}'
+            with open(log_file, 'a') as f:
+                f.write(message + '\n')
 
-                                val_f1_score = f1_score(y_test_inner, test_pred_classes_inner, average='weighted')
-                                val_scores.append(val_f1_score)
+            # Replace the ThreadPoolExecutor block with the following loop
+            # val_scores = [parallel_inner_loop(params) for params in params_list]
 
-                                nn_count += 1
-                            avg_val_score = np.mean(val_scores)
+            with concurrent.futures.ThreadPoolExecutor(max_workers = 6) as executor:
+                val_scores = list(executor.map(parallel_inner_loop, params_list))
 
-                            if avg_val_score > best_val_score:
-                                best_val_score = avg_val_score
-                                best_hll = hll
-                                best_hls = hls
-                                best_learning_rate = lr
-                                best_weight_decay = wd
-                                best_epochs = ep
+            avg_val_score = np.mean(val_scores)
 
+            if avg_val_score > best_val_score:
+                best_val_score = avg_val_score
+                best_hll = hll
+                best_hls = hls
+                best_learning_rate = lr
+                best_weight_decay = wd
+                best_epochs = ep
 
-        train_pred_classes, test_pred_classes, train_report, test_report = neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, best_hidden_layers, best_learning_rate, best_weight_decay, best_epochs)
-        
-        reports_dict[nn_count] = {
-            'avg_train_report': avg_train_report,
-            'avg_test_report': avg_test_report,
-            'hll': hll, 'hls': hls, 
-            'lr': lr, 'wd': wd, 'ep': ep
+        train_pred_classes, test_pred_classes, train_report, test_report = neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, best_hll, best_hls, best_learning_rate, best_weight_decay, best_epochs)
+
+        reports_dict[f'{outer_loop_count}_{nn_count}'] = {
+            'avg_train_report': train_report,
+            'avg_test_report': test_report,
+            'hll': best_hll, 'hls': best_hls,
+            'lr': best_learning_rate, 'wd': best_weight_decay, 'ep': best_epochs
         }
+
+        outer_loop_count += 1
 
         train_reports.append({
             'true_labels': y_train,
@@ -660,12 +386,23 @@ def nested_cross_val(df, name, hidden_layer_large, hidden_layer_small, learning_
             'label_names': list(sort_mapping.values())
         })
 
+
     avg_train_report = average_classification_reports(train_reports)
     avg_test_report = average_classification_reports(test_reports)
 
     best_params = np.array([best_hll, best_hls, best_learning_rate, best_weight_decay, best_epochs])
 
     return reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params
+
+def parallel_inner_loop(args):
+    train_inner_idx, test_inner_idx, df, X_train, y_train, name, hll, hls, lr, wd, ep = args
+    X_train_inner, X_test_inner = X_train[train_inner_idx], X_train[test_inner_idx]
+    y_train_inner, y_test_inner = y_train[train_inner_idx], y_train[test_inner_idx]
+
+    train_pred_classes_inner, test_pred_classes_inner, _, _ = neuralnetwork_kfold(df, X_train_inner, y_train_inner, X_test_inner, y_test_inner, name, hll, hls, lr, wd, ep)
+
+    val_f1_score = f1_score(y_test_inner, test_pred_classes_inner, average='weighted')
+    return val_f1_score
 
 
 def neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, hidden_layer_large, hidden_layer_small, learning_rate, weight_decay, epochs): 
@@ -691,7 +428,7 @@ def neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, hidden_layer
     # Define data loaders
     feature_loader = DataLoader(feature_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
-    np.savez('nn_parametermatrix/' + name + '_nn_features.npz', feature_loader = feature_loader, test_loader = test_loader)
+    # np.savez('nn_parametermatrix/' + name + '_nn_features.npz', feature_loader = feature_loader, test_loader = test_loader)
 
     # Initialize model
     model = MultiClassClassifier_optim(input_dim=input_size, hidden_layer_large=hidden_layer_large, hidden_layer_small=hidden_layer_small).to(device) # dropout_rate = dr
@@ -705,7 +442,7 @@ def neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, hidden_layer
 
     # Train model using pre-defined function
     train_output, test_output, train_loss, test_loss = train_nn(model, optimizer, label, feature_loader, test_loader, epochs, criterion)
-    np.savez('nn_parametermatrix/' + name + '_nn_loss.npz', train_loss = train_loss, test_loss = test_loss)
+    # np.savez('nn_parametermatrix/' + name + '_nn_loss.npz', train_loss = train_loss, test_loss = test_loss)
 
     # Predict classes for entire training and test datasets
     train_pred_classes = model.predict(feature_dataset.x)
@@ -745,26 +482,38 @@ def average_classification_reports(reports):
 
 # %% 
 
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
 same_seeds(42)
 
 min_df = pd.read_csv('TrainingData/mindf_filt.csv')
 
+def main(df, name, hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner):
 
-names = ["nn_nested_kfold_crossval", ""]
-i = 0 
-name = names[i]
+    # Define the parameter ranges for hyperparameter tuning
 
-epochs = [2, 4, 6]
-learning_rates = [1e-1, 1e-2, 1e-3, 2.5e-3, 5e-3, 1e-4]
-weight_decays = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
-hidden_layer_large = [256, 128, 64, 32, 16, 8]
-hidden_layer_small = [128, 64, 32, 16, 8, 4]
-n_splits_outer = 5
-n_splits_inner = 10
+    reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params = nested_cross_val(df, name, hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
+    # You can now use the returned values for further processing or analysis.
+    return reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params
 
-reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params = nested_cross_val(min_df, name, hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
+if __name__ == '__main__':
+    freeze_support()
+
+    epochs = [225, 250, 275]
+    learning_rates = [1e-2, 1e-3, 2.5e-3]
+    weight_decays = [1e-2, 1e-3, 1e-4]
+    hidden_layer_large = [128, 64, 32]
+    hidden_layer_small = [64, 32, 16]
+    n_splits_outer = 5
+    n_splits_inner = 3
+
+    names = ["nn_nested_kfold_crossval_cores_itertools", ""]
+    i = 0 
+    name = names[i]
+    
+    reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params = main(min_df, name, hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
+
+
+# reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params = nested_cross_val(min_df, name, hidden_layer_large, hidden_layer_small, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
 np.savez(name + '_results.npz', reports_dict = reports_dict, train_reports = train_reports, test_reports = test_reports, avg_train_report = avg_train_report, avg_test_report = avg_test_report, best_params = best_params)
 
 print("Average Train Report:")

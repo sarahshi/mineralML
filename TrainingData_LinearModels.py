@@ -53,7 +53,7 @@ from imblearn.over_sampling import RandomOverSampler
 
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
-rc('font',**{'family':'Avenir', 'size': 14})
+rc('font',**{'family':'Avenir', 'size': 20})
 plt.rcParams['pdf.fonttype'] = 42
 
 pt.__version__
@@ -64,7 +64,7 @@ pt.__version__
 
 min_df = pd.read_csv('TrainingData/mindf_filt.csv')
 
-oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3']
+oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 label = ['Mineral']
 
 min = min_df[label]
@@ -146,6 +146,27 @@ ax[5].set_ylabel('PC3')
 
 plt.tight_layout()
 plt.show()
+
+# %% 
+
+phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
+    'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
+    'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
+    'Zircon'])
+
+
+fig, ax = plt.subplots(1, 1, figsize = (10, 10))
+for i in range(len(phase)):
+    indx = min['Mineral'] == phase[i]
+    ax.scatter(wt_z_pca[indx][:, 0], wt_z_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+ax.legend(prop={'size': 12})
+ax.set_xlabel('Principal Component 1')
+ax.set_ylabel('Principal Component 2')
+plt.savefig('PCA_vis.png', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
+
+
+# %% 
+
 
 # %% 
 

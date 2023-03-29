@@ -7,13 +7,13 @@
 #SBATCH --job-name=minml_parallel
 
 #----- Specify minimum nodes required (optional):
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 
 #----- Specify minimum RAM/Memory required per CPU (optional):
 #SBATCH --mem-per-cpu=8G
 
 #----- Specify minimum CPU cores required (optional):
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=40
 
 #------------------------------------------------------------------------#
 #SBATCH --mail-type=START,FAIL,END

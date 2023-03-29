@@ -640,7 +640,7 @@ def nested_cross_val(df, name, hidden_layer_large, hidden_layer_small, learning_
                                 best_epochs = ep
 
 
-        train_pred_classes, test_pred_classes, train_report, test_report = neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, best_hidden_layers, best_learning_rate, best_weight_decay, best_epochs)
+        train_pred_classes, test_pred_classes, train_report, test_report = neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, best_hll, best_hls, best_learning_rate, best_weight_decay, best_epochs)
         
         reports_dict[nn_count] = {
             'avg_train_report': avg_train_report,
@@ -772,7 +772,7 @@ print(avg_train_report)
 print("\nAverage Test Report:")
 print(avg_test_report)
 print("\nBest Hyperparameters:")
-print(f"Best Parameeters: {best_params}")
+print(f"Best Parameters: {best_params}")
 
 
 # %% 

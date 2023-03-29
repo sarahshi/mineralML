@@ -11,18 +11,17 @@ from matplotlib import pyplot as plt
 
 # %% 
 
-
 def pp_matrix(
     df_cm,
     annot=True,
     cmap="Oranges",
     fmt=".2f",
-    fz=11,
+    fz=12,
     lw=0.5,
     cbar=False,
-    figsize=[8, 8],
+    figsize=[10, 10],
     show_null_values=0,
-    pred_val_axis="y", title = 'Confusion Matrix'
+    pred_val_axis="y", savefig = None,
 ):
     """
     print conf matrix with default layout (like matlab)
@@ -56,8 +55,8 @@ def pp_matrix(
     ax = sns.heatmap(df_cm, annot=annot, annot_kws={"size": fz}, linewidths=lw, ax=ax1, cbar=cbar, cmap=cmap, linecolor="w", fmt=fmt,)
 
     # set ticklabels rotation
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, fontsize=10)
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=25, fontsize=10)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, fontsize=13, ha='right')
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=35, fontsize=13, va='top')
 
     # Turn off all the ticks
     for t in ax.xaxis.get_major_ticks():
@@ -96,11 +95,13 @@ def pp_matrix(
         ax.text(item["x"], item["y"], item["text"], **item["kw"])
 
     # titles and legends
-    ax.set_title(title)
+    # ax.set_title(title)
     ax.set_xlabel(xlbl)
     ax.set_ylabel(ylbl)
     plt.tight_layout()  # set layout slim
-    plt.show()
+
+    if savefig != None: 
+        plt.savefig(savefig + '.pdf')
 
 def insert_totals(df_cm):
     """insert total column and line (the last ones)"""
@@ -110,7 +111,7 @@ def insert_totals(df_cm):
     sum_lin = []
     for item_line in df_cm.iterrows():
         sum_lin.append(item_line[1].sum())
-    df_cm["sum_lin"] = sum_lin
+    df_cm["sum_row"] = sum_lin
     sum_col.append(np.sum(sum_lin))
     df_cm.loc["sum_col"] = sum_col
 
@@ -162,7 +163,7 @@ def configcell_text_and_colors(
         else:
             per_ok = per_err = 0
 
-        per_ok_s = ["%.2f%%" % (per_ok), "100%"][per_ok == 100]
+        per_ok_s = ["%.1f%%" % (per_ok), "100%"][per_ok == 100]
 
         # text to DEL
         text_del.append(oText)
@@ -171,8 +172,8 @@ def configcell_text_and_colors(
 
         # text to ADD
         font_prop = fm.FontProperties(weight="bold", size=fz)
-        text_kwargs = dict(color="w", ha="center",va="center", gid="sum", fontproperties=font_prop,)
-        lis_txt = ["%d" % (cell_val), per_ok_s, "%.2f%%" % (per_err)]
+        text_kwargs = dict(color="k", ha="center",va="center", gid="sum", fontproperties=font_prop,)
+        lis_txt = ["%d" % (cell_val), per_ok_s, "%.1f%%" % (per_err)]
         lis_kwa = [text_kwargs]
         dic = text_kwargs.copy()
         dic["color"] = "g"
@@ -193,7 +194,7 @@ def configcell_text_and_colors(
 
     else:
         if per > 0:
-            txt = "%s\n%.2f%%" % (cell_val, per)
+            txt = "%s\n%.1f%%" % (cell_val, per)
         else:
             if show_null_values == 0:
                 txt = ""
@@ -206,12 +207,11 @@ def configcell_text_and_colors(
         # main diagonal
         if col == lin:
             # set color of the textin the diagonal to white
-            oText.set_color("w")
+            oText.set_color("k")
             # set background color in the diagonal to blue
             facecolors[posi] = [0.35, 0.8, 0.55, 1.0]
         else:
             oText.set_color("r")
 
     return text_add, text_del
-
 
