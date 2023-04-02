@@ -2,4 +2,6 @@
 __pycache__
 GEOROC_minerals/
 backup/
-ValidationData/GEOROC_validationdata.csv
+working/
+Validation_Data/LEPR_Penny/
+Validation_Data/GEOROC_validationdata.csv
