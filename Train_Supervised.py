@@ -7,15 +7,18 @@ import pandas as pd
 import scipy
 
 import os
+import sys
 import copy
 import time
-import json
 import random
-import pickle
 import warnings
 
-from scipy.sparse import (SparseEfficiencyWarning)
-warnings.simplefilter('ignore', category=(FutureWarning,SparseEfficiencyWarning))
+from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
+from sklearn.decomposition import PCA, KernelPCA
+from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, f1_score, precision_recall_fscore_support
+from imblearn.over_sampling import RandomOverSampler
 
 import torch
 import torch.nn as nn
@@ -23,35 +26,26 @@ from torch.nn.modules.activation import LeakyReLU, Sigmoid
 from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
 
-from sklearn import svm, datasets
-from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
-from sklearn.decomposition import PCA, KernelPCA
-from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE
-from sklearn.preprocessing import scale, normalize, StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, f1_score, precision_recall_fscore_support
-from imblearn.over_sampling import RandomOverSampler
+sys.path.append('src')
+import MIN_ML as mm
+
+import concurrent.futures
+from multiprocessing import freeze_support
+import itertools 
 
 import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib import rc
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
-import matplotlib.patches as mpatches
-import matplotlib.cm as mcm
-import matplotlib.path as mpath
-import matplotlib.colors as mcolors
-from matplotlib.gridspec import GridSpec
 import seaborn as sns
-import plotly.express as px
-
-import self_confusion_matrix as pcm
-
 
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
 rc('font',**{'family':'Avenir', 'size': 20})
 plt.rcParams['pdf.fonttype'] = 42
 
+
 # %% 
+
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -65,8 +59,8 @@ def save_model(model, optimizer, path):
     torch.save(check_point, path)
 
 def save_model_nn(model, optimizer, path, best_model_state):
-    check_point = {'params': model.state_dict(),                            
-                   'optimizer': optimizer.state_dict()}
+    check_point = {'params': best_model_state,                            
+                   'optimizer': optimizer.state_dict()},
     torch.save(check_point, path)
 
 def load_model(model, optimizer=None, path=''):
@@ -104,237 +98,8 @@ def same_seeds(seed):
 
 # %% 
 
-class FeatureDataset(Dataset):
-    def __init__(self, x):
-        if len(x.shape)==2:
-            self.x = x
-        else:
-            self.x = x.reshape(-1, x.shape[-1]) #dataset keeps the right shape for training
 
-    def __len__(self):
-        return self.x.shape[0] 
-    
-    def __getitem__(self, n): 
-        return torch.Tensor(self.x[n])
-
-class Autoencoder(nn.Module):
-    def __init__(self,input_dim = 10, latent_dim = 2, hidden_layer_sizes=(512, 256, 128)):
-        super(Autoencoder, self).__init__()
-        self.input_dim = input_dim
-        self.latent_dim = latent_dim
-        self.hls = hidden_layer_sizes
-
-        def element(in_channel, out_channel):
-            return [
-                nn.Linear(in_channel, out_channel),
-                nn.LayerNorm(out_channel),
-                nn.LeakyReLU(0.02),
-            ]
-
-        encoder = element(self.input_dim, self.hls[0])
-        for i in range(len(self.hls) - 1):
-            encoder += element(self.hls[i], self.hls[i + 1])
-        encoder += [nn.Linear(self.hls[-1], latent_dim)]
-
-        decoder = element(latent_dim, self.hls[-1])
-        for i in range(len(self.hls) - 1, 0, -1):
-            decoder += element(self.hls[i], self.hls[i - 1])
-        decoder += [nn.Linear(self.hls[0], self.input_dim)] # nn.Softmax()]
-
-        self.encode = nn.Sequential(*encoder)
-        self.decode = nn.Sequential(*decoder)
-
-        self.apply(weights_init)
-
-    def encoded(self, x):
-        #encodes data to latent space
-        return self.encode(x)
-
-    def decoded(self, x):
-        #decodes latent space data to 'real' space
-        return self.decode(x)
-
-    def forward(self, x):
-        en = self.encoded(x)
-        de = self.decoded(en)
-        return de
-
-class Tanh_Autoencoder(nn.Module):
-    def __init__(self,input_dim = 10, latent_dim = 2, hidden_layer_sizes=(64, 32)):
-        super(Tanh_Autoencoder, self).__init__()
-        self.input_dim = input_dim
-        self.latent_dim = latent_dim
-        self.hls = hidden_layer_sizes
-
-        def element(in_channel, out_channel):
-            return [
-                nn.Linear(in_channel, out_channel),
-                nn.LayerNorm(out_channel),
-                nn.Tanh(),
-            ]
-
-        encoder = element(self.input_dim, self.hls[0])
-        for i in range(len(self.hls) - 1):
-            encoder += element(self.hls[i], self.hls[i + 1])
-        encoder += [nn.Linear(self.hls[-1], latent_dim)]
-
-        decoder = element(latent_dim, self.hls[-1])
-        for i in range(len(self.hls) - 1, 0, -1):
-            decoder += element(self.hls[i], self.hls[i - 1])
-        decoder += [nn.Linear(self.hls[0], self.input_dim)] # nn.Softmax()]
-
-        self.encode = nn.Sequential(*encoder)
-        self.decode = nn.Sequential(*decoder)
-
-        self.apply(weights_init)
-
-    def encoded(self, x):
-        #encodes data to latent space
-        return self.encode(x)
-
-    def decoded(self, x):
-        #decodes latent space data to 'real' space
-        return self.decode(x)
-
-    def forward(self, x):
-        en = self.encoded(x)
-        de = self.decoded(en)
-        return de
-
-def train(model, optimizer, train_loader, test_loader, n_epoch, criterion):
-    
-    avg_train_loss = []
-    avg_test_loss = []
-
-    for epoch in range(n_epoch):
-        # Training
-        model.train()
-        t = time.time()
-        train_loss = []
-        for i, data in enumerate(train_loader):
-            x = data.to(device)
-            x_recon = model(x)
-            loss = criterion(x_recon, x)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            train_loss.append(loss.detach().item())
-        
-        # Testing
-        model.eval()
-        test_loss = []
-        for i, test in enumerate(test_loader):
-            x = test.to(device)
-            x_recon = model(x)
-            loss = criterion(x_recon, x)
-            test_loss.append(loss.detach().item())
-        
-        # Logging
-        avg_loss = sum(train_loss) / len(train_loss)
-        avg_test = sum(test_loss) / len(test_loss)
-        avg_train_loss.append(avg_loss)
-        avg_test_loss.append(avg_test)
-        
-        training_time = time.time() - t
-        
-        print(f'[{epoch+1:03}/{n_epoch:03}] train_loss: {avg_loss:.6f}, test_loss: {avg_test:.6f}, time: {training_time:.2f} s')
-
-    return avg_train_loss, avg_test_loss
-
-def autoencode(df, name, AE_Model, hidden_layer_sizes):
-
-    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-
-    wt = df[oxides].fillna(0)
-    mol = mm.calculate_mol_proportions(wt)
-    wt = wt.to_numpy()
-    mol = mol.to_numpy()
-
-    #perform z-score normalisation
-    array_norm_wt = normalize(wt)
-
-    ss = StandardScaler()
-    array_norm = ss.fit_transform(wt)
-
-    #split the dataset into train and test sets
-    train_data, test_data = train_test_split(array_norm, test_size=0.1, stratify = df['Mineral'], random_state=42)
-
-    #define datasets to be used with PyTorch - see autoencoder file for details
-    feature_dataset = FeatureDataset(train_data)
-    test_dataset = FeatureDataset(test_data)   
-
-    #autoencoder params:
-    lr = 5e-4
-    wd = 0
-    batch_size = 256
-    epochs = 50
-    input_size = feature_dataset.__getitem__(0).size(0)
-
-    #define data loaders
-    feature_loader = DataLoader(feature_dataset, batch_size=batch_size,shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size,shuffle=True)
-    np.savez('autoencoder_parametermatrix/' + name + '_features.npz', feature_loader = feature_loader, test_loader = test_loader)
-
-    #define model
-    model = AE_Model(input_dim=input_size, hidden_layer_sizes = hidden_layer_sizes).to(device)
-
-    #use ADAM optimizer with mean squared error loss function
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr,weight_decay=wd) 
-    criterion = nn.MSELoss()
-
-    #train model using pre-defined function
-    train_loss, test_loss = train(model, optimizer, feature_loader, test_loader, epochs, criterion)
-    np.savez('autoencoder_parametermatrix/' + name + '_tanh_loss.npz', train_loss = train_loss, test_loss = test_loss)
-
-    
-    fig, ax = plt.subplots(1, 2, figsize = (16, 8))
-    ax = ax.flatten()
-    ax[0].plot(np.linspace(1, epochs, epochs), train_loss, '.-', label = 'Train Loss')
-    ax[0].plot(np.linspace(1, epochs, epochs), test_loss, '.-', label = 'Test Loss')
-    ax[0].set_xlabel("Epochs")
-    ax[0].set_ylabel("Loss")
-    ax[0].legend(prop={'size': 10})
-
-    #transform entire dataset to latent space
-    z = getLatent(model, array_norm)
-
-    phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
-        'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
-        'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])
-    phasez = range(1,len(phase))
-    tab = plt.get_cmap('tab20')
-    cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
-    scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
-
-    # plot latent representation
-    for i in range(len(phase)):
-        indx = df['Mineral'] == phase[i]
-        ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized = True)
-    ax[1].set_xlabel("Latent Variable 1")
-    ax[1].set_ylabel("Latent Variable 2")
-    ax[1].set_title(name + " Latent Space Representation")
-    ax[1].legend(prop={'size': 8})
-    plt.tight_layout()
-    plt.savefig('autoencoder_parametermatrix/' + name + '_loss_latentspace.pdf',)
-
-    # save main model params
-    model_path = name + "_tanh_params.pt"
-    save_model(model, optimizer, model_path)
-
-    # save all other params
-    conc_file = name + "_tanh.npz"
-    np.savez('autoencoder_parametermatrix/' + name + "_tanh.npz", batch_size = batch_size, epochs = epochs, input_size = input_size, 
-            conc_file = conc_file, z = z)
-
-    return z 
-
-
-# %% 
-
-class FeatureDataset_nn(Dataset):
+class LabelDataset(Dataset):
     def __init__(self, x, labels):
         if len(x.shape)==2:
             self.x = torch.from_numpy(x).type(torch.FloatTensor)
@@ -349,6 +114,7 @@ class FeatureDataset_nn(Dataset):
     def __getitem__(self, n): 
         return self.x[n], self.labels[n]
 
+
 class MultiClassClassifier(nn.Module):
     def __init__(self, input_dim=10, classes=17, dropout_rate=0.1, hidden_layer_sizes=[8]):
         super(MultiClassClassifier, self).__init__()
@@ -360,7 +126,6 @@ class MultiClassClassifier(nn.Module):
         def element(in_channel, out_channel, is_last=False):
             layers = [
                 nn.Linear(in_channel, out_channel),
-                # nn.LayerNorm(out_channel),
                 nn.BatchNorm1d(out_channel),  # Add batch normalization
                 nn.LeakyReLU(0.02),
             ]
@@ -390,10 +155,11 @@ class MultiClassClassifier(nn.Module):
 
     def predict(self, x):
         # Get predicted scores
-        scores = self.forward(x)
+        scores = self.encoded(x)
         # Get predicted class indices
         class_indices = scores.argmax(dim=1)
         return class_indices
+
 
 def train_nn(model, optimizer, label, train_loader, test_loader, n_epoch, criterion, patience=10):
     """
@@ -415,6 +181,8 @@ def train_nn(model, optimizer, label, train_loader, test_loader, n_epoch, criter
         avg_train_loss: a list of average training losses for each epoch
         avg_test_loss: a list of average validation losses for each epoch
     """
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
 
     avg_train_loss = []
     avg_test_loss = []
@@ -500,7 +268,15 @@ def balance(train_data_x, train_data_y):
     return train_data_x, train_data_y
 
 
-def neuralnetwork(df, name, WhichClassifier, hidden_layer_sizes, lr, wd, dr, epochs, n, balanced): 
+def neuralnetwork(df, name, hls, lr, wd, dr, ep, n, balanced): 
+
+    path_beg = os.getcwd() + '/'
+    output_dir = ["nn_parametermatrix", "autoencoder_parametermatrix"] 
+    for ii in range(len(output_dir)):
+        if not os.path.exists(path_beg + output_dir[ii]):
+            os.makedirs(path_beg + output_dir[ii], exist_ok=True)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
 
     oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
     label = ['Mineral']
@@ -511,26 +287,29 @@ def neuralnetwork(df, name, WhichClassifier, hidden_layer_sizes, lr, wd, dr, epo
     ss = StandardScaler()
     array_norm = ss.fit_transform(wt)
 
+    code = pd.Categorical(df['Mineral']).codes
+    cat_lab = pd.Categorical(df['Mineral'])
+
     #split the dataset into train and test sets
-    train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm, pd.Categorical(df['Mineral']).codes, test_size=n, stratify = pd.Categorical(df['Mineral']).codes, random_state=42)
+    train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm, code, test_size=n, stratify = code, random_state=42)
 
     if balanced == True: 
         train_data_x, train_data_y = balance(train_data_x, train_data_y)
 
     #define datasets to be used with PyTorch - see autoencoder file for details
-    feature_dataset = FeatureDataset_nn(train_data_x, train_data_y)
-    test_dataset = FeatureDataset_nn(test_data_x, test_data_y)
+    feature_dataset = LabelDataset(train_data_x, train_data_y)
+    test_dataset = LabelDataset(test_data_x, test_data_y)
 
-    mapping = dict(zip(pd.Categorical(df['Mineral']).codes, pd.Categorical(df['Mineral'])))
+    mapping = dict(zip(code, cat_lab))
     sort_mapping= dict(sorted(mapping.items(), key=lambda item: item[0])) 
 
     #autoencoder params:
     lr = lr
     wd = wd 
-    batch_size = 256
-    epochs = epochs
-    input_size = len(feature_dataset.__getitem__(0)[0])
     dr = dr
+    epochs = epochs
+    batch_size = 256
+    input_size = len(feature_dataset.__getitem__(0)[0])
 
     #define data loaders
     feature_loader = DataLoader(feature_dataset, batch_size=batch_size, shuffle=True)
@@ -538,10 +317,7 @@ def neuralnetwork(df, name, WhichClassifier, hidden_layer_sizes, lr, wd, dr, epo
     np.savez('nn_parametermatrix/' + name + '_nn_features.npz', feature_loader = feature_loader, test_loader = test_loader)
 
     # Initialize model
-    if WhichClassifier == MultiClassClassifier:
-        model = WhichClassifier(input_dim=input_size, dropout_rate = dr, hidden_layer_sizes=hidden_layer_sizes).to(device) # dropout_rate = dr
-    elif WhichClassifier == OneLayerClassifier: 
-        model = WhichClassifier(input_dim=input_size).to(device)
+    model = MultiClassClassifier(input_dim=input_size, dropout_rate = dr, hidden_layer_sizes=hidden_layer_sizes).to(device) # dropout_rate = dr
 
     # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -564,32 +340,257 @@ def neuralnetwork(df, name, WhichClassifier, hidden_layer_sizes, lr, wd, dr, epo
 
     return train_pred_classes, test_pred_classes, train_report, test_report, best_model_state
 
-# class OneLayerClassifier(nn.Module):
-#     def __init__(self, input_dim=10, classes=17):
-#         super(OneLayerClassifier, self).__init__()
-#         self.input_dim = input_dim
-#         self.classes = classes
 
-#         self.linear = nn.Linear(self.input_dim, self.classes)
+# %% 
 
-#     def forward(self, x):
-#         return self.linear(x)
 
-#     def predict(self, x):
-#         # Get predicted scores
-#         scores = self.forward(x)
-#         # Get predicted class indices
-#         class_indices = scores.argmax(dim=1)
-#         return class_indices
+def nested_cv(df, name, hls, lr, wd, ep, n_splits_outer, n_splits_inner):
+
+    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+    label = ['Mineral']
+
+    code = pd.Categorical(df['Mineral']).codes
+    cat_lab = pd.Categorical(df['Mineral'])
+
+    X = df[oxides].fillna(0).to_numpy()
+    y = code 
+    
+    mapping = dict(zip(code, cat_lab))
+    sort_mapping = dict(sorted(mapping.items(), key=lambda item: item[0])) 
+
+    outer_cv = StratifiedKFold(n_splits=n_splits_outer, shuffle=True, random_state=42)
+    inner_cv = StratifiedKFold(n_splits=n_splits_inner, shuffle=True, random_state=42)
+
+    train_reports = []
+    test_reports = []
+    reports_dict = {}  # Create a dictionary to store train and test reports for each trial
+
+    log_file = 'nn_parametermatrix/training.log'
+
+    outer_loop_count = 0
+
+    for train_idx, test_idx in outer_cv.split(X, y):
+        X_train, X_test = X[train_idx], X[test_idx]
+        y_train, y_test = y[train_idx], y[test_idx]
+    
+    X_train, y_train = balance(X_train, y_train)
+
+    nn_count = 0 
+    best_val_score = 0
+    best_hls = None
+    best_learning_rate = None
+    best_weight_decay = None
+    best_epochs = None 
+
+    param_combinations = list(itertools.product(hidden_layer_sizes, learning_rates, weight_decays, epochs))
+
+    for nn_count, (hls, lr, wd, ep) in enumerate(param_combinations):
+        params_list = [
+            (train_inner_idx, test_inner_idx, df, X_train, y_train, name, hls, lr, wd, ep)
+            for train_inner_idx, test_inner_idx in inner_cv.split(X_train, y_train)
+        ]
+
+        message = f'[{nn_count:03}] hls: {hls}, lr: {lr}, wd: {wd}, ep: {ep}'
+        with open(log_file, 'a') as f:
+            f.write(message + '\n')
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            val_scores = list(executor.map(parallel_inner_loop, params_list))
+
+        avg_val_score = np.mean(val_scores)
+
+        if avg_val_score > best_val_score:
+            best_val_score = avg_val_score
+            best_hls = hls
+            best_learning_rate = lr
+            best_weight_decay = wd
+            best_epochs = ep
+
+    train_pred_classes, test_pred_classes, train_report, test_report = neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, best_hls, best_learning_rate, best_weight_decay, best_epochs)
+
+    reports_dict[f'{outer_loop_count}_{nn_count}'] = {
+        'avg_train_report': train_report, 'avg_test_report': test_report, 'hls': best_hls,
+        'lr': best_learning_rate, 'wd': best_weight_decay, 'ep': best_epochs}
+
+    outer_loop_count += 1
+
+    train_reports.append({
+        'true_labels': y_train, 'predicted_labels': train_pred_classes, 'label_names': list(sort_mapping.values())})
+    
+    test_reports.append({
+        'true_labels': y_test, 'predicted_labels': test_pred_classes,'label_names': list(sort_mapping.values())})
+
+    avg_train_report = average_classification_reports(train_reports)
+    avg_test_report = average_classification_reports(test_reports)
+
+    best_params = np.array([best_hls, best_learning_rate, best_weight_decay, best_epochs])
+
+    return reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params
+
+
+def parallel_inner_loop(args):
+
+    train_inner_idx, test_inner_idx, df, X_train, y_train, name, hls, lr, wd, ep = args
+    X_train_inner, X_test_inner = X_train[train_inner_idx], X_train[test_inner_idx]
+    y_train_inner, y_test_inner = y_train[train_inner_idx], y_train[test_inner_idx]
+
+    train_pred_classes_inner, test_pred_classes_inner, _, _ = neuralnetwork_kfold(df, X_train_inner, y_train_inner, X_test_inner, y_test_inner, name, hls, lr, wd, ep)
+
+    val_f1_score = f1_score(y_test_inner, test_pred_classes_inner, average='weighted')
+
+    return val_f1_score
+
+
+def neuralnetwork_kfold(df, X_train, y_train, X_test, y_test, name, hls, lr, wd, ep): 
+
+    path_beg = os.getcwd() + '/'
+    output_dir = ["nn_parametermatrix", "autoencoder_parametermatrix"] 
+    for ii in range(len(output_dir)):
+        if not os.path.exists(path_beg + output_dir[ii]):
+            os.makedirs(path_beg + output_dir[ii], exist_ok=True)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
+
+    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+    label = ['Mineral']
+
+    ss = StandardScaler()
+    array_norm_train = ss.fit_transform(X_train)
+    array_norm_test = ss.transform(X_test)
+
+    code = pd.Categorical(df['Mineral']).codes
+    cat_lab = pd.Categorical(df['Mineral'])
+
+    #define datasets to be used with PyTorch - see autoencoder file for details
+    feature_dataset = LabelDataset(array_norm_train, y_train)
+    test_dataset = LabelDataset(array_norm_test, y_test)
+
+    mapping = dict(zip(code, cat_lab))
+    sort_mapping= dict(sorted(mapping.items(), key=lambda item: item[0])) 
+
+    #autoencoder params:
+    lr = lr
+    wd = wd 
+    batch_size = 256
+    epochs = ep
+    hls = hls
+    input_size = len(feature_dataset.__getitem__(0)[0])
+    dr = 0.2
+
+    #define data loaders
+    feature_loader = DataLoader(feature_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    np.savez('nn_parametermatrix/' + name + '_nn_features.npz', feature_loader = feature_loader, test_loader = test_loader)
+
+    # Initialize model
+    model = MultiClassClassifier(input_dim=input_size, dropout_rate = dr, hidden_layer_sizes=hls).to(device) # dropout_rate = dr
+
+    # Define loss function and optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer=torch.optim.SGD(model.parameters(), lr=lr, weight_decay = wd)
+
+    #train model using pre-defined function
+    train_output, test_output, train_loss, test_loss, best_model_state = train_nn(model, optimizer, label, feature_loader, test_loader, epochs, criterion)
+    np.savez('nn_parametermatrix/' + name + '_nn_loss.npz', train_loss = train_loss, test_loss = test_loss)
+    
+    model_path = 'nn_parametermatrix/' + name + "_nn_params.pt"
+    save_model_nn(model, optimizer, model_path, best_model_state)
+
+    # predict classes for entire training and test datasets
+    train_pred_classes = model.predict(feature_dataset.x)
+    test_pred_classes = model.predict(test_dataset.x)
+
+    # calculate classification metrics
+    train_report = classification_report(train_data_y, train_pred_classes, target_names = sort_mapping.values(), zero_division=0)
+    test_report = classification_report(test_data_y, test_pred_classes, target_names = sort_mapping.values(), zero_division=0)
+
+    return train_pred_classes, test_pred_classes, train_report, test_report, best_model_state
+
+
+# Define a function to average classification reports
+def average_classification_reports(reports):
+    metrics = []
+    
+    for report in reports:
+        precision, recall, fscore, _ = precision_recall_fscore_support(
+            report['true_labels'],
+            report['predicted_labels'],
+            average=None
+        )
+        metrics.append(np.array([precision, recall, fscore]))
+
+    # Calculate the mean values of precision, recall, and F1-score
+    avg_metrics = np.mean(metrics, axis=0)
+
+    # Create a DataFrame to store the results
+    avg_report_df = pd.DataFrame(
+        avg_metrics.T,
+        columns=['precision', 'recall', 'fscore'],
+        index=reports[0]['label_names']
+    )
+
+    return avg_report_df
 
 
 # %% 
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
+same_seeds(42)
+
+min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+
+
+def main(df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner):
+
+    # Define the parameter ranges for hyperparameter tuning
+    hidden_layer_sizes = hidden_layer_sizes
+    learning_rates = learning_rates
+    weight_decays = weight_decays
+    epochs = epochs
+
+    reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params = nested_cv(df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
+    # You can now use the returned values for further processing or analysis.
+    return reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params
+
+if __name__ == '__main__':
+    freeze_support()
+
+    epochs = [1000]
+    learning_rates = [1e-3, 2.5e-3, 5e-3]
+    weight_decays = [1e-2, 1e-3, 1e-4]
+    hidden_layer_sizes = [[2], [4], [6], [8]]
+    n_splits_outer = 5
+    n_splits_inner = 4
+
+    names = ["nn_nested_cv"]
+    i = 0 
+    name = names[i]
+
+    reports_dict, train_reports, test_reports, avg_train_report, avg_test_report, best_params = main(min_df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
+
+    np.savez(name + '_results.npz', best_params = best_params, reports_dict = reports_dict, train_reports = train_reports, test_reports = test_reports, avg_train_report = avg_train_report, avg_test_report = avg_test_report)
+
+print("Average Train Report:")
+print(avg_train_report)
+print("\nAverage Test Report:")
+print(avg_test_report)
+print("\nBest Hyperparameters:")
+print(f"Best Parameters: {best_params}")
+
+
+
+
+
 # %% 
 
-min_df = pd.read_csv('TrainingData/mindf_filt.csv')
-# min_df = pd.read_csv('ValidationData/lepr_allphases_lim.csv', index_col=0)
-# min_df = min_df.dropna(subset=oxides, thresh = 5)
 
+
+
+# %% 
+
+
+
+min_df = pd.read_csv('Training_Data/mindf_filt.csv')
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 label = ['Mineral']
 
@@ -600,7 +601,7 @@ ss = StandardScaler()
 array_norm = ss.fit_transform(wt)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
-same_seeds(42)
+mm.same_seeds(42)
 
 lr = 5e-3 #5e-3
 wd = 1e-4
@@ -608,26 +609,21 @@ dr = 0.15 # 0.25
 n = 0.20
 epochs = 500
 # name = 'nn_wd_64_32_20percent'
-name = 'testing_best_nn'
+name = 'nkcv'
 
 start_time = time.time()
 
 hls = [6] # 64, 32
 
-train_pred_classes, test_pred_classes, train_report, test_report, best_model_state = neuralnetwork(min_df, name, MultiClassClassifier, hls, lr, wd, dr, epochs, n, balanced = True) 
-model
+train_pred_classes, test_pred_classes, train_report, test_report, best_model_state = mm.neuralnetwork(min_df, name, mm.MultiClassClassifier, hls, lr, wd, dr, epochs, n, balanced = True) 
 print(name + " done! Time: " + str(time.time() - start_time) + "s")
-
-
-# train_pred_classes, test_pred_classes, train_report, test_report = neuralnetwork(min_df, name, OneLayerClassifier, hls, lr, wd, dr, epochs, n, balanced = True) 
-# print(name + " done! Time: " + str(time.time() - start_time) + "s")
 
 
 # %% 
 
 train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm, pd.Categorical(min_df['Mineral']).codes, test_size=n, stratify = pd.Categorical(min_df['Mineral']).codes, random_state=42)
 
-train_data_x, train_data_y = balance(train_data_x, train_data_y)
+train_data_x, train_data_y = mm.balance(train_data_x, train_data_y)
 
 cm_train = confusion_matrix(train_data_y, train_pred_classes)
 cm_test = confusion_matrix(test_data_y, test_pred_classes)
@@ -637,20 +633,20 @@ sort_dictionary= dict(sorted(mapping.items(), key=lambda item: item[0]))
 
 df_train_cm = pd.DataFrame(cm_train, index=sort_dictionary.values(), columns=sort_dictionary.values())
 cmap = 'BuGn'
-pcm.pp_matrix(df_train_cm, cmap = cmap, savefig = 'train', figsize = (11.5, 11.5)) 
+mm.pp_matrix(df_train_cm, cmap = cmap, savefig = 'train', figsize = (11.5, 11.5)) 
 plt.show()
 
 df_test_cm = pd.DataFrame(cm_test, index=sort_dictionary.values(), columns=sort_dictionary.values())
-pcm.pp_matrix(df_test_cm, cmap = cmap, savefig = 'test', figsize = (11.5, 11.5))
+mm.pp_matrix(df_test_cm, cmap = cmap, savefig = 'test', figsize = (11.5, 11.5))
 plt.show()
 
 # %% 
 
 
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-# lepr = pd.read_csv('TrainingData/mindf_filt.csv')
+# lepr = pd.read_csv('Training_Data/mindf_filt.csv')
 
-lepr = pd.read_csv('ValidationData/lepr_allphases_lim.csv', index_col=0)
+lepr = pd.read_csv('Validation_Data/lepr_allphases_lim.csv', index_col=0)
 lepr_df = lepr.dropna(subset=oxides, thresh = 5)
 
 lepr_wt = lepr_df[oxides].fillna(0).to_numpy()
@@ -662,18 +658,18 @@ lepr_df['Mineral'] = lepr_df['Mineral'].astype(pd.CategoricalDtype(categories=mi
 new_validation_data_y = (lepr_df['Mineral'].cat.codes).values
 
 # Create a DataLoader for the new validation dataset
-new_validation_dataset = FeatureDataset_nn(lepr_norm_wt, new_validation_data_y)
-new_validation_loader = DataLoader(new_validation_dataset, batch_size=256, shuffle=False)
+new_validation_dataset = mm.LabelDataset(lepr_norm_wt, new_validation_data_y)
+new_validation_loader = mm.DataLoader(new_validation_dataset, batch_size=256, shuffle=False)
 
 input_size = len(new_validation_dataset.__getitem__(0)[0])
 
 name = 'testing_best_nn'
 path = 'nn_parametermatrix/' + name + '_nn_params.pt'
 
-model = MultiClassClassifier(input_dim=input_size, hidden_layer_sizes=hls, dropout_rate = dr).to(device) 
+model = mm.MultiClassClassifier(input_dim=input_size, hidden_layer_sizes=hls, dropout_rate = dr).to(device) 
 optimizer=torch.optim.SGD(model.parameters(), lr=lr, weight_decay = wd)
 
-load_model(model, optimizer, path)
+mm.load_model(model, optimizer, path)
 
 # Use the trained model to predict the classes for the new validation dataset
 model.eval()
@@ -701,4 +697,8 @@ df_valid_cm = pd.DataFrame(
     columns=[sort_mapping[x] for x in unique_classes],
 )
 
-pcm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'valid', figsize = (11.5, 11.5)) 
+mm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'valid', figsize = (11.5, 11.5)) 
+
+
+
+# %%

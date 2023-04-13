@@ -8,25 +8,14 @@ import scipy
 
 import os
 import time
-import json
 import random
-import pickle
-import pygmt
 import warnings
-
-from scipy.sparse import (SparseEfficiencyWarning)
-warnings.simplefilter('ignore', category=(FutureWarning,SparseEfficiencyWarning))
 
 import torch
 import torch.nn as nn
 from torch.nn.modules.activation import LeakyReLU, Sigmoid
 from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
-
-import TAS as tas
-import Thermobar as pt
-import stoichiometry as mm
-import self_confusion_matrix as pcm
 
 from sklearn import svm, datasets
 from sklearn.model_selection import train_test_split
@@ -38,18 +27,6 @@ from sklearn.metrics import classification_report, confusion_matrix, ConfusionMa
 
 import matplotlib
 from matplotlib import pyplot as plt
-from matplotlib import rc
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
-import matplotlib.patches as mpatches
-import matplotlib.cm as mcm
-import matplotlib.path as mpath
-import matplotlib.colors as mcolors
-from matplotlib.gridspec import GridSpec
-import seaborn as sns
-import plotly.express as px
-
-from imblearn.over_sampling import RandomOverSampler
-
 
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'

@@ -13,8 +13,11 @@ if os.environ.get('DISPLAY','') == '':
 from matplotlib import pyplot as plt
 mpl.use('pgf')
 
-from MIN_ML.confusion_matrix import *
+from MIN_ML.core import *
 from MIN_ML.stoichiometry import *
+from MIN_ML.unsupervised import *
+from MIN_ML.supervised import *
+from MIN_ML.confusion_matrix import *
 
 
 from ._version import __version__
