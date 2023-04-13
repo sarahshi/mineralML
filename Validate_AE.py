@@ -19,7 +19,7 @@ from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
 
 import hdbscan
-from hdbscan.flat import (HDBSCAN_flat, approximate_predict_flat, membership_vector_flat, all_points_membership_vectors_flat)
+from hdbscan.flat import (HDBSCAN_flat, approximate_predict_flat)
 
 from sklearn import svm, datasets
 from sklearn.model_selection import train_test_split, KFold, StratifiedKFold, GridSearchCV
@@ -660,6 +660,8 @@ for i in range(len(phase)):
     indx = georoc_df_lim['Mineral'] == phase[i]
     if np.any(indx):  # Add this condition
         ax[1].scatter(z_georoc_lim[indx, 0], z_georoc_lim[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+ax[1].scatter(z_georoc_lim[labels_georoc==-1][:, 0], z_georoc_lim[labels_georoc==-1][:, 1], s=15, color='k')
+
 
 for label in label_georoc_plot:
     indx = labels_georoc_filt == label
@@ -687,7 +689,7 @@ ax[2].set_xlim([-1.5, 2.0])
 ax[2].set_ylim([-2.5, 2.5])
 ax[2].legend(prop={'size': 8})
 plt.tight_layout()
-plt.savefig('GEOROC_HDBSCAN_flat.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
+# plt.savefig('GEOROC_HDBSCAN_flat.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
 
 fig, ax = plt.subplots(1, 3, figsize = (30, 10))
 ax = ax.flatten()
@@ -730,7 +732,7 @@ ax[2].set_xlim([-1.5, 2.0])
 ax[2].set_ylim([-2.5, 2.5])
 ax[2].legend(prop={'size': 8})
 plt.tight_layout()
-plt.savefig('GEOROC_HDBSCAN_flat_probs.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
+# plt.savefig('GEOROC_HDBSCAN_flat_probs.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
 
 
 # %% 

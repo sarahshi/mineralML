@@ -615,13 +615,33 @@ start_time = time.time()
 
 hls = [6] # 64, 32
 
-train_pred_classes, test_pred_classes, train_report, test_report, best_model_state = mm.neuralnetwork(min_df, name, mm.MultiClassClassifier, hls, lr, wd, dr, epochs, n, balanced = True) 
+
+lepr = pd.read_csv('Validation_Data/lepr_allphases_lim.csv', index_col=0)
+lepr_df = lepr.dropna(subset=oxides, thresh = 5)
+
+lepr_df = lepr_df[(lepr_df.Mineral!=np.nan)&(lepr_df.Mineral!='FeTiOxide')]
+data_idx = np.arange(len(lepr_df))
+train_idx, test_idx = train_test_split(data_idx, test_size=0.3, stratify=pd.Categorical(lepr_df['Mineral']).codes, random_state=42, shuffle=True)
+lepr_df_lim = lepr_df.iloc[test_idx]
+
+df_concat = pd.concat([min_df, lepr_df_lim])
+
+train_pred_classes, test_pred_classes, train_report, test_report, best_model_state = mm.neuralnetwork(df_concat, name, mm.MultiClassClassifier, hls, lr, wd, dr, epochs, n, balanced = True) 
+# train_pred_classes, test_pred_classes, train_report, test_report, best_model_state = mm.neuralnetwork(min_df, name, mm.MultiClassClassifier, hls, lr, wd, dr, epochs, n, balanced = True) 
 print(name + " done! Time: " + str(time.time() - start_time) + "s")
 
 
 # %% 
 
-train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm, pd.Categorical(min_df['Mineral']).codes, test_size=n, stratify = pd.Categorical(min_df['Mineral']).codes, random_state=42)
+
+df_concat_wt = df_concat[oxides].fillna(0).to_numpy()
+ss = StandardScaler()
+array_norm_wt_new = ss.fit_transform(df_concat_wt)
+
+
+train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm_wt_new, pd.Categorical(df_concat['Mineral']).codes, test_size=n, stratify = pd.Categorical(df_concat['Mineral']).codes, random_state=42)
+
+# train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm, pd.Categorical(min_df['Mineral']).codes, test_size=n, stratify = pd.Categorical(min_df['Mineral']).codes, random_state=42)
 
 train_data_x, train_data_y = mm.balance(train_data_x, train_data_y)
 
@@ -648,14 +668,25 @@ oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', '
 
 lepr = pd.read_csv('Validation_Data/lepr_allphases_lim.csv', index_col=0)
 lepr_df = lepr.dropna(subset=oxides, thresh = 5)
+lepr_df = lepr_df[(lepr_df.Mineral!=np.nan)&(lepr_df.Mineral!='FeTiOxide')]
 
-lepr_wt = lepr_df[oxides].fillna(0).to_numpy()
+data_idx = np.arange(len(lepr_df))
+train_idx, test_idx = train_test_split(data_idx, test_size=0.3, stratify=pd.Categorical(lepr_df['Mineral']).codes, random_state=42, shuffle=True)
+lepr_df_test = lepr_df.iloc[train_idx]
+
+
+lepr_wt = lepr_df_test[oxides].fillna(0).to_numpy()
 ss = StandardScaler()
-lepr_norm_wt = ss.fit_transform(lepr_wt)
+lepr_norm_wt = ss.fit_transform(lepr_df_test)
+
+
+
+
+
 
 min_df['Mineral'] = min_df['Mineral'].astype('category')
-lepr_df['Mineral'] = lepr_df['Mineral'].astype(pd.CategoricalDtype(categories=min_df['Mineral'].cat.categories))
-new_validation_data_y = (lepr_df['Mineral'].cat.codes).values
+lepr_df_test['Mineral'] = lepr_df_test['Mineral'].astype(pd.CategoricalDtype(categories=min_df['Mineral'].cat.categories))
+new_validation_data_y = (lepr_df_test['Mineral'].cat.codes).values
 
 # Create a DataLoader for the new validation dataset
 new_validation_dataset = mm.LabelDataset(lepr_norm_wt, new_validation_data_y)
