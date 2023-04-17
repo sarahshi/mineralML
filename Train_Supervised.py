@@ -621,7 +621,7 @@ lepr_df = lepr.dropna(subset=oxides, thresh = 5)
 
 lepr_df = lepr_df[(lepr_df.Mineral!=np.nan)&(lepr_df.Mineral!='FeTiOxide')]
 data_idx = np.arange(len(lepr_df))
-train_idx, test_idx = train_test_split(data_idx, test_size=0.3, stratify=pd.Categorical(lepr_df['Mineral']).codes, random_state=42, shuffle=True)
+train_idx, test_idx = train_test_split(data_idx, test_size=0.5, stratify=pd.Categorical(lepr_df['Mineral']).codes, random_state=42, shuffle=True)
 lepr_df_lim = lepr_df.iloc[test_idx]
 
 df_concat = pd.concat([min_df, lepr_df_lim])
@@ -677,7 +677,7 @@ lepr_df_test = lepr_df.iloc[train_idx]
 
 lepr_wt = lepr_df_test[oxides].fillna(0).to_numpy()
 ss = StandardScaler()
-lepr_norm_wt = ss.fit_transform(lepr_df_test)
+lepr_norm_wt = ss.fit_transform(lepr_wt)
 
 
 

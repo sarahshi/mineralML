@@ -37,6 +37,8 @@ import matplotlib.colors as mcolors
 from matplotlib.gridspec import GridSpec
 import seaborn as sns
 
+import Thermobar as pt
+
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
 rc('font',**{'family':'Avenir', 'size': 20})
@@ -320,87 +322,71 @@ phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide
         'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
         'Zircon'])
 
-fig, ax = plt.subplots(4, 4, figsize=(18, 18))
-ax = ax.flatten()
-for i in range(len(phase)): 
-    if (df['Mineral'] == phase[i]).sum() > 0:
+# fig, ax = plt.subplots(4, 4, figsize=(18, 18))
+# ax = ax.flatten()
+# for i in range(len(phase)): 
+#     if (df['Mineral'] == phase[i]).sum() > 0:
 
-        ax[i].violinplot(df[df['Mineral']==phase[i]][oxides], positions = np.linspace(0, 10, 11), showmeans = True, showextrema= False)
-        ax[i].set_title(phase[i])
-        ax[i].set_xticks(np.linspace(0, 10, 11))
-        ax[i].set_xticklabels(oxides, rotation = 45, fontsize = 15)
-        ax[i].set_ylim([-5, 105])
-        ax[i].set_yticklabels(ax[i].get_yticks(), fontsize = 15)
-fig.suptitle('Training')
-plt.tight_layout()
-# plt.savefig('Training_Min.pdf')
+#         ax[i].violinplot(df[df['Mineral']==phase[i]][oxides], positions = np.linspace(0, 10, 11), showmeans = True, showextrema= False)
+#         ax[i].set_title(phase[i])
+#         ax[i].set_xticks(np.linspace(0, 10, 11))
+#         ax[i].set_xticklabels(oxides, rotation = 45, fontsize = 15)
+#         ax[i].set_ylim([-5, 105])
+#         ax[i].set_yticklabels(ax[i].get_yticks(), fontsize = 15)
+# fig.suptitle('Training')
+# plt.tight_layout()
+# # plt.savefig('Training_Min.pdf')
 
 lepr_df = pd.read_csv('Validation_Data/lepr_allphases_lim.csv')
 lepr_df = lepr_df.dropna(subset=['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO'], thresh = 6)
-
-oxideslab = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO', 'Mineral']
-oxides = oxideslab[:-1]
 
 lepr_df = lepr_df[oxideslab].copy()
 lepr_df = lepr_df.fillna(0)
 lepr_df_ox = lepr_df[oxides]
 mins = np.unique(lepr_df['Mineral'])
 
-phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
-        'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
-        'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])
+# fig, ax = plt.subplots(4, 4, figsize=(18, 18))
+# ax = ax.flatten()
 
-fig, ax = plt.subplots(4, 4, figsize=(18, 18))
-ax = ax.flatten()
-
-for i in range(len(phase)):
-    if phase[i] in mins:
-        ax[i].violinplot(lepr_df[lepr_df['Mineral']==phase[i]][oxides], positions = np.linspace(0, 10, 11), showmeans = True, showextrema= False)
-        ax[i].set_title(phase[i])
-        ax[i].set_xticks(np.linspace(0, 10, 11))
-        ax[i].set_xticklabels(oxides, rotation = 45, fontsize = 15)
-        ax[i].set_ylim([-5, 105])
-        ax[i].set_yticklabels(ax[i].get_yticks(), fontsize = 15)
-    else:
-        ax[i].axis('off')  # create empty subplots for minerals that don't exist
-fig.suptitle('LEPR')
-plt.tight_layout()
-# plt.savefig('LEPR_Min.pdf')
+# for i in range(len(phase)):
+#     if phase[i] in mins:
+#         ax[i].violinplot(lepr_df[lepr_df['Mineral']==phase[i]][oxides], positions = np.linspace(0, 10, 11), showmeans = True, showextrema= False)
+#         ax[i].set_title(phase[i])
+#         ax[i].set_xticks(np.linspace(0, 10, 11))
+#         ax[i].set_xticklabels(oxides, rotation = 45, fontsize = 15)
+#         ax[i].set_ylim([-5, 105])
+#         ax[i].set_yticklabels(ax[i].get_yticks(), fontsize = 15)
+#     else:
+#         ax[i].axis('off')  # create empty subplots for minerals that don't exist
+# fig.suptitle('LEPR')
+# plt.tight_layout()
+# # plt.savefig('LEPR_Min.pdf')
 
 
 georoc_df = pd.read_csv('Validation_Data/GEOROC_validationdata.csv')
 georoc_df = georoc_df.dropna(subset=['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO'], thresh = 6)
-
-oxideslab = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO', 'Mineral']
-oxides = oxideslab[:-1]
 
 georoc_df = georoc_df[oxideslab].copy()
 georoc_df = georoc_df.fillna(0)
 georoc_df_ox = georoc_df[oxides]
 mins = np.unique(georoc_df['Mineral'])
 
-phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
-        'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
-        'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])
+# fig, ax = plt.subplots(4, 4, figsize=(18, 18))
+# ax = ax.flatten()
 
-fig, ax = plt.subplots(4, 4, figsize=(18, 18))
-ax = ax.flatten()
-
-for i in range(len(phase)):
-    if phase[i] in mins:
-        ax[i].violinplot(georoc_df[georoc_df['Mineral']==phase[i]][oxides], positions = np.linspace(0, 10, 11), showmeans = True, showextrema= False)
-        ax[i].set_title(phase[i])
-        ax[i].set_xticks(np.linspace(0, 10, 11))
-        ax[i].set_xticklabels(oxides, rotation = 45, fontsize = 15)
-        ax[i].set_ylim([-5, 105])
-        ax[i].set_yticklabels(ax[i].get_yticks(), fontsize = 15)
-    else:
-        ax[i].axis('off')  # create empty subplots for minerals that don't exist
-fig.suptitle('GEOROC')
-plt.tight_layout()
-# plt.savefig('GEOROC_Min.pdf')
+# for i in range(len(phase)):
+#     if phase[i] in mins:
+#         ax[i].violinplot(georoc_df[georoc_df['Mineral']==phase[i]][oxides], positions = np.linspace(0, 10, 11), showmeans = True, showextrema= False)
+#         ax[i].set_title(phase[i])
+#         ax[i].set_xticks(np.linspace(0, 10, 11))
+#         ax[i].set_xticklabels(oxides, rotation = 45, fontsize = 15)
+#         ax[i].set_ylim([-5, 105])
+#         ax[i].set_yticklabels(ax[i].get_yticks(), fontsize = 15)
+#     else:
+#         ax[i].axis('off')  # create empty subplots for minerals that don't exist
+# fig.suptitle('GEOROC')
+# plt.tight_layout()
+# # plt.savefig('GEOROC_Min.pdf')
 
 # %% 
 
@@ -413,12 +399,7 @@ georoc_df = georoc_df[georoc_df.Mineral.isin(['Amphibole', 'Apatite', 'Biotite',
 lepr = pd.read_csv('Validation_Data/lepr_allphases_lim.csv', index_col=0)
 lepr_df = lepr.dropna(subset=oxides, thresh = 6)
 
-# %% 
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-
 name = 'mindf_256_64_16_noP'
 path = 'autoencoder_parametermatrix/' + name + '_tanh_params.pt'
 model = Tanh_Autoencoder(input_dim=10, hidden_layer_sizes=(256, 64, 16)).to(device)
@@ -438,7 +419,6 @@ lepr_norm_wt = ss2.fit_transform(lepr_wt)
 z_lepr = getLatent(model, lepr_norm_wt)
 
 # %% 
-
 
 name = 'mindf_256_64_16'
 min_df = pd.read_csv('Training_Data/mindf_filt.csv')
@@ -484,9 +464,7 @@ pc1_sns.set(xlabel = None)
 pc2_sns = sns.kdeplot(data = z_scores_df, y = 'LV2', color = 'k')
 pc2_sns.set_ylim([-2.5, 2.5])
 pc2_sns.set(ylabel = None)
-
 plt.tight_layout()
-
 
 # %% HDBSCAN_flat implementation for LEPR 
 
@@ -509,6 +487,8 @@ labels_lepr, probs_lepr = approximate_predict_flat(clusterer, array_lepr, cluste
 array_lepr_filt = array_lepr[labels_lepr!=-1]
 labels_lepr_filt = labels_lepr[labels_lepr!=-1]
 z_lepr_filt = z_lepr[labels_lepr!=-1]
+df_lepr_err = lepr_df[labels_lepr==-1]
+
 labels_lepr_filt[labels_lepr_filt==7] = 5
 labels_lepr_filt[labels_lepr_filt==4] = 3
 
@@ -521,50 +501,6 @@ phase = np.array(['Rutile', 'Tourmaline', 'Plagioclase', 'Olivine', 'Olivine1', 
 label_to_color_idx = {label: idx for idx, label in enumerate(label_plot)}
 cluster_to_label = {i: phase[i] for i in label_plot}
 
-fig, ax = plt.subplots(1, 3, figsize = (30, 10))
-ax = ax.flatten()
-
-for label in label_plot:
-    indx = labels == label
-    if np.any(indx):  # Add this condition
-        alphas = probs[indx]
-        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas)
-
-for i in range(len(phase)):
-    indx = lepr_df['Mineral'] == phase[i]
-    if np.any(indx):  # Add this condition
-        ax[1].scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-
-for label in label_lepr_plot:
-    indx = labels_lepr_filt == label
-    if np.any(indx):  # Add this condition
-        # alphas=probs_lepr
-        ax[2].scatter(z_lepr_filt[indx, 0], z_lepr_filt[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label]) #, alpha=alphas)
-
-ax[0].set_title("Train/Validate - HDBSCAN_flat")
-ax[0].set_xlabel("Latent Variable 1")
-ax[0].set_ylabel("Latent Variable 2")
-ax[0].set_xlim([-1.5, 2.0])
-ax[0].set_ylim([-2.5, 2.5])
-ax[0].legend(prop={'size': 8})
-
-ax[1].set_title("Test Dataset - LEPR Labels")
-ax[1].set_xlabel("Latent Variable 1")
-ax[1].set_ylabel("Latent Variable 2")
-ax[1].set_xlim([-1.5, 2.0])
-ax[1].set_ylim([-2.5, 2.5])
-ax[1].legend(prop={'size': 8})
-
-ax[2].set_title("Test Dataset - approximate_predict_flat")
-ax[2].set_xlabel("Latent Variable 1")
-ax[2].set_ylabel("Latent Variable 2")
-ax[2].set_xlim([-1.5, 2.0])
-ax[2].set_ylim([-2.5, 2.5])
-ax[2].legend(prop={'size': 8})
-plt.tight_layout()
-plt.savefig('LEPR_HDBSCAN_flat.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
-
-
 
 fig, ax = plt.subplots(1, 3, figsize = (30, 10))
 ax = ax.flatten()
@@ -573,18 +509,18 @@ for label in label_plot:
     indx = labels == label
     if np.any(indx):  # Add this condition
         alphas = probs[indx]
-        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas)
+        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, rasterized=True)
 
 for i in range(len(phase)):
     indx = lepr_df['Mineral'] == phase[i]
     if np.any(indx):  # Add this condition
-        ax[1].scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+        ax[1].scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized=True)
 
 for label in label_lepr_plot:
     indx = labels_lepr_filt == label
     if np.any(indx):  # Add this condition
         alphas=probs_lepr
-        ax[2].scatter(z_lepr_filt[indx, 0], z_lepr_filt[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas)
+        ax[2].scatter(z_lepr_filt[indx, 0], z_lepr_filt[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, rasterized=True)
 
 ax[0].set_title("Train/Validate - HDBSCAN_flat")
 ax[0].set_xlabel("Latent Variable 1")
@@ -607,7 +543,7 @@ ax[2].set_xlim([-1.5, 2.0])
 ax[2].set_ylim([-2.5, 2.5])
 ax[2].legend(prop={'size': 8})
 plt.tight_layout()
-plt.savefig('LEPR_HDBSCAN_flat_probs.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
+# plt.savefig('LEPR_HDBSCAN_flat_probs.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
 
 # %% 
 # %% HDBSCAN_flat implementation for GEOROC 
@@ -617,10 +553,9 @@ min_df = pd.read_csv('Training_Data/mindf_filt.csv')
 z = np.load('autoencoder_parametermatrix/' + name + '_tanh.npz')['z']
 z_georoc = getLatent(model, georoc_norm_wt)
 
-
-train_idx, test_idx = train_test_split(np.arange(len(georoc_df)), test_size=0.05, stratify = georoc_df['Mineral'], random_state=42)
-georoc_df_lim = georoc_df.iloc[test_idx]
-z_georoc_lim = z_georoc[test_idx]
+# train_idx, test_idx = train_test_split(np.arange(len(georoc_df)), test_size=0.05, stratify = georoc_df['Mineral'], random_state=42)
+# georoc_df_lim = georoc_df.iloc[test_idx]
+# z_georoc_lim = z_georoc[test_idx]
 
 array, params = feature_normalisation(z, return_params = True)
 clusterer = HDBSCAN_flat(array, min_cluster_size=30, cluster_selection_epsilon=0.025, prediction_data=True)
@@ -631,11 +566,11 @@ probs_filt = probs[labels!=-1]
 labels[labels==7] = 5 # combine opx
 labels[labels==4] = 3 # combine olivine
 
-array_georoc, params_georoc = feature_normalisation(z_georoc_lim, return_params = True)
+array_georoc, params_georoc = feature_normalisation(z_georoc, return_params = True)
 labels_georoc, probs_georoc = approximate_predict_flat(clusterer, array_georoc, cluster_selection_epsilon=0.025)
 array_georoc_filt = array_georoc[labels_georoc!=-1]
 labels_georoc_filt = labels_georoc[labels_georoc!=-1]
-z_georoc_filt = z_georoc_lim[labels_georoc!=-1]
+z_georoc_filt = z_georoc[labels_georoc!=-1]
 labels_georoc_filt[labels_georoc_filt==7] = 5
 labels_georoc_filt[labels_georoc_filt==4] = 3
 
@@ -654,62 +589,19 @@ ax = ax.flatten()
 for label in label_plot:
     indx = labels == label
     if np.any(indx):  # Add this condition
-        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label])
-
-for i in range(len(phase)):
-    indx = georoc_df_lim['Mineral'] == phase[i]
-    if np.any(indx):  # Add this condition
-        ax[1].scatter(z_georoc_lim[indx, 0], z_georoc_lim[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[1].scatter(z_georoc_lim[labels_georoc==-1][:, 0], z_georoc_lim[labels_georoc==-1][:, 1], s=15, color='k')
-
-
-for label in label_georoc_plot:
-    indx = labels_georoc_filt == label
-    if np.any(indx):  # Add this condition
-        ax[2].scatter(z_georoc_filt[indx, 0], z_georoc_filt[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label])
-
-ax[0].set_title("Train/Validate - HDBSCAN_flat")
-ax[0].set_xlabel("Latent Variable 1")
-ax[0].set_ylabel("Latent Variable 2")
-ax[0].set_xlim([-1.5, 2.0])
-ax[0].set_ylim([-2.5, 2.5])
-ax[0].legend(prop={'size': 8})
-
-ax[1].set_title("Test Dataset - GEOROC Labels")
-ax[1].set_xlabel("Latent Variable 1")
-ax[1].set_ylabel("Latent Variable 2")
-ax[1].set_xlim([-1.5, 2.0])
-ax[1].set_ylim([-2.5, 2.5])
-ax[1].legend(prop={'size': 8})
-
-ax[2].set_title("Test Dataset - approximate_predict_flat")
-ax[2].set_xlabel("Latent Variable 1")
-ax[2].set_ylabel("Latent Variable 2")
-ax[2].set_xlim([-1.5, 2.0])
-ax[2].set_ylim([-2.5, 2.5])
-ax[2].legend(prop={'size': 8})
-plt.tight_layout()
-# plt.savefig('GEOROC_HDBSCAN_flat.png', bbox_inches='tight', pad_inches = 0.025, dpi=300)
-
-fig, ax = plt.subplots(1, 3, figsize = (30, 10))
-ax = ax.flatten()
-
-for label in label_plot:
-    indx = labels == label
-    if np.any(indx):  # Add this condition
         alphas=probs
-        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas)
+        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, rasterized=True)
 
 for i in range(len(phase)):
-    indx = georoc_df_lim['Mineral'] == phase[i]
+    indx = georoc_df['Mineral'] == phase[i]
     if np.any(indx):  # Add this condition
-        ax[1].scatter(z_georoc_lim[indx, 0], z_georoc_lim[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+        ax[1].scatter(z_georoc[indx, 0], z_georoc[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized=True)
 
 for label in label_georoc_plot:
     indx = labels_georoc_filt == label
     if np.any(indx):  # Add this condition
         alphas=probs_georoc
-        ax[2].scatter(z_georoc_filt[indx, 0], z_georoc_filt[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas)
+        ax[2].scatter(z_georoc_filt[indx, 0], z_georoc_filt[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, rasterized=True)
 
 ax[0].set_title("Train/Validate - HDBSCAN_flat")
 ax[0].set_xlabel("Latent Variable 1")
@@ -736,223 +628,407 @@ plt.tight_layout()
 
 
 # %% 
-# %% 
 
-fig, ax = plt.subplots(1, 2, figsize = (20, 10))
-ax = ax.flatten()
+# %% EGU PLOTTING
 
-phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 'FeTiOxide',
-    'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene',
-    'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])
+phase = np.array(['Rutile', 'Tourmaline', 'Plagioclase', 'Olivine', 'Olivine1', 'Orthopyroxene', 'Quartz', 'Orthopyroxene1', 'Ilmenite', 'Magnetite', 'Spinel', 'Apatite', 'KFeldspar', 'Zircon', 'Clinopyroxene', 'Muscovite', 'Biotite', 'Garnet', 'Amphibole'])
 
-tab = plt.get_cmap('tab20')
+min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+
+oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+label = ['Mineral']
+
+min = min_df[label]
+wt = min_df[oxides].fillna(0).to_numpy()
+wt_scale = StandardScaler().fit_transform(wt)
+
+start = time.time()
+pca_for_wt = PCA(n_components = 3)
+pca_for_z = PCA(n_components = 3)
+wt_pca = pca_for_wt.fit_transform(wt)
+wt_z_pca = pca_for_z.fit_transform(wt_scale)
+end = time.time()
+print(str(round(end-start, 2)) + ' seconds elapsed')
+
 cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
 scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
 
+fig, ax = plt.subplots(1, 2, figsize = (16, 8))
+ax = ax.flatten()
 for i in range(len(phase)):
-    indx = min_df['Mineral'] == phase[i]
-    ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-    indx = lepr_df['Mineral'] == phase[i]
-    ax[1].scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[0].set_xlabel("Latent Variable 1")
-ax[0].set_ylabel("Latent Variable 2")
-ax[0].set_xlim([-1.5, 2.0])
-ax[0].set_ylim([-2.5, 2.5])
-ax[0].legend(prop={'size': 8})
+    indx = min['Mineral'] == phase[i]
+    ax[0].scatter(wt_z_pca[indx][:, 0], wt_z_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], edgecolor='k', linewidth=0.1, rasterized = True)
 
+handles, labels = ax[0].get_legend_handles_labels()
+order = [11, 18, 16, 14, 17, 8, 12, 9, 15, 3, 5, 2, 6, 0, 10, 1, 13] 
+ax[0].legend([handles[idx] for idx in order], [labels[idx] for idx in order], prop={'size': 10}, loc = 'lower right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+ax[0].set_xlabel('Principal Component 1')
+ax[0].set_ylabel('Principal Component 2')
+ax[0].annotate("PCA", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+ax[0].set_xlim([-4, 10])
+ax[0].set_ylim([-3, 5])
+
+array, params = feature_normalisation(z, return_params = True)
+clusterer = HDBSCAN_flat(array, min_cluster_size=30, cluster_selection_epsilon=0.025, prediction_data=True)
+labels, probs = clusterer.labels_, clusterer.probabilities_
+array_filt = array[labels!=-1]
+labels_filt = labels[labels!=-1]
+probs_filt = probs[labels!=-1]
+labels[labels==7] = 5 
+labels[labels==4] = 3 
+
+array_lepr, params_lepr = feature_normalisation(z_lepr, return_params = True)
+labels_lepr, probs_lepr = approximate_predict_flat(clusterer, array_lepr, cluster_selection_epsilon=0.025)
+array_lepr_filt = array_lepr[labels_lepr!=-1]
+labels_lepr_filt = labels_lepr[labels_lepr!=-1]
+z_lepr_filt = z_lepr[labels_lepr!=-1]
+df_lepr_err = lepr_df[labels_lepr==-1]
+labels_lepr_filt[labels_lepr_filt==7] = 5
+labels_lepr_filt[labels_lepr_filt==4] = 3
+
+oxides_sum = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO', 'P2O5']
+df_lepr_err['Total'] = df_lepr_err[oxides_sum].sum(axis=1)
+df_lepr_err.to_csv('lepr_err.csv')
+
+tab = plt.get_cmap('tab20')
+label_plot = list(set(labels_filt))
+label_lepr_plot = list(set(labels_lepr_filt))
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(label_plot))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+phase = np.array(['Rutile', 'Tourmaline', 'Plagioclase', 'Olivine', 'Olivine1', 'Orthopyroxene', 'Quartz', 'Orthopyroxene1', 'Ilmenite', 'Magnetite', 'Spinel', 'Apatite', 'KFeldspar', 'Zircon', 'Clinopyroxene', 'Muscovite', 'Biotite', 'Garnet', 'Amphibole'])
+label_to_color_idx = {label: idx for idx, label in enumerate(label_plot)}
+cluster_to_label = {i: phase[i] for i in label_plot}
+
+for label in label_plot:
+    indx = labels == label
+    if np.any(indx):  # Add this condition
+        alphas = probs[indx]
+        ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, linewidth=0.1,edgecolor='k',rasterized = True)
+ax[1].annotate("Autoencoder: Test/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
 ax[1].set_xlabel("Latent Variable 1")
 ax[1].set_ylabel("Latent Variable 2")
+ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
 ax[1].set_xlim([-1.5, 2.0])
 ax[1].set_ylim([-2.5, 2.5])
-ax[1].legend(prop={'size': 8})
-plt.tight_layout()
 
-# %%
+error = [0.0,0.5,1.0]
+h = [plt.scatter([],[],s=55, c=(0,0,0,i), edgecolors='k') for i in error]
+lg = ax[1].legend(h, error, prop={'size': 10}, loc = 'lower right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+lg.set_title('Cluster\nConfidence',prop={'size':10})
+plt.tight_layout()
+# plt.savefig('pcaae.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
+
+# %% 
+
+fig, ax = plt.subplots(1, 2, figsize = (16, 8))
+ax = ax.flatten()
+
+array, params = feature_normalisation(z, return_params = True)
+clusterer = HDBSCAN_flat(array, min_cluster_size=30, cluster_selection_epsilon=0.025, prediction_data=True)
+labels, probs = clusterer.labels_, clusterer.probabilities_
+array_filt = array[labels!=-1]
+labels_filt = labels[labels!=-1]
+probs_filt = probs[labels!=-1]
+labels[labels==7] = 5 
+labels[labels==4] = 3 
+
+array_lepr, params_lepr = feature_normalisation(z_lepr, return_params = True)
+labels_lepr, probs_lepr = approximate_predict_flat(clusterer, array_lepr, cluster_selection_epsilon=0.025)
+array_lepr_filt = array_lepr[labels_lepr!=-1]
+labels_lepr_filt = labels_lepr[labels_lepr!=-1]
+z_lepr_filt = z_lepr[labels_lepr!=-1]
+df_lepr_err = lepr_df[labels_lepr==-1]
+labels_lepr_filt[labels_lepr_filt==7] = 5
+labels_lepr_filt[labels_lepr_filt==4] = 3
+
+tab = plt.get_cmap('tab20')
+label_plot = list(set(labels_filt))
+label_lepr_plot = list(set(labels_lepr_filt))
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(label_plot))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+phase = np.array(['Rutile', 'Tourmaline', 'Plagioclase', 'Olivine', 'Olivine1', 'Orthopyroxene', 'Quartz', 'Orthopyroxene1', 'Ilmenite', 'Magnetite', 'Spinel', 'Apatite', 'KFeldspar', 'Zircon', 'Clinopyroxene', 'Muscovite', 'Biotite', 'Garnet', 'Amphibole'])
+label_to_color_idx = {label: idx for idx, label in enumerate(label_plot)}
+cluster_to_label = {i: phase[i] for i in label_plot}
+
+for label in label_plot:
+    indx = labels == label
+    if np.any(indx):  # Add this condition
+        alphas = probs[indx]
+        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, linewidth=0.1,edgecolor='k',rasterized = True)
+handles, labels = ax[0].get_legend_handles_labels()
+
+order = [9, 16, 14, 12, 15, 6, 10, 7, 13, 3, 4, 2, 5, 0, 8, 1, 11] # [11, 18, 16, 14, 17, 8, 12, 9, 15, 3, 5, 2, 6, 0, 10, 1, 13] 
+leg1 = ax[0].legend([handles[idx] for idx in order], [labels[idx] for idx in order], prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+for lh in leg1.legendHandles: 
+    lh.set_alpha(1)
+
+ax[0].annotate("Autoencoder: Train/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[0].set_xlabel("Latent Variable 1")
+ax[0].set_ylabel("Latent Variable 2")
+ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+ax[0].set_xlim([-1.5, 2.0])
+ax[0].set_ylim([-2.5, 2.5])
+
+error = [0.0,0.5,1.0]
+h = [plt.scatter([],[],s=55, c=(0,0,0,i), edgecolors='k') for i in error]
+# lg1 = ax[0].legend(h, error, prop={'size': 10}, loc = 'lower left', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+# lg.set_title('Cluster\nConfidence',prop={'size':10})
+
+
+for i in range(len(phase)):
+    indx = lepr_df['Mineral'] == phase[i]
+    if np.any(indx):  # Add this condition
+        ax[1].scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=scalarMap.to_rgba(i), linewidth=0.1, edgecolor='k', label=phase[i])
+ax[1].annotate("Autoencoder: Test LEPR Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[1].set_xlabel("Latent Variable 1")
+# ax[1].set_ylabel("Latent Variable 2")
+ax[1].set_xlim([-1.5, 2.0])
+ax[1].set_ylim([-2.5, 2.5])
+ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+
+# ax[1].legend(prop={'size': 8})
+
+plt.tight_layout()
+# plt.savefig('ae_train_lepr.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
+
 # %% 
 
 
-name = 'mindf_256_64_16'
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
-z = np.load('autoencoder_parametermatrix/' + name + '_tanh.npz')['z']
 
-train_idx, test_idx = train_test_split(np.arange(len(georoc_df)), test_size=0.05, stratify = georoc_df['Mineral'], random_state=42)
-georoc_lim = georoc_df.iloc[test_idx]
+fig, ax = plt.subplots(1, 2, figsize = (16, 8))
+ax = ax.flatten()
+
+array, params = feature_normalisation(z, return_params = True)
+clusterer = HDBSCAN_flat(array, min_cluster_size=30, cluster_selection_epsilon=0.025, prediction_data=True)
+labels, probs = clusterer.labels_, clusterer.probabilities_
+array_filt = array[labels!=-1]
+labels_filt = labels[labels!=-1]
+probs_filt = probs[labels!=-1]
+labels[labels==7] = 5 
+labels[labels==4] = 3 
+
+train_idx, test_idx = train_test_split(np.arange(len(georoc_df)), test_size=0.1, stratify = georoc_df['Mineral'], random_state=42)
+georoc_df_lim = georoc_df.iloc[test_idx]
 z_georoc_lim = z_georoc[test_idx]
 
-fig, ax = plt.subplots(1, 2, figsize = (20, 10))
-ax = ax.flatten()
-
-phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 'FeTiOxide',
-    'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene',
-    'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])
+array_georoc, params_georoc = feature_normalisation(z_georoc_lim, return_params = True)
+labels_georoc, probs_georoc = approximate_predict_flat(clusterer, array_georoc, cluster_selection_epsilon=0.025)
+array_georoc_filt = array_georoc[labels_georoc!=-1]
+labels_georoc_filt = labels_georoc[labels_georoc!=-1]
+z_georoc_lim_filt = z_georoc_lim[labels_georoc!=-1]
+df_georoc_err = georoc_df_lim[labels_georoc==-1]
+labels_georoc_filt[labels_georoc_filt==7] = 5
+labels_georoc_filt[labels_georoc_filt==4] = 3
 
 tab = plt.get_cmap('tab20')
-cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
+label_plot = list(set(labels_filt))
+label_georoc_plot = list(set(labels_georoc_filt))
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(label_plot))
 scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+phase = np.array(['Rutile', 'Tourmaline', 'Plagioclase', 'Olivine', 'Olivine1', 'Orthopyroxene', 'Quartz', 'Orthopyroxene1', 'Ilmenite', 'Magnetite', 'Spinel', 'Apatite', 'KFeldspar', 'Zircon', 'Clinopyroxene', 'Muscovite', 'Biotite', 'Garnet', 'Amphibole'])
+label_to_color_idx = {label: idx for idx, label in enumerate(label_plot)}
+cluster_to_label = {i: phase[i] for i in label_plot}
 
-for i in range(len(phase)):
-    indx = min_df['Mineral'] == phase[i]
-    ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+for label in label_plot:
+    indx = labels == label
+    if np.any(indx):  # Add this condition
+        alphas = probs[indx]
+        ax[0].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, linewidth=0.1,edgecolor='k',rasterized = True)
+handles, labels = ax[0].get_legend_handles_labels()
 
-    indx = georoc_lim['Mineral'] == phase[i]
-    ax[1].scatter(z_georoc_lim[indx, 0], z_georoc_lim[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+order = [9, 16, 14, 12, 15, 6, 10, 7, 13, 3, 4, 2, 5, 0, 8, 1, 11] # [11, 18, 16, 14, 17, 8, 12, 9, 15, 3, 5, 2, 6, 0, 10, 1, 13] 
+leg1 = ax[0].legend([handles[idx] for idx in order], [labels[idx] for idx in order], prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+for lh in leg1.legendHandles: 
+    lh.set_alpha(1)
+
+ax[0].annotate("Autoencoder: Train/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
 ax[0].set_xlabel("Latent Variable 1")
 ax[0].set_ylabel("Latent Variable 2")
+ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
 ax[0].set_xlim([-1.5, 2.0])
 ax[0].set_ylim([-2.5, 2.5])
-ax[0].legend(prop={'size': 8})
 
-ax[1].set_xlabel("Latent Variable 1")
-ax[1].set_ylabel("Latent Variable 2")
-ax[1].set_xlim([-1.5, 2.0])
-ax[1].set_ylim([-2.5, 2.5])
-ax[1].legend(prop={'size': 8})
-plt.tight_layout()
-
-
-# %% 
-# %% 
-
-name = 'mindf_256_64_16'
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
-z = np.load('autoencoder_parametermatrix/' + name + '_tanh.npz')['z']
-
-z_scores_df = pd.DataFrame(columns = ['LV1', 'LV2']) 
-z_scores_df['LV1'] = z_lepr[:,0]
-z_scores_df['LV2'] = z_lepr[:,1]
-
-fig = plt.figure(figsize = (14, 14))
-gs = GridSpec(4, 4)
-ax_scatter = fig.add_subplot(gs[1:4, 0:3])
-ax_hist_x = fig.add_subplot(gs[0,0:3])
-ax_hist_y = fig.add_subplot(gs[1:4, 3])
-
-phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
-        'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
-        'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])
-
-tab = plt.get_cmap('tab20')
-cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
-scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
-
+error = [0.0,0.5,1.0]
+h = [plt.scatter([],[],s=55, c=(0,0,0,i), edgecolors='k') for i in error]
+# lg1 = ax[0].legend(h, error, prop={'size': 10}, loc = 'lower left', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+# lg.set_title('Cluster\nConfidence',prop={'size':10})
 
 for i in range(len(phase)):
-    indx = min_df['Mineral'] == phase[i]
-    ax_scatter.scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], alpha = 0.1)
-
-    # indx = lepr_df['Mineral'] == phase[i]
-    # ax_scatter.scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax_scatter.set_xlabel("Latent Variable 1")
-ax_scatter.set_ylabel("Latent Variable 2")
-ax_scatter.set_xlim([-1.5, 2.0])
-ax_scatter.set_ylim([-2.5, 2.5])
-ax_scatter.legend(prop={'size': 8})
-
-pc1_sns = sns.kdeplot(data = z_scores_df, x = 'LV1', color = 'k', ax = ax_hist_x)
-pc1_sns.set_xlim([-1.5, 2.0])
-pc1_sns.set(xlabel = None)
-
-pc2_sns = sns.kdeplot(data = z_scores_df, y = 'LV2', color = 'k')
-pc2_sns.set_ylim([-2.5, 2.5])
-pc2_sns.set(ylabel = None)
+    indx = georoc_df_lim['Mineral'] == phase[i]
+    if np.any(indx):  # Add this condition
+        ax[1].scatter(z_georoc_lim[indx, 0], z_georoc_lim[indx, 1], s=15, color=scalarMap.to_rgba(i), linewidth=0.1, edgecolor='k', label=phase[i],rasterized = True)
+ax[1].annotate("Autoencoder: Test GEOROC Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[1].set_xlabel("Latent Variable 1")
+# ax[1].set_ylabel("Latent Variable 2")
+ax[1].set_xlim([-1.5, 2.0])
+ax[1].set_ylim([-2.5, 2.5])
+ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+# ax[1].legend(prop={'size': 8})
 
 plt.tight_layout()
-# plt.savefig("lepr_density.pdf")
-
+# plt.savefig('ae_train_georoc.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
 
 # %%
 
-# %% 
+# %% error analysis 
 
-name = 'mindf_256_64_16'
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
-z = np.load('autoencoder_parametermatrix/' + name + '_tanh.npz')['z']
+amp_min_df = min_df[min_df.Mineral=='Amphibole']
+cpx_min_df = min_df[min_df.Mineral=='Clinopyroxene']
+opx_min_df = min_df[min_df.Mineral=='Orthopyroxene']
 
-z_scores_df = pd.DataFrame(columns = ['LV1', 'LV2']) 
-z_scores_df['LV1'] = z_georoc[:,0]
-z_scores_df['LV2'] = z_georoc[:,1]
+oxides_sum = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO', 'P2O5']
+df_lepr_err['Total'] = df_lepr_err[oxides_sum].sum(axis=1)
+amp_lepr_err = df_lepr_err[df_lepr_err.Mineral=='Amphibole']
+cpx_lepr_err = df_lepr_err[df_lepr_err.Mineral=='Clinopyroxene']
+opx_lepr_err = df_lepr_err[df_lepr_err.Mineral=='Orthopyroxene']
+
+df_georoc_err['Total'] = df_georoc_err[oxides_sum].sum(axis=1)
+amp_georoc_err = df_georoc_err[df_georoc_err.Mineral=='Amphibole']
+cpx_georoc_err = df_georoc_err[df_georoc_err.Mineral=='Clinopyroxene']
+opx_georoc_err = df_georoc_err[df_georoc_err.Mineral=='Orthopyroxene']
 
 
+cpx_min_tern=pt.tern_points_px(px_comps=cpx_min_df.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+cpx_lepr_err_tern=pt.tern_points_px(px_comps=cpx_lepr_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+cpx_georoc_err_tern=pt.tern_points_px(px_comps=cpx_georoc_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
 
 
-fig = plt.figure(figsize = (14, 14))
-gs = GridSpec(4, 4)
-ax_scatter = fig.add_subplot(gs[1:4, 0:3])
-ax_hist_x = fig.add_subplot(gs[0,0:3])
-ax_hist_y = fig.add_subplot(gs[1:4, 3])
+opx_min_tern=pt.tern_points_px(px_comps=opx_min_df.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+opx_lepr_err_tern=pt.tern_points_px(px_comps=opx_lepr_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+opx_georoc_err_tern=pt.tern_points_px(px_comps=opx_georoc_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
 
-phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
-        'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
-        'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])
 
-tab = plt.get_cmap('tab20')
-cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
-scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Cpx', s=75)
+tax.scatter(cpx_lepr_err_tern, edgecolor="k", marker="^", facecolor="red", label='LEPR Cpx Errors', s=75, alpha=0.5)
+plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
-for i in range(len(phase)):
-    indx = min_df['Mineral'] == phase[i]
-    ax_scatter.scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], alpha = 0.1)
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Opx', s=75)
+tax.scatter(opx_lepr_err_tern, edgecolor="k", marker="^", facecolor="red", label='LEPR Opx Errors', s=75, alpha=0.5)
+plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
-    indx = georoc_df['Mineral'] == phase[i]
-    ax_scatter.scatter(z_georoc[indx, 0], z_georoc[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax_scatter.set_xlabel("Latent Variable 1")
-ax_scatter.set_ylabel("Latent Variable 2")
-# ax_scatter.set_xlim([-1.5, 2.0])
-# ax_scatter.set_ylim([-2.5, 2.5])
-ax_scatter.legend(prop={'size': 8})
 
-pc1_sns = sns.kdeplot(data = z_scores_df, x = 'LV1', color = 'k', ax = ax_hist_x)
-# pc1_sns.set_xlim([-1.5, 2.0])
-pc1_sns.set(xlabel = None)
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Cpx', s=75)
+tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", facecolor="red", label='GEOROC Cpx Errors', s=75, alpha=0.5)
+plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
-pc2_sns = sns.kdeplot(data = z_scores_df, y = 'LV2', color = 'k')
-# pc2_sns.set_ylim([-2.5, 2.5])
-pc2_sns.set(ylabel = None)
-
-plt.tight_layout()
-# plt.savefig("lepr_density.pdf")
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Opx', s=75)
+tax.scatter(opx_georoc_err_tern, edgecolor="k", marker="^", facecolor="red", label='GEOROC Opx Errors', s=75, alpha=0.5)
+plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
 # %% 
 
+sorttotals = cpx_lepr_err['Total'].argsort()
+cpx_lepr_err_sort = cpx_lepr_err.sort_values(by=['Total'], ascending=False)
+cpx_lepr_tern_sort = cpx_lepr_err_tern[sorttotals[::-1]]
 
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.7)
+tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['Total'],vmin=np.min(cpx_lepr_err_sort['Total']), vmax=np.max(cpx_lepr_err_sort['Total']), label='LEPR Cpx Errors', s=75, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Total"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Cr2O3'],vmin=np.min(cpx_min_df['Cr2O3']), vmax=np.max(cpx_min_df['Cr2O3']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['Cr2O3'],vmin=np.min(cpx_lepr_err_sort['Cr2O3']), vmax=np.max(cpx_lepr_err_sort['Cr2O3']), label='LEPR Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Na2O'],vmin=np.min(cpx_min_df['Na2O']), vmax=np.max(cpx_min_df['Na2O']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['Na2O'],vmin=np.min(cpx_lepr_err_sort['Na2O']), vmax=np.max(cpx_lepr_err_sort['Na2O']), label='LEPR Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+# %%
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Opx', s=75)
+tax.scatter(opx_lepr_err_tern, edgecolor="k", marker="^", facecolor="red", label='LEPR Opx Errors', s=75)
+plt.legend(prop={'size': 10}, loc = (0.90, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+# %% 
+
+sorttotals = cpx_georoc_err['Total'].argsort()
+cpx_georoc_err_sort = cpx_georoc_err.sort_values(by=['Total'], ascending=False)
+cpx_georoc_tern_sort = cpx_georoc_err_tern[sorttotals[::-1]]
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.7)
+tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", c=cpx_georoc_err_sort['Total'],vmin=np.min(cpx_georoc_err_sort['Total']), vmax=np.max(cpx_georoc_err_sort['Total']), label='GEOROC Cpx Errors', s=75, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Total"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Cr2O3'],vmin=np.min(cpx_min_df['Cr2O3']), vmax=np.max(cpx_min_df['Cr2O3']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", c=cpx_georoc_err_sort['Cr2O3'],vmin=np.min(cpx_georoc_err_sort['Cr2O3']), vmax=np.max(cpx_georoc_err_sort['Cr2O3']), label='GEOROC Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Na2O'],vmin=np.min(cpx_min_df['Na2O']), vmax=np.max(cpx_min_df['Na2O']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", c=cpx_georoc_err_sort['Na2O'],vmin=np.min(cpx_georoc_err_sort['Na2O']), vmax=np.max(cpx_georoc_err_sort['Na2O']), label='GEOROC Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
+plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
 
 # %% 
 
-z_scores_df = pd.DataFrame(columns = ['LV1', 'LV2']) 
-z_scores_df['LV1'] = z_lepr[:,0]
-z_scores_df['LV2'] = z_lepr[:,1]
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Opx', s=75)
+tax.scatter(opx_georoc_err_tern, edgecolor="k", marker="^", facecolor="red", label='GEOROC Opx Errors', s=75, alpha=0.5)
+plt.legend(prop={'size': 10}, loc = (0.90, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
-fig = plt.figure(figsize = (14, 14))
-gs = GridSpec(4, 4)
-ax_scatter = fig.add_subplot(gs[1:4, 0:3])
-ax_hist_x = fig.add_subplot(gs[0,0:3])
-ax_hist_y = fig.add_subplot(gs[1:4, 3])
+# %% 
 
-phase = list(set(lepr_df['Mineral']))
-tab = plt.get_cmap('tab20')
-label_plot = list(set(labels))
-cNorm  = mcolors.Normalize(vmin=0, vmax=len(label_plot))
-labelscalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
 
-for i in range(len(label_plot)):
-    indx = labels == i
-    ax_scatter.scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=labelscalarMap.to_rgba(i), lw=1, label=label_plot[i], rasterized = True)
-ax_scatter.set_xlabel("Latent Variable 1")
-ax_scatter.set_ylabel("Latent Variable 2")
-ax_scatter.set_xlim([-1.5, 2.0])
-ax_scatter.set_ylim([-2.5, 2.5])
-ax_scatter.legend(prop={'size': 8})
+fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
+pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
 
-pc1_sns = sns.kdeplot(data = z_scores_df, x = 'LV1', color = 'k', ax = ax_hist_x)
-pc1_sns.set_xlim([-1.5, 2.0])
-pc1_sns.set(xlabel = None)
+# Now calculate the amphibole components
+cat_23ox = pt.calculate_Leake_Diagram_Class(amp_comps=amp_min_df.add_suffix('_Amp'))
+cat_23ox_lepr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_lepr_err.add_suffix('_Amp'))
+cat_23ox_georoc = pt.calculate_Leake_Diagram_Class(amp_comps=amp_georoc_err.add_suffix('_Amp'))
 
-pc2_sns = sns.kdeplot(data = z_scores_df, y = 'LV2', color = 'k')
-pc2_sns.set_ylim([-2.5, 2.5])
-pc2_sns.set(ylabel = None)
+# Now add these components to the axis, you can change symbol size, plot multiple amphioble populations in different colors.
+ax1.scatter(cat_23ox['Si_Amp_cat_23ox'], cat_23ox['Mgno_Amp'], c='green', edgecolor="k", label ='Train/Validate Amp')
+ax1.scatter(cat_23ox_lepr['Si_Amp_cat_23ox'], cat_23ox_lepr['Mgno_Amp'], c='red', edgecolor="k", label ='LEPR Amp Errors')
+ax1.set_ylabel('Mg# Amphibole')
+ax1.set_xlabel('Si (apfu)')
+ax1.invert_xaxis()
+ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
-plt.tight_layout()
-plt.savefig("lepr_latent.pdf")
+# %% 
+
+fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
+pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
+
+# Now calculate the amphibole components
+cat_23ox = pt.calculate_Leake_Diagram_Class(amp_comps=amp_min_df.add_suffix('_Amp'))
+cat_23ox_lepr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_lepr_err.add_suffix('_Amp'))
+cat_23ox_georoc = pt.calculate_Leake_Diagram_Class(amp_comps=amp_georoc_err.add_suffix('_Amp'))
+
+# Now add these components to the axis, you can change symbol size, plot multiple amphioble populations in different colors.
+ax1.scatter(cat_23ox['Si_Amp_cat_23ox'], cat_23ox['Mgno_Amp'], c='green', edgecolor="k", label ='Train/Validate Amp')
+ax1.scatter(cat_23ox_georoc['Si_Amp_cat_23ox'], cat_23ox_georoc['Mgno_Amp'], c='red', edgecolor="k", label ='GEOROC Amp Errors')
+ax1.set_ylabel('Mg# Amphibole')
+ax1.set_xlabel('Si (apfu)')
+ax1.invert_xaxis()
+ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+# %%

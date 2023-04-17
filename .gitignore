@@ -6,3 +6,8 @@ working/
 Validation_Data/LEPR_Penny/
 Validation_Data/GEOROC_validationdata.csv
 MIN_ML_Cluster/scs76-31450.log
+MIN_ML_Cluster/scs76-31497.log
+MIN_ML_Cluster/nn_parametermatrix/nkfcv_test_saveall_test_reports.pkl
+MIN_ML_Cluster/nn_parametermatrix/nkfcv_test_saveall_train_reports.pkl
+MIN_ML_Cluster/nkfcv_test_saveall_results.npz
+georoc_err.csv
