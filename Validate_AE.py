@@ -664,7 +664,7 @@ order = [11, 18, 16, 14, 17, 8, 12, 9, 15, 3, 5, 2, 6, 0, 10, 1, 13]
 ax[0].legend([handles[idx] for idx in order], [labels[idx] for idx in order], prop={'size': 10}, loc = 'lower right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 ax[0].set_xlabel('Principal Component 1')
 ax[0].set_ylabel('Principal Component 2')
-ax[0].annotate("PCA", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[0].annotate("PCA: Train/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
 ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
 ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
 ax[0].set_xlim([-4, 10])
@@ -706,7 +706,7 @@ for label in label_plot:
     if np.any(indx):  # Add this condition
         alphas = probs[indx]
         ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, linewidth=0.1,edgecolor='k',rasterized = True)
-ax[1].annotate("Autoencoder: Test/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[1].annotate("Autoencoder: Train/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
 ax[1].set_xlabel("Latent Variable 1")
 ax[1].set_ylabel("Latent Variable 2")
 ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
@@ -721,6 +721,8 @@ lg.set_title('Cluster\nConfidence',prop={'size':10})
 plt.tight_layout()
 # plt.savefig('pcaae.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
 
+
+# %%
 # %% 
 
 fig, ax = plt.subplots(1, 2, figsize = (16, 8))
@@ -1116,4 +1118,116 @@ ax1.set_xlabel('Si (apfu)')
 ax1.invert_xaxis()
 ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
 
+# %%
+
+
+
+# %% DSI PLOTTING
+
+phase = np.array(['Rutile', 'Tourmaline', 'Plagioclase', 'Olivine', 'Olivine1', 'Orthopyroxene', 'Quartz', 'Orthopyroxene1', 'Ilmenite', 'Magnetite', 'Spinel', 'Apatite', 'KFeldspar', 'Zircon', 'Clinopyroxene', 'Muscovite', 'Biotite', 'Garnet', 'Amphibole'])
+
+min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+
+oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+label = ['Mineral']
+
+min = min_df[label]
+wt = min_df[oxides].fillna(0).to_numpy()
+wt_scale = StandardScaler().fit_transform(wt)
+
+start = time.time()
+pca_for_wt = PCA(n_components = 3)
+pca_for_z = PCA(n_components = 3)
+wt_pca = pca_for_wt.fit_transform(wt)
+wt_z_pca = pca_for_z.fit_transform(wt_scale)
+end = time.time()
+print(str(round(end-start, 2)) + ' seconds elapsed')
+
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+
+fig, ax = plt.subplots(1, 3, figsize = (24, 8))
+ax = ax.flatten()
+for i in range(len(phase)):
+    indx = min['Mineral'] == phase[i]
+    ax[0].scatter(wt_z_pca[indx][:, 0], wt_z_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], edgecolor='k', linewidth=0.1, rasterized = True)
+
+handles, labels = ax[0].get_legend_handles_labels()
+order = [11, 18, 16, 14, 17, 8, 12, 9, 15, 3, 5, 2, 6, 0, 10, 1, 13] 
+ax[0].legend([handles[idx] for idx in order], [labels[idx] for idx in order], prop={'size': 10}, loc = 'lower right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+ax[0].set_ylabel('Latent Variable 2')
+ax[0].annotate("PCA: Train/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+ax[0].set_xlim([-4, 10])
+ax[0].set_ylim([-3, 5])
+
+array, params = feature_normalisation(z, return_params = True)
+clusterer = HDBSCAN_flat(array, min_cluster_size=30, cluster_selection_epsilon=0.025, prediction_data=True)
+labels, probs = clusterer.labels_, clusterer.probabilities_
+array_filt = array[labels!=-1]
+labels_filt = labels[labels!=-1]
+probs_filt = probs[labels!=-1]
+labels[labels==7] = 5 
+labels[labels==4] = 3 
+
+array_lepr, params_lepr = feature_normalisation(z_lepr, return_params = True)
+labels_lepr, probs_lepr = approximate_predict_flat(clusterer, array_lepr, cluster_selection_epsilon=0.025)
+array_lepr_filt = array_lepr[labels_lepr!=-1]
+labels_lepr_filt = labels_lepr[labels_lepr!=-1]
+z_lepr_filt = z_lepr[labels_lepr!=-1]
+df_lepr_err = lepr_df[labels_lepr==-1]
+labels_lepr_filt[labels_lepr_filt==7] = 5
+labels_lepr_filt[labels_lepr_filt==4] = 3
+
+oxides_sum = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO', 'P2O5']
+df_lepr_err['Total'] = df_lepr_err[oxides_sum].sum(axis=1)
+df_lepr_err.to_csv('lepr_err.csv')
+
+tab = plt.get_cmap('tab20')
+label_plot = list(set(labels_filt))
+label_lepr_plot = list(set(labels_lepr_filt))
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(label_plot))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+phase = np.array(['Rutile', 'Tourmaline', 'Plagioclase', 'Olivine', 'Olivine1', 'Orthopyroxene', 'Quartz', 'Orthopyroxene1', 'Ilmenite', 'Magnetite', 'Spinel', 'Apatite', 'KFeldspar', 'Zircon', 'Clinopyroxene', 'Muscovite', 'Biotite', 'Garnet', 'Amphibole'])
+label_to_color_idx = {label: idx for idx, label in enumerate(label_plot)}
+cluster_to_label = {i: phase[i] for i in label_plot}
+
+for label in label_plot:
+    indx = labels == label
+    if np.any(indx):  # Add this condition
+        alphas = probs[indx]
+        ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, label=cluster_to_label[label], alpha=alphas, linewidth=0.1,edgecolor='k',rasterized = True)
+ax[1].annotate("Autoencoder: Train/Validate Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[1].set_xlabel("Latent Variable 1")
+ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+ax[1].set_xlim([-1.5, 2.0])
+ax[1].set_ylim([-2.5, 2.5])
+
+error = [0.0,0.5,1.0]
+h = [plt.scatter([],[],s=55, c=(0,0,0,i), edgecolors='k') for i in error]
+lg = ax[1].legend(h, error, prop={'size': 10}, loc = 'lower right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+lg.set_title('Cluster\nConfidence',prop={'size':10})
+
+
+train_idx, test_idx = train_test_split(np.arange(len(georoc_df)), test_size=0.1, stratify = georoc_df['Mineral'], random_state=42)
+georoc_df_lim = georoc_df.iloc[test_idx]
+z_georoc_lim = z_georoc[test_idx]
+
+
+for i in range(len(phase)):
+    indx = georoc_df_lim['Mineral'] == phase[i]
+    if np.any(indx):  # Add this condition
+        ax[2].scatter(z_georoc_lim[indx, 0], z_georoc_lim[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], linewidth=0.1, edgecolor='k', alpha = 0.8, rasterized=True)
+ax[2].annotate("Autoencoder: Test GEOROC Data", xy=(0.02, 0.95), xycoords="axes fraction", fontsize=20, weight='medium')
+
+ax[2].set_xlim([-1.5, 2.0])
+ax[2].set_ylim([-2.5, 2.5])
+ax[2].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[2].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+
+
+plt.tight_layout()
+plt.savefig('dsi_pca_ae1.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
 # %%

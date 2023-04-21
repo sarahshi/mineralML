@@ -12,6 +12,9 @@ import copy
 import time
 import random
 import warnings
+from pandas.errors import SettingWithCopyWarning
+warnings.simplefilter('ignore', category=(SettingWithCopyWarning,FutureWarning,UserWarning))
+
 
 from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
 from sklearn.decomposition import PCA, KernelPCA
@@ -27,8 +30,8 @@ from torch.nn.modules.activation import LeakyReLU, Sigmoid
 from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
 
-# sys.path.append('src')
-# import MIN_ML as mm
+sys.path.append('../src')
+import MIN_ML as mm
 
 import concurrent.futures
 from multiprocessing import freeze_support
@@ -37,6 +40,12 @@ import itertools
 import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib import rc
+
+
+%matplotlib inline
+%config InlineBackend.figure_format = 'retina'
+rc('font',**{'family':'Avenir', 'size': 20})
+plt.rcParams['pdf.fonttype'] = 42
 
 # %% 
 
@@ -547,73 +556,81 @@ def average_classification_reports(reports):
 # %% 
 # %% 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
-same_seeds(42)
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
+# same_seeds(42)
 
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+# min_df = pd.read_csv('Training_Data/mindf_filt.csv')
 
 
-def main(df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner):
+# def main(df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner):
 
-    # Define the parameter ranges for hyperparameter tuning
-    hidden_layer_sizes = hidden_layer_sizes
-    learning_rates = learning_rates
-    weight_decays = weight_decays
-    epochs = epochs
+#     # Define the parameter ranges for hyperparameter tuning
+#     hidden_layer_sizes = hidden_layer_sizes
+#     learning_rates = learning_rates
+#     weight_decays = weight_decays
+#     epochs = epochs
 
-    reports_dict, train_reports, test_reports, precision, recall, f1, avg_train_report, avg_test_report, best_params = nested_cv(df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
-    # You can now use the returned values for further processing or analysis.
-    return reports_dict, train_reports, test_reports, precision, recall, f1, avg_train_report, avg_test_report, best_params
+#     reports_dict, train_reports, test_reports, precision, recall, f1, avg_train_report, avg_test_report, best_params = nested_cv(df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
+#     # You can now use the returned values for further processing or analysis.
+#     return reports_dict, train_reports, test_reports, precision, recall, f1, avg_train_report, avg_test_report, best_params
 
-if __name__ == '__main__':
-    freeze_support()
+# if __name__ == '__main__':
+#     freeze_support()
 
-    epochs = [1500]
-    learning_rates = [1e-3, 2.5e-3, 5e-3]
-    weight_decays = [1e-2, 1e-3, 1e-4]
-    hidden_layer_sizes = [[6], [8], [16], [32], [64], [16, 8], [32, 16], [64, 32], [64, 32, 16]]
-    n_splits_outer = 5
-    n_splits_inner = 4
+#     epochs = [1500]
+#     learning_rates = [1e-3, 2.5e-3, 5e-3]
+#     weight_decays = [1e-2, 1e-3, 1e-4]
+#     hidden_layer_sizes = [[6], [8], [16], [32], [64], [16, 8], [32, 16], [64, 32], [64, 32, 16]]
+#     n_splits_outer = 5
+#     n_splits_inner = 4
 
-    names = ["nkfcv_test_saveall"]
-    i = 0 
-    name = names[i]
+#     names = ["nkfcv_test_saveall"]
+#     i = 0 
+#     name = names[i]
 
-    reports_dict, train_reports, test_reports, precision, recall, f1, avg_train_report, avg_test_report, best_params = main(min_df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
+#     reports_dict, train_reports, test_reports, precision, recall, f1, avg_train_report, avg_test_report, best_params = main(min_df, name, hidden_layer_sizes, learning_rates, weight_decays, epochs, n_splits_outer, n_splits_inner)
 
-    np.savez(name + '_results.npz', reports_dict = reports_dict, train_reports = train_reports, test_reports = test_reports, avg_train_report = avg_train_report, avg_test_report = avg_test_report)
+#     np.savez(name + '_results.npz', reports_dict = reports_dict, train_reports = train_reports, test_reports = test_reports, avg_train_report = avg_train_report, avg_test_report = avg_test_report)
 
-    import pickle
+#     import pickle
 
-    with open('nn_parametermatrix/'+ name + '_reports_dict.pkl', 'wb') as f:
-        pickle.dump(reports_dict, f)
+#     with open('nn_parametermatrix/'+ name + '_reports_dict.pkl', 'wb') as f:
+#         pickle.dump(reports_dict, f)
         
-    with open('nn_parametermatrix/'+ name + '_train_reports.pkl', 'wb') as f:
-        pickle.dump(train_reports, f)
+#     with open('nn_parametermatrix/'+ name + '_train_reports.pkl', 'wb') as f:
+#         pickle.dump(train_reports, f)
         
-    with open('nn_parametermatrix/'+ name + '_test_reports.pkl', 'wb') as f:
-        pickle.dump(test_reports, f)
+#     with open('nn_parametermatrix/'+ name + '_test_reports.pkl', 'wb') as f:
+#         pickle.dump(test_reports, f)
         
-    with open('nn_parametermatrix/'+ name + '_precision.pkl', 'wb') as f:
-        pickle.dump(precision, f)
+#     with open('nn_parametermatrix/'+ name + '_precision.pkl', 'wb') as f:
+#         pickle.dump(precision, f)
         
-    with open('nn_parametermatrix/'+ name + '_recall.pkl', 'wb') as f:
-        pickle.dump(recall, f)
+#     with open('nn_parametermatrix/'+ name + '_recall.pkl', 'wb') as f:
+#         pickle.dump(recall, f)
         
-    with open('nn_parametermatrix/'+ name + '_f1.pkl', 'wb') as f:
-        pickle.dump(f1, f)
+#     with open('nn_parametermatrix/'+ name + '_f1.pkl', 'wb') as f:
+#         pickle.dump(f1, f)
 
-    np.savez(name+'_bestparams.npz', best_params = best_params)
+#     np.savez(name+'_bestparams.npz', best_params = best_params)
 
-print("Average Train Report:")
-print(avg_train_report)
-print("\nAverage Test Report:")
-print(avg_test_report)
-print("\nBest Hyperparameters:")
-print(f"Best Parameters: {best_params}")
+# print("Average Train Report:")
+# print(avg_train_report)
+# print("\nAverage Test Report:")
+# print(avg_test_report)
+# print("\nBest Hyperparameters:")
+# print(f"Best Parameters: {best_params}")
 
 
 # %% 
+
+# train_values =[]
+# test_values = []
+# for idx, item in enumerate(data):
+#     train_values.append(item['train'])
+#     test_values.append(item['test'])
+
+
 # %%
 # %%
 # %%
@@ -634,17 +651,17 @@ array_norm = ss.fit_transform(wt)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
 same_seeds(42)
 
-lr = best_params[1] # 5e-3 #5e-3
-wd = best_params[2]
+lr = 5e-3 # 5e-3 #5e-3
+wd = 1e-3
 dr = 0.1 # 0.25
-n = 0.20
-ep = 1500
+n = 0.2
+ep = 500
 # name = 'nn_wd_64_32_20percent'
 name = 'nkfcv_test_saveall_bestnn'
 
 start_time = time.time()
 
-hls = best_params[0] # 64, 32
+hls = [64, 32]
 
 train_pred_classes, test_pred_classes, train_report, test_report, best_model_state = neuralnetwork(min_df, name, hls, lr, wd, dr, ep, n, balanced = True) 
 print(name + " done! Time: " + str(time.time() - start_time) + "s")
@@ -662,14 +679,20 @@ cm_test = confusion_matrix(test_data_y, test_pred_classes)
 mapping = dict(zip(pd.Categorical(min_df['Mineral']).codes, pd.Categorical(min_df['Mineral'])))
 sort_dictionary= dict(sorted(mapping.items(), key=lambda item: item[0])) 
 
+
+%matplotlib inline
+%config InlineBackend.figure_format = 'retina'
+rc('font',**{'family':'Avenir', 'size': 24})
+plt.rcParams['pdf.fonttype'] = 42
+
 df_train_cm = pd.DataFrame(cm_train, index=sort_dictionary.values(), columns=sort_dictionary.values())
 cmap = 'BuGn'
-# pp_matrix(df_train_cm, cmap = cmap, savefig = 'train', figsize = (11.5, 11.5)) 
-# plt.show()
+mm.pp_matrix(df_train_cm, cmap = cmap, savefig = 'train', figsize = (11.5, 11.5)) 
+plt.show()
 
 df_test_cm = pd.DataFrame(cm_test, index=sort_dictionary.values(), columns=sort_dictionary.values())
-# pp_matrix(df_test_cm, cmap = cmap, savefig = 'test', figsize = (11.5, 11.5))
-# plt.show()
+mm.pp_matrix(df_test_cm, cmap = cmap, savefig = 'test', figsize = (11.5, 11.5))
+plt.show()
 
 # %% 
 
@@ -728,4 +751,145 @@ df_valid_cm = pd.DataFrame(
     columns=[sort_mapping[x] for x in unique_classes],
 )
 
-# mm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'valid', figsize = (11.5, 11.5)) 
+mm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'lepr_valid', figsize = (11.5, 11.5)) 
+
+# %%
+
+
+
+oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+
+
+georoc = pd.read_csv('../Validation_Data/GEOROC_validationdata.csv', index_col=0)
+georoc_df = georoc.dropna(subset=oxides, thresh = 6)
+
+georoc_df = georoc_df[georoc_df.Mineral.isin(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 'FeTiOxide', 'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene','Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])]
+
+data_idx = np.arange(len(georoc_df))
+train_idx, test_idx = train_test_split(data_idx, test_size=0.2, stratify=pd.Categorical(georoc_df['Mineral']).codes, random_state=42, shuffle=True)
+georoc_df_lim = georoc_df.iloc[test_idx]
+
+georoc_wt = georoc_df_lim[oxides].fillna(0)
+georoc_wt = georoc_wt.to_numpy()
+ss1 = StandardScaler()
+georoc_norm_wt = ss1.fit_transform(georoc_wt)
+
+
+
+
+
+georoc_df_lim['Mineral'] = georoc_df_lim['Mineral'].astype(pd.CategoricalDtype(categories=min_df['Mineral'].cat.categories))
+new_validation_data_y = (georoc_df_lim['Mineral'].cat.codes).values
+
+# Create a DataLoader for the new validation dataset
+new_validation_dataset = LabelDataset(georoc_norm_wt, new_validation_data_y)
+new_validation_loader = DataLoader(new_validation_dataset, batch_size=256, shuffle=False)
+
+input_size = len(new_validation_dataset.__getitem__(0)[0])
+
+name = 'nkfcv_test_saveall_bestnn'
+path = 'nn_parametermatrix/' + name + '_nn_params.pt'
+
+model = MultiClassClassifier(input_dim=input_size, hidden_layer_sizes=hls, dropout_rate = dr).to(device) 
+optimizer=torch.optim.SGD(model.parameters(), lr=lr, weight_decay = wd)
+
+load_model(model, optimizer, path)
+
+# Use the trained model to predict the classes for the new validation dataset
+model.eval()
+new_validation_pred_classes = []
+with torch.no_grad():
+    for data, labels in new_validation_loader:
+        x = data.to(device)
+        pred_classes = model.predict(x)
+        new_validation_pred_classes.extend(pred_classes.tolist())
+
+new_validation_pred_classes = np.array(new_validation_pred_classes)
+unique_classes = np.unique(np.concatenate((new_validation_data_y[new_validation_data_y != -1], new_validation_pred_classes[new_validation_data_y != -1])))
+
+sort_mapping = {key: value for key, value in sorted(mapping.items(), key=lambda item: item[0]) if key in unique_classes}
+
+# Calculate classification metrics for the new validation dataset
+new_validation_report = classification_report(new_validation_data_y[new_validation_data_y!=-1], new_validation_pred_classes[new_validation_data_y!=-1], labels = unique_classes, target_names=[sort_mapping[x] for x in unique_classes], zero_division=0)
+print("New validation report:\n", new_validation_report)
+
+cm_valid = confusion_matrix(new_validation_data_y[new_validation_data_y!=-1], new_validation_pred_classes[new_validation_data_y!=-1])
+
+df_valid_cm = pd.DataFrame(
+    cm_valid,
+    index=[sort_mapping[x] for x in unique_classes],
+    columns=[sort_mapping[x] for x in unique_classes],
+)
+
+mm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'georoc_valid', figsize = (11.5, 11.5)) 
+
+# %%
+
+correct_bool = new_validation_pred_classes == new_validation_data_y 
+incorrect_bool = new_validation_pred_classes != new_validation_data_y 
+
+correct_georoc = georoc_df_lim.loc[correct_bool]
+incorrect_georoc = georoc_df_lim.loc[incorrect_bool]
+
+
+# %% 
+
+import Thermobar as pt 
+
+cpx_corr = correct_georoc[correct_georoc.Mineral=='Clinopyroxene']
+cpx_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Clinopyroxene']
+
+cpx_tern_corr = pt.tern_points_px(px_comps=cpx_corr.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+cpx_tern_incorr = pt.tern_points_px(px_comps=cpx_incorr.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_tern_corr, edgecolor="k", marker="^", facecolor="tab:green", label='GEOROC Correct Cpx', s=75, alpha = 0.25)
+tax.scatter(cpx_tern_incorr, edgecolor="k", marker="^", facecolor="tab:red", label='GEOROC Incorrect Cpx', s=75, alpha = 0.25)
+plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+
+oxide_sum = ['SiO2', 'TiO2', 'Al2O3', 'Fe2O3t', 'Fe2O3', 'FeOt', 'FeO', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO']
+
+cpx_corr['Total'] = cpx_corr[oxide_sum].sum(axis=1)
+cpx_incorr['Total'] = cpx_incorr[oxide_sum].sum(axis=1)
+
+print('Correct Cpx: ' + str(round(cpx_corr['Total'].mean(), 2)) + ', ' + str(round(cpx_corr['Total'].std(),2)))
+
+print('Incorrect Cpx: ' + str(round(cpx_incorr['Total'].mean(),2)) + ', ' + str(round(cpx_incorr['Total'].std(),2)))
+
+
+# %% 
+
+
+# %% visualize LEPR and GEOROC amph
+
+
+amp_corr = correct_georoc[correct_georoc.Mineral=='Amphibole']
+amp_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Amphibole']
+
+# Now calculate the amphibole components
+cat_23ox_corr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_corr.add_suffix('_Amp'))
+cat_23ox_incorr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_incorr.add_suffix('_Amp'))
+
+fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
+pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
+ax1.scatter(cat_23ox_corr['Si_Amp_cat_23ox'], cat_23ox_corr['Mgno_Amp'], c='tab:green', edgecolor="k", alpha=0.25, label ='GEOROC Correct Amphibole')
+ax1.scatter(cat_23ox_incorr['Si_Amp_cat_23ox'], cat_23ox_incorr['Mgno_Amp'], c='tab:red', edgecolor="k", alpha=0.25, label ='GEOROC Correct Amphibole')
+ax1.set_ylabel('Mg# Amphibole')
+ax1.set_xlabel('Si (apfu)')
+ax1.set_xlim([5, 9])
+ax1.invert_xaxis()
+
+ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+oxide_sum = ['SiO2', 'TiO2', 'Al2O3', 'Fe2O3t', 'Fe2O3', 'FeOt', 'FeO', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO']
+
+amp_corr['Total'] = amp_corr[oxide_sum].sum(axis=1)
+amp_incorr['Total'] = amp_incorr[oxide_sum].sum(axis=1)
+
+print('Correct Amp: ' + str(round(amp_corr['Total'].mean(), 2)) + ', ' + str(round(amp_corr['Total'].std(),2)))
+
+print('Incorrect Amp: ' + str(round(amp_incorr['Total'].mean(),2)) + ', ' + str(round(amp_incorr['Total'].std(),2)))
+
+
+# %%
