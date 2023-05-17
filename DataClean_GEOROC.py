@@ -208,10 +208,71 @@ zircons_sub = zircons_lim.dropna(subset=subset_ox, thresh = 6)
 
 min_df = pd.concat([amphiboles_sub, apatites_sub, clinopyroxenes_sub, feldspars_sub, garnets_sub, ilmenites_sub, micas_sub, olivines_sub, orthopyroxenes_sub, pyroxenes_sub, quartz_sub, spinels_sub, zircons_sub])
 
-min_df.rename(columns = {'MINERAL':'Mineral', 'SIO2(WT%)':'SiO2', 'TIO2(WT%)':'TiO2', 'AL2O3(WT%)':'Al2O3', 'FE2O3T(WT%)':'Fe2O3t', 'FE2O3(WT%)':'Fe2O3', 'FEOT(WT%)':'FeOt', 'FEO(WT%)':'FeO', 'MNO(WT%)':'MnO', 'MGO(WT%)':'MgO', 'CAO(WT%)':'CaO', 'NA2O(WT%)':'Na2O', 'K2O(WT%)':'K2O', 'P2O5(WT%)':'P2O5', 'CR2O3(WT%)':'Cr2O3', 'NIO(WT%)':'NiO'}, inplace = True)
+min_df.rename(columns = {'MINERAL':'Mineral', 'SIO2(WT%)':'SiO2', 'TIO2(WT%)':'TiO2', 'AL2O3(WT%)':'Al2O3', 'FE2O3T(WT%)':'Fe2O3T', 'FE2O3(WT%)':'Fe2O3', 'FEOT(WT%)':'FeOT', 'FEO(WT%)':'FeO', 'MNO(WT%)':'MnO', 'MGO(WT%)':'MgO', 'CAO(WT%)':'CaO', 'NA2O(WT%)':'Na2O', 'K2O(WT%)':'K2O', 'P2O5(WT%)':'P2O5', 'CR2O3(WT%)':'Cr2O3', 'NIO(WT%)':'NiO'}, inplace = True)
 
 min_df['Mineral'] = min_df['Mineral'].str.replace(r'\b\w+', lambda x: x.group(0).title())
 
-min_df.to_csv('ValidationData/GEOROC_validationdata.csv')
+
+# %% 
+
+
+def Fe_Conversion(df):
+
+    """
+    Handle inconsistent Fe speciation in PetDB datasets by converting all to FeOT. 
+
+    Parameters
+    --------------
+    df:class:`pandas.DataFrame`
+        Array of oxide compositions.
+
+    Returns
+    --------
+    df:class:`pandas.DataFrame`
+        Array of oxide compositions with corrected Fe.
+    """
+
+    fe_conv = 1.1113
+    conditions = [~np.isnan(df['FeO']) & np.isnan(df['FeOT']) & np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3T']]),
+    ~np.isnan(df['FeOT']) & np.isnan(df['FeO']) & np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3T']]), 
+    ~np.isnan(df['Fe2O3']) & np.isnan(df['Fe2O3T']) & np.isnan(df['FeO']) & np.isnan([df['FeOT']]), # 2
+    ~np.isnan(df['Fe2O3T']) & np.isnan(df['Fe2O3']) & np.isnan(df['FeO']) & np.isnan([df['FeOT']]), # 2
+    ~np.isnan(df['FeO']) & ~np.isnan(df['Fe2O3']) & np.isnan(df['FeOT']) & np.isnan([df['Fe2O3T']]), # 3
+    ~np.isnan(df['FeO']) & ~np.isnan(df['FeOT']) & ~np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3T']]), # 4
+    ~np.isnan(df['FeO']) & ~np.isnan(df['Fe2O3']) & ~np.isnan(df['Fe2O3T']) & np.isnan([df['FeOT']]), # 5
+    ~np.isnan(df['FeOT']) & ~np.isnan(df['Fe2O3']) & np.isnan(df['Fe2O3T']) & np.isnan([df['FeO']]), # 6
+    ~np.isnan(df['Fe2O3']) & ~np.isnan(df['Fe2O3T']) & np.isnan(df['FeO']) & np.isnan([df['FeOT']]) ] # 7
+
+    choices = [ (df['FeO']), (df['FeOT']),
+    (df['Fe2O3']),(df['Fe2O3T']),
+    (df['FeO'] + (df['Fe2O3'] / fe_conv)), # 3
+    (df['FeOT']), # 4 of interest
+    (df['Fe2O3T'] / fe_conv), # 5
+    (df['FeOT']), # 6
+    (df['Fe2O3T'] / fe_conv) ] # 7
+
+    df.insert(9, 'FeOT_F', np.select(conditions, choices))
+
+    return df 
+
+
+# %% 
+
+min_df['Fe2O3T'] = min_df['Fe2O3T'].astype(float)
+min_df['Fe2O3'] = min_df['Fe2O3'].astype(float)
+min_df['FeOT'] = min_df['FeOT'].astype(float)
+min_df['FeO'] = min_df['FeO'].astype(float)
+
+min_df_fe = Fe_Conversion(min_df)
+
+# %% 
+
+
+min_df_fe_lim = min_df_fe[['CITATION', 'SAMPLE NAME', 'Mineral', 'SiO2', 'TiO2', 'Al2O3', 'Cr2O3', 'FeOT_F', 'MnO', 'MgO', 'NiO', 'CaO', 'Na2O', 'K2O', 'P2O5']]
+min_df_fe_lim.rename(columns={'FeOT_F': 'FeOt'}, inplace = True)
+
+# %% 
+
+min_df_fe_lim.to_csv('Validation_Data/GEOROC_validationdata_Fe.csv')
 
 # %% 

@@ -666,8 +666,7 @@ hls = [64, 32]
 train_pred_classes, test_pred_classes, train_report, test_report, best_model_state = neuralnetwork(min_df, name, hls, lr, wd, dr, ep, n, balanced = True) 
 print(name + " done! Time: " + str(time.time() - start_time) + "s")
 
-# %%
-
+# %% 
 
 train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(array_norm, pd.Categorical(min_df['Mineral']).codes, test_size=n, stratify = pd.Categorical(min_df['Mineral']).codes, random_state=42)
 
@@ -696,26 +695,22 @@ plt.show()
 
 # %% 
 
-
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-# lepr = pd.read_csv('Training_Data/mindf_filt.csv')
-
 lepr = pd.read_csv('Validation_Data/lepr_allphases_lim.csv', index_col=0)
 lepr_df = lepr.dropna(subset=oxides, thresh = 5)
 
 lepr_wt = lepr_df[oxides].fillna(0).to_numpy()
-ss = StandardScaler()
-lepr_norm_wt = ss.fit_transform(lepr_wt)
+lepr_norm_wt = ss.transform(lepr_wt)
 
 min_df['Mineral'] = min_df['Mineral'].astype('category')
 lepr_df['Mineral'] = lepr_df['Mineral'].astype(pd.CategoricalDtype(categories=min_df['Mineral'].cat.categories))
-new_validation_data_y = (lepr_df['Mineral'].cat.codes).values
+new_validation_data_y_lepr = (lepr_df['Mineral'].cat.codes).values
 
 # Create a DataLoader for the new validation dataset
-new_validation_dataset = LabelDataset(lepr_norm_wt, new_validation_data_y)
-new_validation_loader = DataLoader(new_validation_dataset, batch_size=256, shuffle=False)
+new_validation_dataset_lepr = LabelDataset(lepr_norm_wt, new_validation_data_y_lepr)
+new_validation_loader_lepr = DataLoader(new_validation_dataset_lepr, batch_size=256, shuffle=False)
 
-input_size = len(new_validation_dataset.__getitem__(0)[0])
+input_size = len(new_validation_dataset_lepr.__getitem__(0)[0])
 
 name = 'nkfcv_test_saveall_bestnn'
 path = 'nn_parametermatrix/' + name + '_nn_params.pt'
@@ -727,43 +722,178 @@ load_model(model, optimizer, path)
 
 # Use the trained model to predict the classes for the new validation dataset
 model.eval()
-new_validation_pred_classes = []
+new_validation_pred_classes_lepr = []
 with torch.no_grad():
-    for data, labels in new_validation_loader:
+    for data, labels in new_validation_loader_lepr:
         x = data.to(device)
         pred_classes = model.predict(x)
-        new_validation_pred_classes.extend(pred_classes.tolist())
+        new_validation_pred_classes_lepr.extend(pred_classes.tolist())
 
-new_validation_pred_classes = np.array(new_validation_pred_classes)
-unique_classes = np.unique(np.concatenate((new_validation_data_y[new_validation_data_y != -1], new_validation_pred_classes[new_validation_data_y != -1])))
+new_validation_pred_classes_lepr = np.array(new_validation_pred_classes_lepr)
+unique_classes = np.unique(np.concatenate((new_validation_data_y_lepr[new_validation_data_y_lepr != -1], new_validation_pred_classes_lepr[new_validation_data_y_lepr != -1])))
 
 sort_mapping = {key: value for key, value in sorted(mapping.items(), key=lambda item: item[0]) if key in unique_classes}
 
 # Calculate classification metrics for the new validation dataset
-new_validation_report = classification_report(new_validation_data_y[new_validation_data_y!=-1], new_validation_pred_classes[new_validation_data_y!=-1], labels = unique_classes, target_names=[sort_mapping[x] for x in unique_classes], zero_division=0)
+new_validation_report = classification_report(new_validation_data_y_lepr[new_validation_data_y_lepr!=-1], new_validation_pred_classes_lepr[new_validation_data_y_lepr!=-1], labels = unique_classes, target_names=[sort_mapping[x] for x in unique_classes], zero_division=0)
 print("New validation report:\n", new_validation_report)
 
-cm_valid = confusion_matrix(new_validation_data_y[new_validation_data_y!=-1], new_validation_pred_classes[new_validation_data_y!=-1])
+cm_valid = confusion_matrix(new_validation_data_y_lepr[new_validation_data_y_lepr!=-1], new_validation_pred_classes_lepr[new_validation_data_y_lepr!=-1])
 
-df_valid_cm = pd.DataFrame(
+df_valid_cm_lepr = pd.DataFrame(
     cm_valid,
     index=[sort_mapping[x] for x in unique_classes],
     columns=[sort_mapping[x] for x in unique_classes],
 )
 
-mm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'lepr_valid', figsize = (11.5, 11.5)) 
+mm.pp_matrix(df_valid_cm_lepr, cmap = cmap, savefig = 'lepr_valid', figsize = (11.5, 11.5)) 
+
+# %% 
+# %% 
+
+
+correct_bool = new_validation_pred_classes_lepr == new_validation_data_y_lepr
+incorrect_bool = new_validation_pred_classes_lepr != new_validation_data_y_lepr
+
+correct_lepr = lepr_df.loc[correct_bool]
+incorrect_lepr = lepr_df.loc[incorrect_bool]
+
+
+import Thermobar as pt 
+
+cpx_corr = correct_lepr[correct_lepr.Mineral=='Clinopyroxene']
+cpx_incorr = incorrect_lepr[incorrect_lepr.Mineral=='Clinopyroxene']
+
+opx_corr = correct_lepr[correct_lepr.Mineral=='Orthopyroxene']
+opx_incorr = incorrect_lepr[incorrect_lepr.Mineral=='Orthopyroxene']
+
+cpx_tern_corr = pt.tern_points_px(px_comps=cpx_corr.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+cpx_tern_incorr = pt.tern_points_px(px_comps=cpx_incorr.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+opx_comps_corr = pt.calculate_orthopyroxene_components(opx_corr.rename(columns={'MgO':'MgO_Opx', 'FeOt':'FeOt_Opx', 'CaO':'CaO_Opx'}))
+opx_comps_incorr = pt.calculate_orthopyroxene_components(opx_incorr.rename(columns={'MgO':'MgO_Opx', 'FeOt':'FeOt_Opx', 'CaO':'CaO_Opx'}))
+
+
+px_points_corr = pt.tern_points(opx_comps_corr["Fs_Simple_MgFeCa_Opx"],  opx_comps_corr["Wo_Simple_MgFeCa_Opx"],  opx_comps_corr["En_Simple_MgFeCa_Opx"])
+px_points_incorr = pt.tern_points(opx_comps_incorr["Fs_Simple_MgFeCa_Opx"],  opx_comps_incorr["Wo_Simple_MgFeCa_Opx"],  opx_comps_incorr["En_Simple_MgFeCa_Opx"])
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(cpx_tern_corr, edgecolor="k", marker="^", facecolor="tab:blue", label='GEOROC Correct Cpx', s=75, alpha = 0.25, rasterized=True)
+tax.scatter(cpx_tern_incorr, edgecolor="k", marker="^", facecolor="tab:red", label='GEOROC Incorrect Cpx', s=75, alpha = 0.25, rasterized=True)
+# tax.scatter(px_points_corr, edgecolor="k", marker="s", facecolor="yellow", label='GEOROC Correct Opx', s=75, alpha=0.25, rasterized=True)
+# tax.scatter(px_points_incorr, edgecolor="k", marker="s", facecolor="tab:green", label='GEOROC Incorrect Opx', s=75, alpha=0.25, rasterized=True)
+# plt.legend(prop={'size': 10}, loc = (0.9, 0.85), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+plt.savefig('cpxopx_misclass_lepr.pdf', bbox_inches='tight', pad_inches = 0.025, dpi=300)
+
+
+
+oxide_sum = ['SiO2', 'TiO2', 'Al2O3', 'FeOt',  'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO']
+
+cpx_corr['Total'] = cpx_corr[oxide_sum].sum(axis=1)
+cpx_incorr['Total'] = cpx_incorr[oxide_sum].sum(axis=1)
+opx_corr['Total'] = opx_corr[oxide_sum].sum(axis=1)
+opx_incorr['Total'] = opx_incorr[oxide_sum].sum(axis=1)
+
+print('Correct Cpx: ' + str(round(cpx_corr['Total'].mean(), 2)) + ', ' + str(round(cpx_corr['Total'].std(),2)))
+
+print('Incorrect Cpx: ' + str(round(cpx_incorr['Total'].mean(),2)) + ', ' + str(round(cpx_incorr['Total'].std(),2)))
+
+
+
+# %% 
+
+
+min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+label = ['Mineral']
+
+min = min_df[label]
+wt = min_df[oxides].fillna(0).to_numpy()
+
+ss = StandardScaler()
+array_norm = ss.fit_transform(wt)
+
+cpx_df = pd.read_csv('../Cpx_compilation_April23.csv')
+amp_df = pd.read_csv('../Amp_compilation_April23.csv')
+cpxamp_df = pd.concat([cpx_df, amp_df])
+cpxamp_df['Cr2O3'] = pd.to_numeric(cpxamp_df['Cr2O3'], errors='coerce')
+cpxamp_wt = cpxamp_df[oxides].fillna(0).to_numpy()
+
+cpxamp_norm_wt = ss.transform(cpxamp_wt)
+
+min_df['Mineral'] = min_df['Mineral'].astype('category')
+cpxamp_df['Mineral'] = cpxamp_df['Mineral'].astype(pd.CategoricalDtype(categories=min_df['Mineral'].cat.categories))
+new_validation_data_y_cascades = (cpxamp_df['Mineral'].cat.codes).values
+
+# Create a DataLoader for the new validation dataset
+new_validation_dataset_cascades = LabelDataset(cpxamp_norm_wt, new_validation_data_y_cascades)
+new_validation_loader_cascades = DataLoader(new_validation_dataset_cascades, batch_size=256, shuffle=False)
+
+name = 'nkfcv_test_saveall_bestnn'
+path = 'nn_parametermatrix/' + name + '_nn_params.pt'
+
+model = MultiClassClassifier(input_dim=input_size, hidden_layer_sizes=hls, dropout_rate = dr).to(device) 
+optimizer=torch.optim.SGD(model.parameters(), lr=lr, weight_decay = wd)
+
+load_model(model, optimizer, path)
+
+# Use the trained model to predict the classes for the new validation dataset
+model.eval()
+new_validation_pred_classes_cascades = []
+with torch.no_grad():
+    for data, labels in new_validation_loader_cascades:
+        x = data.to(device)
+        pred_classes_cascades = model.predict(x)
+        new_validation_pred_classes_cascades.extend(pred_classes_cascades.tolist())
+
+new_validation_pred_classes_cascades = np.array(new_validation_pred_classes_cascades)
+
+unique_classes_cascades = np.unique(np.concatenate((new_validation_data_y_cascades[new_validation_data_y_cascades != -1], new_validation_pred_classes_cascades[new_validation_data_y_cascades != -1])))
+
+
+
+
+sort_mapping = {key: value for key, value in sorted(mapping.items(), key=lambda item: item[0]) if key in unique_classes}
+
+# Calculate classification metrics for the new validation dataset
+new_validation_report = classification_report(new_validation_data_y_cascades[new_validation_data_y_cascades!=-1], new_validation_pred_classes_cascades[new_validation_data_y_cascades!=-1], labels = unique_classes, target_names=[sort_mapping[x] for x in unique_classes], zero_division=0)
+print("New validation report:\n", new_validation_report)
+
+cm_valid_cascades = confusion_matrix(new_validation_data_y_cascades[new_validation_data_y_cascades!=-1], new_validation_pred_classes_cascades[new_validation_data_y_cascades!=-1])
+
+df_valid_cm_cascades = pd.DataFrame(
+    cm_valid_cascades,
+    index=[sort_mapping[x] for x in unique_classes_cascades],
+    columns=[sort_mapping[x] for x in unique_classes_cascades],
+)
+
+
+
+
+
+mm.pp_matrix(df_valid_cm_cascades, cmap = cmap, savefig = 'cascades', figsize = (11.5, 11.5)) 
+
+
+
+# Convert the predicted integer labels to string labels using the sort_mapping dictionary
+new_validation_pred_labels_cascades = np.array([sort_mapping[x] for x in new_validation_pred_classes_cascades])
+cpxamp_df['NN_Labels'] = new_validation_pred_labels_cascades
+
+cpxamp_df.to_csv('Cascades_CpxAmp_NN.csv')
+
+# %% 
+
 
 # %%
 
 
-
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 
-
-georoc = pd.read_csv('../Validation_Data/GEOROC_validationdata.csv', index_col=0)
+georoc = pd.read_csv('../Validation_Data/GEOROC_validationdata_Fe.csv', index_col=0)
 georoc_df = georoc.dropna(subset=oxides, thresh = 6)
 
-georoc_df = georoc_df[georoc_df.Mineral.isin(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 'FeTiOxide', 'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene','Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])]
+georoc_df = georoc_df[georoc_df.Mineral.isin(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 'FeTiOxide', 'Ilmenite', '(Al)Kalifeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene','Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])]
+
+georoc_df['Mineral'] = georoc_df['Mineral'].replace('(Al)Kalifeldspar', 'KFeldspar')
 
 data_idx = np.arange(len(georoc_df))
 train_idx, test_idx = train_test_split(data_idx, test_size=0.2, stratify=pd.Categorical(georoc_df['Mineral']).codes, random_state=42, shuffle=True)
@@ -771,10 +901,8 @@ georoc_df_lim = georoc_df.iloc[test_idx]
 
 georoc_wt = georoc_df_lim[oxides].fillna(0)
 georoc_wt = georoc_wt.to_numpy()
-ss1 = StandardScaler()
-georoc_norm_wt = ss1.fit_transform(georoc_wt)
-
-
+# ss1 = StandardScaler()
+georoc_norm_wt = ss.transform(georoc_wt)
 
 
 
@@ -821,7 +949,25 @@ df_valid_cm = pd.DataFrame(
     columns=[sort_mapping[x] for x in unique_classes],
 )
 
+
+df_valid_cm = df_valid_cm.drop(["Rutile", "Tourmaline"], axis='columns')
+df_valid_cm = df_valid_cm.drop(["Rutile", "Tourmaline"], axis='rows')
+
+
+
 mm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'georoc_valid', figsize = (11.5, 11.5)) 
+
+
+
+# # Convert the predicted integer labels to string labels using the sort_mapping dictionary
+new_validation_pred_labels_georoc = np.array([sort_mapping[x] for x in new_validation_pred_classes])
+# georoc_df_lim['NN_Labels'] = new_validation_pred_labels_georoc
+
+# georoc_df_lim.to_csv('GEOROC_CpxAmp_NN.csv')
+
+# %% 
+
+
 
 # %%
 
@@ -832,30 +978,103 @@ correct_georoc = georoc_df_lim.loc[correct_bool]
 incorrect_georoc = georoc_df_lim.loc[incorrect_bool]
 
 
-# %% 
-
 import Thermobar as pt 
 
 cpx_corr = correct_georoc[correct_georoc.Mineral=='Clinopyroxene']
 cpx_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Clinopyroxene']
 
+opx_corr = correct_georoc[correct_georoc.Mineral=='Orthopyroxene']
+opx_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Orthopyroxene']
+
 cpx_tern_corr = pt.tern_points_px(px_comps=cpx_corr.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
 cpx_tern_incorr = pt.tern_points_px(px_comps=cpx_incorr.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+opx_comps_corr = pt.calculate_orthopyroxene_components(opx_corr.rename(columns={'MgO':'MgO_Opx', 'FeOt':'FeOt_Opx', 'CaO':'CaO_Opx'}))
+opx_comps_incorr = pt.calculate_orthopyroxene_components(opx_incorr.rename(columns={'MgO':'MgO_Opx', 'FeOt':'FeOt_Opx', 'CaO':'CaO_Opx'}))
+
+cpxpred_amplabel = georoc_df_lim[(new_validation_pred_labels_georoc=='Clinopyroxene') & (georoc_df_lim['Mineral']=='Amphibole')]
+amppred_cpxlabel = georoc_df_lim[(new_validation_pred_labels_georoc=='Amphibole') & (georoc_df_lim['Mineral']=='Clinopyroxene')]
+
+amp_tern_corr = pt.tern_points_px(px_comps=amppred_cpxlabel.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
+
+
+px_points_corr = pt.tern_points(opx_comps_corr["Fs_Simple_MgFeCa_Opx"],  opx_comps_corr["Wo_Simple_MgFeCa_Opx"],  opx_comps_corr["En_Simple_MgFeCa_Opx"])
+px_points_incorr = pt.tern_points(opx_comps_incorr["Fs_Simple_MgFeCa_Opx"],  opx_comps_incorr["Wo_Simple_MgFeCa_Opx"],  opx_comps_incorr["En_Simple_MgFeCa_Opx"])
 
 fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-tax.scatter(cpx_tern_corr, edgecolor="k", marker="^", facecolor="tab:green", label='GEOROC Correct Cpx', s=75, alpha = 0.25)
-tax.scatter(cpx_tern_incorr, edgecolor="k", marker="^", facecolor="tab:red", label='GEOROC Incorrect Cpx', s=75, alpha = 0.25)
+tax.scatter(cpx_tern_corr, edgecolor="k", marker="^", facecolor="tab:blue", label='NN Predicted == GEOROC Labeled Cpx', s=75, alpha = 0.25, rasterized=True)
+tax.scatter(cpx_tern_incorr, edgecolor="k", marker="^", facecolor="tab:red", label='NN Predicted ≠ GEOROC Incorrect Cpx', s=75, alpha = 0.25, rasterized=True)
+tax.scatter(amp_tern_corr, edgecolor="k", marker="^", facecolor="tab:orange", label='NN Predicted = Amphibole', s=75, rasterized=True)
+
+# tax.scatter(px_points_corr, edgecolor="k", marker="s", facecolor="yellow", label='GEOROC Correct Opx', s=75, alpha=0.25, rasterized=True)
+# tax.scatter(px_points_incorr, edgecolor="k", marker="s", facecolor="tab:green", label='GEOROC Incorrect Opx', s=75, alpha=0.25, rasterized=True)
+plt.legend(prop={'size': 10}, loc = (0.9, 0.85), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+
+# plt.savefig('cpxopx_misclass.pdf', bbox_inches='tight', pad_inches = 0.025, dpi=300)
+
+# %% 
+
+
+fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=False, fontsize_component_labels=16, fontsize_axes_labels=20)
+tax.scatter(px_points_corr, edgecolor="k", marker="s", facecolor="yellow", label='Correctly Classified Opx', s=75, alpha=0.25, rasterized=True)
+tax.scatter(px_points_incorr, edgecolor="k", marker="s", facecolor="tab:green", label='Incorrectly Classified Opx', s=75, alpha=0.25, rasterized=True)
 plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+plt.savefig('opx_classes.pdf', bbox_inches='tight', pad_inches = 0.025, dpi=300)
 
 
-oxide_sum = ['SiO2', 'TiO2', 'Al2O3', 'Fe2O3t', 'Fe2O3', 'FeOt', 'FeO', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO']
+# %% 
+
+
+oxide_sum = ['SiO2', 'TiO2', 'Al2O3', 'FeOt',  'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO']
 
 cpx_corr['Total'] = cpx_corr[oxide_sum].sum(axis=1)
 cpx_incorr['Total'] = cpx_incorr[oxide_sum].sum(axis=1)
+opx_corr['Total'] = opx_corr[oxide_sum].sum(axis=1)
+opx_incorr['Total'] = opx_incorr[oxide_sum].sum(axis=1)
 
 print('Correct Cpx: ' + str(round(cpx_corr['Total'].mean(), 2)) + ', ' + str(round(cpx_corr['Total'].std(),2)))
 
 print('Incorrect Cpx: ' + str(round(cpx_incorr['Total'].mean(),2)) + ', ' + str(round(cpx_incorr['Total'].std(),2)))
+
+
+print('Correct Opx: ' + str(round(opx_corr['Total'].mean(), 2)) + ', ' + str(round(opx_corr['Total'].std(),2)))
+
+print('Incorrect Opx: ' + str(round(opx_incorr['Total'].mean(),2)) + ', ' + str(round(opx_incorr['Total'].std(),2)))
+
+
+# %% 
+
+# %% 
+
+import mpltern
+
+
+sp_corr = correct_georoc[correct_georoc.Mineral=='Spinel']
+sp_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Spinel']
+sp_corr_comp = mm.calculate_spinel_components(sp_corr, '_Sp')
+sp_incorr_comp = mm.calculate_spinel_components(sp_incorr, '_Sp')
+
+il_corr = correct_georoc[correct_georoc.Mineral=='Ilmenite']
+il_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Ilmenite']
+il_corr_comp = mm.calculate_oxide_components(il_corr, '_Ox')
+il_incorr_comp = mm.calculate_oxide_components(il_incorr, '_Ox')
+
+mg_corr = correct_georoc[correct_georoc.Mineral=='Magnetite']
+mg_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Magnetite']
+mg_corr_comp = mm.calculate_oxide_components(mg_corr, '_Ox')
+mg_incorr_comp = mm.calculate_oxide_components(mg_incorr, '_Ox')
+
+ax = plt.subplot(projection='ternary')
+ax.scatter(sp_incorr.TiO2, sp_incorr.FeOt, sp_incorr.Cr2O3, color='tab:red', alpha=0.2)
+# ax.scatter(il_incorr.TiO2, il_incorr.FeOt, il_incorr.Cr2O3, marker='s', color='tab:red', alpha=0.2)
+# ax.scatter(mg_incorr.TiO2, mg_incorr.FeOt, mg_incorr.Cr2O3, color='tab:red', alpha=0.2, marker='^')
+ax.scatter(sp_corr.TiO2, sp_corr.FeOt, sp_corr.Cr2O3, alpha=0.2)
+# ax.scatter(il_corr.TiO2, il_corr.FeOt, il_corr.Cr2O3, marker='s')
+# ax.scatter(mg_corr.TiO2, mg_corr.FeOt, mg_corr.Cr2O3, marker='^')
+
+# ax.scatter(sp_corr_comp.Ti_Sp_cat_4ox, sp_corr_comp.Fet_Sp_cat_4ox, sp_corr_comp.Cr_Sp_cat_4ox)
+# ax.scatter(il_corr_comp.Ti_Ox_cat_3ox, il_corr_comp.Fet_Ox_cat_3ox, il_corr_comp.Cr_Ox_cat_3ox, marker='s')
+# ax.scatter(mg_corr_comp.Ti_Ox_cat_3ox, mg_corr_comp.Fet_Ox_cat_3ox, mg_corr_comp.Cr_Ox_cat_3ox, marker='^')
+
 
 
 # %% 
@@ -863,6 +1082,8 @@ print('Incorrect Cpx: ' + str(round(cpx_incorr['Total'].mean(),2)) + ', ' + str(
 
 # %% visualize LEPR and GEOROC amph
 
+cpxpred_amplabel = georoc_df_lim[(new_validation_pred_labels_georoc=='Clinopyroxene') & (georoc_df_lim['Mineral']=='Amphibole')]
+amppred_cpxlabel = georoc_df_lim[(new_validation_pred_labels_georoc=='Amphibole') & (georoc_df_lim['Mineral']=='Clinopyroxene')]
 
 amp_corr = correct_georoc[correct_georoc.Mineral=='Amphibole']
 amp_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Amphibole']
@@ -870,19 +1091,21 @@ amp_incorr = incorrect_georoc[incorrect_georoc.Mineral=='Amphibole']
 # Now calculate the amphibole components
 cat_23ox_corr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_corr.add_suffix('_Amp'))
 cat_23ox_incorr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_incorr.add_suffix('_Amp'))
+cat_23ox_cpxpred = pt.calculate_Leake_Diagram_Class(amp_comps=cpxpred_amplabel.add_suffix('_Amp'))
 
 fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
 pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
-ax1.scatter(cat_23ox_corr['Si_Amp_cat_23ox'], cat_23ox_corr['Mgno_Amp'], c='tab:green', edgecolor="k", alpha=0.25, label ='GEOROC Correct Amphibole')
-ax1.scatter(cat_23ox_incorr['Si_Amp_cat_23ox'], cat_23ox_incorr['Mgno_Amp'], c='tab:red', edgecolor="k", alpha=0.25, label ='GEOROC Correct Amphibole')
+ax1.scatter(cat_23ox_corr['Si_Amp_cat_23ox'], cat_23ox_corr['Mgno_Amp'], c='tab:blue', edgecolor="k", alpha=0.25, rasterized=True, label ='NN Predicted == GEOROC Labeled Amphibole')
+ax1.scatter(cat_23ox_incorr['Si_Amp_cat_23ox'], cat_23ox_incorr['Mgno_Amp'], c='tab:red', edgecolor="k", alpha=0.25, rasterized=True, label ='NN Predicted ≠ GEOROC Labeled Amphibole')
+ax1.scatter(cat_23ox_cpxpred['Si_Amp_cat_23ox'], cat_23ox_cpxpred['Mgno_Amp'], c='tab:orange', edgecolor="k", rasterized=True, label ='NN Predicted = Clinopyroxene')
 ax1.set_ylabel('Mg# Amphibole')
 ax1.set_xlabel('Si (apfu)')
 ax1.set_xlim([5, 9])
 ax1.invert_xaxis()
-
 ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+plt.savefig('amph_wcpx.png')
 
-oxide_sum = ['SiO2', 'TiO2', 'Al2O3', 'Fe2O3t', 'Fe2O3', 'FeOt', 'FeO', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO']
+oxide_sum = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO']
 
 amp_corr['Total'] = amp_corr[oxide_sum].sum(axis=1)
 amp_incorr['Total'] = amp_incorr[oxide_sum].sum(axis=1)

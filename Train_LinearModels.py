@@ -27,19 +27,19 @@ from sklearn.metrics import classification_report, confusion_matrix, ConfusionMa
 
 import matplotlib
 from matplotlib import pyplot as plt
+from matplotlib import rc
+import matplotlib.colors as mcolors
+import matplotlib.cm as mcm
 
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
 rc('font',**{'family':'Avenir', 'size': 20})
 plt.rcParams['pdf.fonttype'] = 42
 
-pt.__version__
 
 # %% 
 
-# %% 
-
-min_df = pd.read_csv('TrainingData/mindf_filt.csv')
+min_df = pd.read_csv('Training_Data/mindf_filt.csv')
 
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 label = ['Mineral']
@@ -49,21 +49,14 @@ wt = min_df[oxides].fillna(0).to_numpy()
 wt_scale = StandardScaler().fit_transform(wt)
 
 start = time.time()
-pca_for_wt = PCA(n_components = 3)
-pca_for_z = PCA(n_components = 3)
+pca_for_wt = PCA(n_components = 5)
+pca_for_z = PCA(n_components = 5)
 wt_pca = pca_for_wt.fit_transform(wt)
 wt_z_pca = pca_for_z.fit_transform(wt_scale)
 end = time.time()
 print(str(round(end-start, 2)) + ' seconds elapsed')
 
-def myplot(coeff,labels=None):
-    n = coeff.shape[0]
-    for i in range(n):
-        plt.arrow(0, 0, coeff[i,0], coeff[i,1],color = 'r',alpha = 0.5)
-        if labels is None:
-            plt.text(coeff[i,0]* 1.15, coeff[i,1] * 1.15, "Var"+str(i+1), color = 'g', ha = 'center', va = 'center')
-        else:
-            plt.text(coeff[i,0]* 1.15, coeff[i,1] * 1.15, labels[i], color = 'g', ha = 'center', va = 'center')
+# %% 
 
 
 phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
@@ -84,7 +77,6 @@ for i in range(len(phase)):
     ax[0].scatter(wt_pca[indx][:, 0], wt_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
     ax[1].scatter(wt_pca[indx][:, 0], wt_pca[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
     ax[2].scatter(wt_pca[indx][:, 1], wt_pca[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-myplot(pca_for_z.components_.T)
 ax[0].legend(prop={'size': 8})
 ax[0].set_title('No Normalization wt% - PCA')
 ax[0].set_xlabel('PC1')
@@ -124,6 +116,58 @@ ax[5].set_ylabel('PC3')
 plt.tight_layout()
 plt.show()
 
+# %% 
+
+oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+
+min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+min_df = min_df.fillna(0)
+
+cpx = min_df[min_df.Mineral=='Clinopyroxene']
+amp = min_df[min_df.Mineral=='Amphibole']
+gt = min_df[min_df.Mineral=='Garnet']
+
+cpx_ox = cpx[oxides]
+amp_ox = amp[oxides]
+gt_ox = gt[oxides]
+
+pca_cpx = PCA(n_components = 3)
+cpx_pca = pca_cpx.fit_transform(cpx_ox)
+
+pca_amp = PCA(n_components = 3)
+amp_pca = pca_amp.fit_transform(amp_ox)
+
+pca_gt = PCA(n_components = 3)
+gt_pca = pca_gt.fit_transform(gt_ox)
+
+# %% 
+
+fig, ax = plt.subplots(1, 3, figsize=(18, 6))
+ax = ax.flatten()
+
+ax[0].scatter(cpx_pca[:, 0], cpx_pca[:, 1], ec='k', lw=0.1, alpha=0.4, label='Cpx')
+ax[0].scatter(amp_pca[:, 0], amp_pca[:, 1], ec='k', lw=0.1, alpha=0.4, label='Amp')
+ax[0].scatter(gt_pca[:, 0], gt_pca[:, 1], ec='k', lw=0.1, alpha=0.4, label='Gt')
+ax[0].set_xlabel('PC1')
+ax[0].set_ylabel('PC2')
+ax[0].legend()
+
+ax[1].scatter(cpx_pca[:, 1], cpx_pca[:, 2], ec='k', lw=0.1, alpha=0.4, label='Cpx')
+ax[1].scatter(amp_pca[:, 1], amp_pca[:, 2], ec='k', lw=0.1, alpha=0.4, label='Amp')
+ax[1].scatter(gt_pca[:, 1], gt_pca[:, 2], ec='k', lw=0.1, alpha=0.4, label='Gt')
+ax[1].set_xlabel('PC2')
+ax[1].set_ylabel('PC3')
+
+ax[2].scatter(cpx_pca[:, 0], cpx_pca[:, 2], ec='k', lw=0.1, alpha=0.4, label='Cpx')
+ax[2].scatter(amp_pca[:, 0], amp_pca[:, 2], ec='k', lw=0.1, alpha=0.4, label='Amp')
+ax[2].scatter(gt_pca[:, 0], gt_pca[:, 2], ec='k', lw=0.1, alpha=0.4, label='Gt')
+ax[2].set_xlabel('PC1')
+ax[2].set_ylabel('PC3')
+plt.tight_layout()
+plt.show()
+
+
+# %%
 # %% 
 
 phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
