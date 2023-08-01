@@ -12,6 +12,7 @@ from torch.nn.modules.activation import LeakyReLU, Sigmoid
 from torch.utils.data import Dataset, DataLoader
 
 import os 
+import sys
 import time 
 import json 
 import pickle
@@ -27,9 +28,9 @@ from sklearn.decomposition import PCA, KernelPCA
 from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE
 from sklearn.preprocessing import scale, normalize, StandardScaler
 
-import TAS as tas
 import Thermobar as pt
-import stoichiometry as mm
+sys.path.append('src')
+import MIN_ML as mm
 
 import matplotlib
 from matplotlib import pyplot as plt
@@ -94,36 +95,36 @@ def Fe_Conversion(df):
 
 dtypes = {'SiO2': float, 'TiO2': float, 'Al2O3': float, 'FeOT': float, 'Fe2O3T': float, 'FeO': float, 'Fe2O3': float, 'MnO': float, 'MgO': float, 'CaO': float, 'Na2O': float, 'K2O': float, 'P2O5': float, 'Cr2O3': float, 'NiO': float}
 
-amp_df = Fe_Conversion(pd.read_excel('TrainingData/Amphibole.xlsx', dtype=dtypes))
-ap_df = Fe_Conversion(pd.read_excel('TrainingData/Apatite.xlsx', dtype=dtypes))
-bt_df = Fe_Conversion(pd.read_excel('TrainingData/Biotite.xlsx', dtype=dtypes))
-cpx_df = Fe_Conversion(pd.read_excel('TrainingData/Clinopyroxene.xlsx', dtype=dtypes))
-gt_df = Fe_Conversion(pd.read_excel('TrainingData/Garnet.xlsx', dtype=dtypes))
-il_df = Fe_Conversion(pd.read_excel('TrainingData/Ilmenite.xlsx', dtype=dtypes))
-kfeld_df = Fe_Conversion(pd.read_excel('TrainingData/KFeldspar.xlsx', dtype=dtypes))
-mt_df = Fe_Conversion(pd.read_excel('TrainingData/Magnetite.xlsx', dtype=dtypes))
-ms_df = Fe_Conversion(pd.read_excel('TrainingData/Muscovite.xlsx', dtype=dtypes))
-ol_df = Fe_Conversion(pd.read_excel('TrainingData/Olivine.xlsx', dtype=dtypes))
-opx_df = Fe_Conversion(pd.read_excel('TrainingData/Orthopyroxene.xlsx', dtype=dtypes))
-plag_df = Fe_Conversion(pd.read_excel('TrainingData/Plagioclase.xlsx', dtype=dtypes))
-qtz_df = Fe_Conversion(pd.read_excel('TrainingData/Quartz.xlsx', dtype=dtypes))
-rt_df = Fe_Conversion(pd.read_excel('TrainingData/Rutile.xlsx', dtype=dtypes))
-sp_df = Fe_Conversion(pd.read_excel('TrainingData/Spinel.xlsx', dtype=dtypes))
-tour_df = Fe_Conversion(pd.read_excel('TrainingData/Tourmaline.xlsx', dtype=dtypes))
-zr_df = Fe_Conversion(pd.read_excel('TrainingData/Zircon.xlsx', dtype=dtypes))
+amp_df = Fe_Conversion(pd.read_excel('Training_Data/Amphibole.xlsx', dtype=dtypes))
+ap_df = Fe_Conversion(pd.read_excel('Training_Data/Apatite.xlsx', dtype=dtypes))
+bt_df = Fe_Conversion(pd.read_excel('Training_Data/Biotite.xlsx', dtype=dtypes))
+cpx_df = Fe_Conversion(pd.read_excel('Training_Data/Clinopyroxene.xlsx', dtype=dtypes))
+gt_df = Fe_Conversion(pd.read_excel('Training_Data/Garnet.xlsx', dtype=dtypes))
+il_df = Fe_Conversion(pd.read_excel('Training_Data/Ilmenite.xlsx', dtype=dtypes))
+kfeld_df = Fe_Conversion(pd.read_excel('Training_Data/KFeldspar.xlsx', dtype=dtypes))
+mt_df = Fe_Conversion(pd.read_excel('Training_Data/Magnetite.xlsx', dtype=dtypes))
+ms_df = Fe_Conversion(pd.read_excel('Training_Data/Muscovite.xlsx', dtype=dtypes))
+ol_df = Fe_Conversion(pd.read_excel('Training_Data/Olivine.xlsx', dtype=dtypes))
+opx_df = Fe_Conversion(pd.read_excel('Training_Data/Orthopyroxene.xlsx', dtype=dtypes))
+plag_df = Fe_Conversion(pd.read_excel('Training_Data/Plagioclase.xlsx', dtype=dtypes))
+qtz_df = Fe_Conversion(pd.read_excel('Training_Data/Quartz.xlsx', dtype=dtypes))
+rt_df = Fe_Conversion(pd.read_excel('Training_Data/Rutile.xlsx', dtype=dtypes))
+sp_df = Fe_Conversion(pd.read_excel('Training_Data/Spinel.xlsx', dtype=dtypes))
+tour_df = Fe_Conversion(pd.read_excel('Training_Data/Tourmaline.xlsx', dtype=dtypes))
+zr_df = Fe_Conversion(pd.read_excel('Training_Data/Zircon.xlsx', dtype=dtypes))
 
 min_df = pd.concat([amp_df, ap_df, bt_df, cpx_df, gt_df, il_df, kfeld_df, mt_df, ms_df, ol_df, opx_df, plag_df, qtz_df, rt_df, sp_df, tour_df, zr_df], axis = 0)
 
-min_df_work = min_df[['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOT_F', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'Total', 'Tectonic Setting', 'Mineral','Sample Type', 'Volcano', 'Source','Submineral']]
+min_df_work = min_df[['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOT_F', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'B2O3', 'ZrO2', 'Total', 'Tectonic Setting', 'Mineral','Sample Type', 'Volcano', 'Source','Submineral']]
 
 min_df_lim = min_df_work.copy()
 min_df_lim.rename(columns={"FeOT_F": "FeOt"}, inplace=True)
 
-min_df_lim.to_csv('TrainingData/mindf_original.csv', index = False)
+min_df_lim.to_csv('Training_Data/mindf_original.csv', index = False)
 
 constants = ['Sample Name', 'Total', 'Tectonic Setting', 'Mineral', 'Sample Type', 'Volcano', 'Source', 'Submineral']
 
-min_df_lim = pd.read_csv('TrainingData/mindf_original.csv')
+min_df_lim = pd.read_csv('Training_Data/mindf_original.csv')
 
 # %% 
 
@@ -402,28 +403,6 @@ ax[1].hist(rt_comp['Ti_Zr_Rt'], bins = 10)
 ax[1].set_xlabel('Ti_Zr_Rt')
 plt.tight_layout()
 
-
-# %% 
-
-zr_df = min_df_lim[min_df_lim['Mineral'] == 'Zircon'].rename(columns={c: c+'_Zr' for c in min_df_lim.columns if c not in constants })
-zr_comp = mm.calculate_zircon_components(zr_df, '_Zr')
-zr_comp_filt = zr_comp.loc[((zr_comp.SiO2_Zr.between(30, 35)))]
-
-fig, ax = plt.subplots(1, 2, figsize = (10, 5))
-ax = ax.flatten()
-ax[0].scatter(zr_comp['SiO2_Zr'], zr_comp['P2O5_Zr'], s = 5, color = 'r')
-ax[0].scatter(zr_comp_filt['SiO2_Zr'], zr_comp_filt['P2O5_Zr'], s = 5, color = 'g')
-ax[0].set_xlabel('SiO2_Zr')
-ax[0].set_ylabel('P2O5_Zr')
-
-ax[1].scatter(zr_comp['Zr_Cation_Sum'], zr_comp['Si_Zr'], s = 5, color = 'r')
-ax[1].scatter(zr_comp_filt['Zr_Cation_Sum'], zr_comp_filt['Si_Zr'], s = 5, color = 'g')
-ax[1].set_xlabel('Zr_Cation_Sum')
-ax[1].set_ylabel('Si_Zr')
-plt.tight_layout()
-
-
-
 # %% 
 
 trm_df = min_df_lim[min_df_lim['Mineral'] == 'Tourmaline'].rename(columns={c: c+'_Trm' for c in min_df_lim.columns if c not in constants })
@@ -446,12 +425,52 @@ plt.tight_layout()
 
 # %% 
 
+zr_df = min_df_lim[min_df_lim['Mineral'] == 'Zircon'].rename(columns={c: c+'_Zr' for c in min_df_lim.columns if c not in constants })
+zr_comp = mm.calculate_zircon_components(zr_df, '_Zr')
+zr_comp_filt = zr_comp.loc[((zr_comp.SiO2_Zr.between(30, 35)))]
+
+fig, ax = plt.subplots(1, 2, figsize = (10, 5))
+ax = ax.flatten()
+ax[0].scatter(zr_comp['SiO2_Zr'], zr_comp['P2O5_Zr'], s = 5, color = 'r')
+ax[0].scatter(zr_comp_filt['SiO2_Zr'], zr_comp_filt['P2O5_Zr'], s = 5, color = 'g')
+ax[0].set_xlabel('SiO2_Zr')
+ax[0].set_ylabel('P2O5_Zr')
+
+ax[1].scatter(zr_comp['Zr_Cation_Sum'], zr_comp['Si_Zr'], s = 5, color = 'r')
+ax[1].scatter(zr_comp_filt['Zr_Cation_Sum'], zr_comp_filt['Si_Zr'], s = 5, color = 'g')
+ax[1].set_xlabel('Zr_Cation_Sum')
+ax[1].set_ylabel('Si_Zr')
+plt.tight_layout()
+
+
+# %%
 
 # %% 
 
-oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'Mineral']
+oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'Mineral', 'Submineral']
 
 new_column_names = {'Sample Name': 'Sample Name', 'SiO2': 'SiO2', 'TiO2': 'TiO2', 'Al2O3': 'Al2O3', 'FeOt': 'FeOt', 'MnO': 'MnO', 'MgO': 'MgO', 'CaO': 'CaO', 'Na2O': 'Na2O', 'K2O': 'K2O', 'P2O5': 'P2O5', 'Cr2O3': 'Cr2O3', 'NiO': 'NiO'}
+new_column_names_trm = {'Sample Name': 'Sample Name', 'SiO2': 'SiO2', 'TiO2': 'TiO2', 'Al2O3': 'Al2O3', 'FeOt': 'FeOt', 'MnO': 'MnO', 'MgO': 'MgO', 'CaO': 'CaO', 'Na2O': 'Na2O', 'K2O': 'K2O', 'P2O5': 'P2O5', 'Cr2O3': 'Cr2O3', 'NiO': 'NiO', 'B2O3_Trm':'B2O3'}
+new_column_names_zr = {'Sample Name': 'Sample Name', 'SiO2': 'SiO2', 'TiO2': 'TiO2', 'Al2O3': 'Al2O3', 'FeOt': 'FeOt', 'MnO': 'MnO', 'MgO': 'MgO', 'CaO': 'CaO', 'Na2O': 'Na2O', 'K2O': 'K2O', 'P2O5': 'P2O5', 'Cr2O3': 'Cr2O3', 'NiO': 'NiO', 'ZrO2_Zr':'ZrO2'}
+
+# amp_comp_filt = amp_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# ap_comp_filt = ap_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# bt_comp_filt = bt_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# cpx_comp_filt = cpx_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# gt_comp_filt = gt_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# ksp_comp_filt = ksp_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# ms_comp_filt = ms_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# ol_comp_filt = ol_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# opx_comp_filt = opx_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# ox_comp_filt = ox_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# plag_comp_filt = plag_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# qz_comp_filt = qz_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# rt_comp_filt = rt_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# sp_comp_filt = sp_comp_filt.rename(columns=lambda x: new_column_names[x] if x in new_column_names else x)
+# trm_comp_filt = trm_comp_filt.rename(columns=lambda x: new_column_names_trm[x] if x in new_column_names_trm else x)
+# zr_comp_filt = zr_comp_filt.rename(columns=lambda x: new_column_names_zr[x] if x in new_column_names_zr else x)
+
+
 amp_comp_filt = amp_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
 ap_comp_filt = ap_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
 bt_comp_filt = bt_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
@@ -466,13 +485,24 @@ plag_comp_filt = plag_comp_filt.rename(columns=lambda x: next((new_column_names[
 qz_comp_filt = qz_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
 rt_comp_filt = rt_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
 sp_comp_filt = sp_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
-trm_comp_filt = trm_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
-zr_comp_filt = zr_comp_filt.rename(columns=lambda x: next((new_column_names[k] for k in new_column_names if k in x), x))
+trm_comp_filt = trm_comp_filt.rename(columns=lambda x: next((new_column_names_trm[k] for k in new_column_names_trm if k in x), x))
+zr_comp_filt = zr_comp_filt.rename(columns=lambda x: next((new_column_names_zr[k] for k in new_column_names_zr if k in x), x))
 
 # %% 
 
-min_comp_filt = pd.concat([amp_comp_filt[oxideslab], ap_comp_filt[oxideslab], bt_comp_filt[oxideslab], cpx_comp_filt[oxideslab], gt_comp_filt[oxideslab], ksp_comp_filt[oxideslab], ms_comp_filt[oxideslab], ol_comp_filt[oxideslab], opx_comp_filt[oxideslab], ox_comp_filt[oxideslab], plag_comp_filt[oxideslab], qz_comp_filt[oxideslab], rt_comp_filt[oxideslab], sp_comp_filt[oxideslab], trm_comp_filt[oxideslab], zr_comp_filt[oxideslab]], axis = 0)
+oxideslab_trm = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'B2O3', 'Mineral', 'Submineral']
+oxideslab_zr = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'ZrO2', 'Mineral', 'Submineral']
+min_comp_filt = pd.concat([amp_comp_filt[oxideslab], ap_comp_filt[oxideslab], bt_comp_filt[oxideslab], cpx_comp_filt[oxideslab], gt_comp_filt[oxideslab], ksp_comp_filt[oxideslab], ms_comp_filt[oxideslab], ol_comp_filt[oxideslab], opx_comp_filt[oxideslab], ox_comp_filt[oxideslab], plag_comp_filt[oxideslab], qz_comp_filt[oxideslab], rt_comp_filt[oxideslab], sp_comp_filt[oxideslab], trm_comp_filt[oxideslab_trm], zr_comp_filt[oxideslab_zr]])
 
-min_comp_filt.to_csv('TrainingData/mindf_filt.csv', index = False)
+
+column_order = ['Sample Name',	'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'B2O3', 'ZrO2', 'Mineral', 'Submineral']
+min_comp_filt = min_comp_filt[column_order]
+# min_comp_filt.to_csv('Training_Data/mindf_filt1.csv', index = False)
 
 # %% 
+
+
+df = pd.read_csv('Training_Data/mindf_filt.csv')
+df1 = pd.read_csv('Training_Data/mindf_filt1.csv')
+
+# %%

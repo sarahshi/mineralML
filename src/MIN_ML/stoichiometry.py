@@ -4751,7 +4751,7 @@ def calculate_mol_proportions_zircon(zr_comps):
         mole proportions for zircons with column headings of the form SiO2_Zr_mol_prop
     '''
 
-    oxide_mass_zr = {'SiO2_Zr': 60.0843, 'MgO_Zr': 40.3044, 'FeOt_Zr': 71.8464, 'CaO_Zr': 56.0774,'Al2O3_Zr': 101.961, 'Na2O_Zr': 61.9789, 'K2O_Zr': 94.196, 'MnO_Zr': 70.9375, 'TiO2_Zr': 79.7877, 'Cr2O3_Zr': 151.9982, 'P2O5_Zr': 141.937, 'ZrO2': 123.218, 'HfO2': 210.49}
+    oxide_mass_zr = {'SiO2_Zr': 60.0843, 'MgO_Zr': 40.3044, 'FeOt_Zr': 71.8464, 'CaO_Zr': 56.0774,'Al2O3_Zr': 101.961, 'Na2O_Zr': 61.9789, 'K2O_Zr': 94.196, 'MnO_Zr': 70.9375, 'TiO2_Zr': 79.7877, 'Cr2O3_Zr': 151.9982, 'P2O5_Zr': 141.937, 'ZrO2_Zr': 123.218, 'HfO2_Zr': 210.49}
     oxide_mass_zr_df = pd.DataFrame.from_dict(oxide_mass_zr, orient='index').T
     oxide_mass_zr_df['Sample_ID_Zr'] = 'MolWt'
     oxide_mass_zr_df.set_index('Sample_ID_Zr', inplace=True)

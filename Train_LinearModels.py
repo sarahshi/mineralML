@@ -21,7 +21,7 @@ from sklearn import svm, datasets
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA, KernelPCA
 from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE
-from sklearn.preprocessing import scale, normalize, StandardScaler
+from sklearn.preprocessing import scale, normalize, StandardScaler, MinMaxScaler
 from sklearn.inspection import DecisionBoundaryDisplay
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 
@@ -31,6 +31,8 @@ from matplotlib import rc
 import matplotlib.colors as mcolors
 import matplotlib.cm as mcm
 
+from hdbscan.flat import (HDBSCAN_flat, approximate_predict_flat)
+
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
 rc('font',**{'family':'Avenir', 'size': 20})
@@ -39,7 +41,8 @@ plt.rcParams['pdf.fonttype'] = 42
 
 # %% 
 
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+# min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+min_df = pd.read_csv('Training_Data/mindf_filt1.csv')
 
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 label = ['Mineral']
@@ -49,12 +52,12 @@ wt = min_df[oxides].fillna(0).to_numpy()
 wt_scale = StandardScaler().fit_transform(wt)
 
 start = time.time()
-pca_for_wt = PCA(n_components = 5)
-pca_for_z = PCA(n_components = 5)
-wt_pca = pca_for_wt.fit_transform(wt)
-wt_z_pca = pca_for_z.fit_transform(wt_scale)
+pca = PCA(n_components = 8)
+pca_arr = pca.fit_transform(wt_scale)
 end = time.time()
 print(str(round(end-start, 2)) + ' seconds elapsed')
+
+print(pca.explained_variance_ratio_.sum())
 
 # %% 
 
@@ -69,52 +72,70 @@ tab = plt.get_cmap('tab20')
 cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
 scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
 
-fig, ax = plt.subplots(2, 3, figsize = (21, 14))
+fig, ax = plt.subplots(1, 3, figsize = (21, 7))
 ax = ax.flatten()
-# PCA on wt. % 
+# My feature_normalisation function has the same function as normalization from sklearn.preprocessing
 for i in range(len(phase)):
     indx = min['Mineral'] == phase[i]
-    ax[0].scatter(wt_pca[indx][:, 0], wt_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-    ax[1].scatter(wt_pca[indx][:, 0], wt_pca[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-    ax[2].scatter(wt_pca[indx][:, 1], wt_pca[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+    ax[0].scatter(pca_arr[indx][:, 0], pca_arr[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+    ax[1].scatter(pca_arr[indx][:, 0], pca_arr[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+    ax[2].scatter(pca_arr[indx][:, 1], pca_arr[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
 ax[0].legend(prop={'size': 8})
-ax[0].set_title('No Normalization wt% - PCA')
+ax[0].set_title('Normalization wt% - PCA')
 ax[0].set_xlabel('PC1')
 ax[0].set_ylabel('PC2')
 
 ax[1].legend(prop={'size': 8})
-ax[1].set_title('No Normalization wt% - PCA')
-ax[1].set_xlabel('PC2')
+ax[1].set_title('Normalization wt% - PCA')
+ax[1].set_xlabel('PC1')
 ax[1].set_ylabel('PC3')
 
 ax[2].legend(prop={'size': 8})
-ax[2].set_title('No Normalization wt% - PCA')
+ax[2].set_title('Normalization wt% - PCA')
 ax[2].set_xlabel('PC2')
 ax[2].set_ylabel('PC3')
 
+plt.tight_layout()
+plt.show()
+
+# %% 
+
+clusterer = HDBSCAN_flat(pca_arr, n_clusters=17)
+cluster_labels = clusterer.labels_
+cluster_probs = clusterer.probabilities_
+
+# %% 
+
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(np.unique(cluster_labels)))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=plt.get_cmap('tab20'))
+
+fig, ax = plt.subplots(1, 3, figsize = (21, 7))
+ax = ax.flatten()
 # My feature_normalisation function has the same function as normalization from sklearn.preprocessing
-for i in range(len(phase)):
-    indx = min['Mineral'] == phase[i]
-    ax[3].scatter(wt_z_pca[indx][:, 0], wt_z_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-    ax[4].scatter(wt_z_pca[indx][:, 0], wt_z_pca[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-    ax[5].scatter(wt_z_pca[indx][:, 1], wt_z_pca[indx][:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
-ax[3].legend(prop={'size': 8})
-ax[3].set_title('Normalization wt% - PCA')
-ax[3].set_xlabel('PC1')
-ax[3].set_ylabel('PC2')
+for i in range(len(np.unique(cluster_labels))):
+    pca_arr_lim = pca_arr[cluster_labels==i]
+    ax[0].scatter(pca_arr_lim[:, 0], pca_arr_lim[:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=f"{i}")
+    ax[1].scatter(pca_arr_lim[:, 0], pca_arr_lim[:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=f"{i}")
+    ax[2].scatter(pca_arr_lim[:, 1], pca_arr_lim[:, 2], s=15, color=scalarMap.to_rgba(i), lw=1, label=f"{i}")
+ax[0].legend(prop={'size': 8})
+ax[0].set_title('Normalization wt% - PCA')
+ax[0].set_xlabel('PC1')
+ax[0].set_ylabel('PC2')
 
-ax[4].legend(prop={'size': 8})
-ax[4].set_title('Normalization wt% - PCA')
-ax[4].set_xlabel('PC1')
-ax[4].set_ylabel('PC3')
+ax[1].legend(prop={'size': 8})
+ax[1].set_title('Normalization wt% - PCA')
+ax[1].set_xlabel('PC1')
+ax[1].set_ylabel('PC3')
 
-ax[5].legend(prop={'size': 8})
-ax[5].set_title('Normalization wt% - PCA')
-ax[5].set_xlabel('PC2')
-ax[5].set_ylabel('PC3')
+ax[2].legend(prop={'size': 8})
+ax[2].set_title('Normalization wt% - PCA')
+ax[2].set_xlabel('PC2')
+ax[2].set_ylabel('PC3')
 
 plt.tight_layout()
 plt.show()
+
+# %% 
 
 # %% 
 
