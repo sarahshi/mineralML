@@ -695,6 +695,8 @@ plt.show()
 
 # %% 
 
+# %%
+
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 lepr = pd.read_csv('Validation_Data/lepr_allphases_lim.csv', index_col=0)
 lepr_df = lepr.dropna(subset=oxides, thresh = 5)
@@ -711,6 +713,7 @@ new_validation_dataset_lepr = LabelDataset(lepr_norm_wt, new_validation_data_y_l
 new_validation_loader_lepr = DataLoader(new_validation_dataset_lepr, batch_size=256, shuffle=False)
 
 input_size = len(new_validation_dataset_lepr.__getitem__(0)[0])
+hls = [64, 32]
 
 name = 'nkfcv_test_saveall_bestnn'
 path = 'nn_parametermatrix/' + name + '_nn_params.pt'
@@ -812,8 +815,8 @@ wt = min_df[oxides].fillna(0).to_numpy()
 ss = StandardScaler()
 array_norm = ss.fit_transform(wt)
 
-cpx_df = pd.read_csv('../Cpx_compilation_April23.csv')
-amp_df = pd.read_csv('../Amp_compilation_April23.csv')
+cpx_df = pd.read_csv('../Validation_Data/Cpx_compilation_April23.csv')
+amp_df = pd.read_csv('../Validation_Data/Amp_compilation_April23.csv')
 cpxamp_df = pd.concat([cpx_df, amp_df])
 cpxamp_df['Cr2O3'] = pd.to_numeric(cpxamp_df['Cr2O3'], errors='coerce')
 cpxamp_wt = cpxamp_df[oxides].fillna(0).to_numpy()
@@ -865,8 +868,6 @@ df_valid_cm_cascades = pd.DataFrame(
     index=[sort_mapping[x] for x in unique_classes_cascades],
     columns=[sort_mapping[x] for x in unique_classes_cascades],
 )
-
-
 
 
 

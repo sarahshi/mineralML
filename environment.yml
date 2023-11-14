@@ -1,19 +1,17 @@
-name: minml
+name: MIN_ML
 channels:
   - conda-forge
   - defaults
 dependencies:
-    - python=3.9    # Python version 3.9, 3.6 original
+    - python
     - ipython       # IPython interpreter and tools
     - jupyter       # Jupyter federation architecture
     - jupyterlab    # Jupyter Lab environment
     - matplotlib    # 2D plotting library
     - numpy         # N-d array and numerics
     - pandas        # Labeled array library
-    - pyjanitor       # Cleans up Pandas dataframe column names
     - scipy         # Common math/stats/science functions
-    - seaborn       # Statistical visualizations
-    - cartopy       # Geographic plotting toolkit
+    - seaborn
     - flake8
     - pep8
     - scikit-learn
@@ -21,7 +19,5 @@ dependencies:
     - pytorch
     - pip
     - pip:
-        - Thermobar
-        - VESIcal
         - pyrolite
         - PyIRoGlass

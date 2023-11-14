@@ -1,0 +1,20 @@
+name: MIN_ML-RTD
+channels:
+    - conda-forge
+    - defaults
+dependencies:
+    - python
+    - pandoc
+    - pip:
+        - sphinx_rtd_theme>=0.5.0
+        - ipython
+        - sphinxcontrib-bibtex>=2.3.0
+        - nbsphinx==0.8.12
+        - ipykernel
+        - pandas
+        - numpy
+        - matplotlib
+        - scikit-learn
+        - scipy
+        - pytorch
+

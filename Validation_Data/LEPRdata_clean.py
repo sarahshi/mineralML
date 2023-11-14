@@ -120,7 +120,7 @@ df_new = Fe_Conversion(df_lim)
 df_new_lim = df_new[['entity_id', 'Mineral', 'method', 'SiO2', 'TiO2', 'Al2O3', 'Cr2O3', 'FeOT_F', 'MnO', 'MgO', 'NiO', 'CoO', 'CaO', 'Na2O', 'K2O', 'P2O5']]
 df_new_lim.rename(columns={'FeOT_F': 'FeOt'}, inplace = True)
 
-df_new_lim.to_csv('lepr_allphases_lim.csv')
+df_new_lim.to_csv('LEPR_allphases_lim.csv')
 
 
 # %%
