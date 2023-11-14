@@ -25,6 +25,44 @@ from minML.core import *
 
 class VariationalLayer(nn.Module):
 
+    """
+    
+    The VariationalLayer class implements a Bayesian approach to linear layers 
+    in neural networks, which allows for the incorporation 
+    of uncertainty in the weights and biases. This is achieved by modeling the 
+    parameters as distributions rather than point estimates. The layer utilizes 
+    variational inference to learn the parameters of these distributions.
+
+    Parameters:
+        in_features (int): The number of input features to the layer.
+        out_features (int): The number of output features from the layer.
+
+    Attributes:
+        weight_mu (Parameter): The mean of the Gaussian distributions of the weights.
+        weight_rho (Parameter): The rho parameters (unconstrained) for the standard 
+                                deviations of the Gaussian distributions of the weights.
+        bias_mu (Parameter): The mean of the Gaussian distributions of the biases.
+        bias_rho (Parameter): The rho parameters (unconstrained) for the standard 
+                              deviations of the Gaussian distributions of the biases.
+        softplus (nn.Softplus): A Softplus activation function used for ensuring the 
+                                standard deviation is positive.
+
+    Methods:
+        reset_parameters(): Initializes the parameters based on the number of input features.
+        forward(input): Performs the forward pass using a sampled weight and bias according 
+                        to their respective distributions.
+        kl_divergence(): Computes the Kullback-Leibler divergence of the layer's 
+                         parameters, which can be used as a part of the loss function 
+                         to regulate the learning of the distribution parameters.
+
+    The forward computation of this layer is equivalent to a standard linear layer 
+    with sampled weights and biases. The KL divergence method returns a value that 
+    quantifies the difference between the prior and variational distributions of the 
+    layer's parameters, which encourages the learning of plausible weights and biases 
+    while controlling complexity.
+
+    """
+
     def __init__(self, in_features, out_features):
 
         super(VariationalLayer, self).__init__()
@@ -72,6 +110,42 @@ class VariationalLayer(nn.Module):
         return kl_div
 
 class MultiClassClassifier(nn.Module):
+
+    """
+    A neural network module for multi-class classification tasks. It 
+    consists of a sequence of layers defined by the input dimensions, number 
+    of classes, dropout rate, and sizes of hidden layers. It can be 
+    customized with different numbers and sizes of hidden layers, as well as 
+    varying dropout rates to prevent overfitting. The final output layer is 
+    designed for classification among a fixed number of classes.
+
+    Parameters:
+        input_dim (int): Dimensionality of the input features. Defaults to 10.
+        classes (int): The number of output classes for classification. Defaults to 12.
+        dropout_rate (float): The dropout rate applied after each hidden layer. Defaults to 0.1.
+        hidden_layer_sizes (list of int): The sizes of each hidden layer. Defaults to a single 
+                                          hidden layer with 8 units.
+
+    Attributes:
+        input_dim (int): Internal storage of the input dimensionality.
+        classes (int): Internal storage of the number of classes.
+        dropout_rate (float): Internal storage of the dropout rate.
+        hls (list of int): Internal storage of the hidden layer sizes.
+        encode (nn.Sequential): The sequential container of layers making up the encoder part 
+                                of the classifier, including linear, batch normalization, 
+                                leaky ReLU, and dropout layers. 
+
+    Methods:
+        encoded(x): Encodes input `x` through the sequence of layers defined in `encode`.
+        forward(x): Implements the forward pass of the network, returning raw scores for each class.
+        predict(x): Provides class predictions for input `x` based on the scores from the forward pass.
+
+    The class utilizes a helper function `element` to create each hidden layer or the variational 
+    layer if it is the last one. The `weights_init` function is applied to initialize weights 
+    after the model is constructed.
+
+    """
+
     def __init__(self, input_dim=10, classes=12, dropout_rate=0.1, hidden_layer_sizes=[8]):
         super(MultiClassClassifier, self).__init__()
         self.input_dim = input_dim
@@ -119,6 +193,24 @@ class MultiClassClassifier(nn.Module):
 
 def predict_class_prob_train(model, input_data, n_iterations=100):
 
+    """
+    
+    Computes the predicted class probabilities for the given input data using the model by 
+    performing multiple forward passes. The function operates in evaluation mode and does not 
+    track gradients. It returns the mean and standard deviation of the softmax probabilities 
+    across all iterations, providing a measure of model uncertainty.
+
+    Parameters:
+        model (nn.Module): The model to be used for prediction, which should already be trained.
+        input_data (Tensor): The input data to be passed to the model for prediction.
+        n_iterations (int): The number of forward passes to perform for prediction. Defaults to 100.
+
+    Returns:
+        prediction_mean (ndarray): The mean class probabilities across all iterations.
+        prediction_std (ndarray): The standard deviation of class probabilities, indicating uncertainty.
+
+    """
+
     model.eval()
     output_list = []
     for i in range(n_iterations):
@@ -134,13 +226,26 @@ def predict_class_prob_train(model, input_data, n_iterations=100):
 
     return prediction_mean, prediction_std
 
-def load_model(model, optimizer=None, path=''):
-    check_point = torch.load(path)
-    model.load_state_dict(check_point['params'])
-    if optimizer is not None:
-        optimizer.load_state_dict(check_point['optimizer'])
-
 def predict_class_prob(df, n_iterations=100): 
+
+    """
+
+    Predicts the class probabilities, corresponding mineral names, and the maximum 
+    probability for each class using a predefined MultiClassClassifier model. This 
+    function loads a pre-trained model and its optimizer state, normalizes input 
+    data, and performs multiple inference iterations to compute the prediction probabilities.
+
+    Parameters:
+        df (DataFrame): The input DataFrame containing the oxide composition data.
+        n_iterations (int): The number of inference iterations to average over for predictions. 
+                            Defaults to 100.
+
+    Returns:
+        predict_mineral (array): The predicted mineral names for each input sample.
+        predict_prob (array): The maximum probability of the predicted class for each sample.
+        probability_matrix (ndarray): The matrix of class probabilities for each sample.
+
+    """
 
     lr = 5e-3 
     wd = 1e-3 
@@ -176,11 +281,30 @@ def predict_class_prob(df, n_iterations=100):
 
     return predict_mineral, predict_prob, probability_matrix
 
-def unique_mapping(df, pred_class): 
+def unique_mapping(given_class, pred_class): 
+
+    """
+
+    Generates a mapping of unique class codes from given and predicted class labels, 
+    considering only the classes present in both input arrays. It loads a predefined 
+    category list and mapping, encodes the 'given_class' labels into categorical codes, 
+    and creates a subset mapping for the unique classes found. It also handles unknown 
+    classes by assigning them a code of -1 and mapping the 'Unknown' label to them.
+
+    Parameters:
+        given_class (array-like): The array of actual class labels.
+        pred_class (array-like): The array of predicted class labels.
+
+    Returns:
+        unique (ndarray): Array of unique class codes found in both given and predicted classes.
+        valid_mapping (dict): Dictionary mapping class codes to their corresponding labels, 
+                              including 'Unknown' for any class code of -1.
+
+    """
 
     min_cat, mapping = load_minclass()
-    df['Mineral'] = pd.Categorical(df['Mineral'], categories=min_cat)
-    given_class = df['Mineral'].cat.codes.values
+    given_class = pd.Categorical(given_class, categories=min_cat)
+    given_class = given_class.cat.codes.values
     unique = np.unique(np.concatenate((given_class, pred_class)))
     valid_mapping = {key: mapping[key] for key in unique}
     if -1 in unique:
@@ -188,19 +312,52 @@ def unique_mapping(df, pred_class):
 
     return unique, valid_mapping
 
-def class2mineral(df, pred_class): 
+def class2mineral(given_class, pred_class): 
 
-    unique, valid_mapping = unique_mapping(df, pred_class)
+    """
+
+    Translates predicted class codes into mineral names using a mapping obtained from the
+    unique classes present in the 'given_class' and 'pred_class' arrays. It utilizes the
+    'unique_mapping' function to establish the relevant class-to-mineral name mapping.
+
+    Parameters:
+        given_class (array-like): The array of actual class labels provided by the user.
+        pred_class (array-like): The array of predicted class codes to be translated into mineral names.
+
+    Returns:
+        pred_mineral (ndarray): An array of mineral names corresponding to the predicted class codes.
+        
+    """
+
+    unique, valid_mapping = unique_mapping(given_class, pred_class)
     pred_mineral = np.array([valid_mapping[x] for x in pred_class])
 
     return pred_mineral
 
 
-def confusion_matrix_df(df, pred_class):
+def confusion_matrix_df(given_class, pred_class):
 
-    unique, valid_mapping = unique_mapping(df, pred_class)
-    pred_mineral = class2mineral(df, pred_class)
-    cm_matrix = confusion_matrix(df.Mineral, pred_mineral)
+    """
+
+    Constructs a confusion matrix as a pandas DataFrame for easy visualization and 
+    analysis. The function first finds the unique classes and maps them to their 
+    corresponding mineral names. Then, it uses these mappings to construct the 
+    confusion matrix, which compares the given and predicted classes.
+
+    Parameters:
+        given_class (array-like): The true class labels.
+        pred_class (array-like): The predicted class labels.
+
+    Returns:
+        cm_df (DataFrame): A DataFrame representing the confusion matrix, with rows 
+                           and columns labeled by the unique mineral names found in 
+                           the given and predicted class arrays.
+
+    """
+
+    unique, valid_mapping = unique_mapping(given_class, pred_class)
+    pred_mineral = class2mineral(given_class, pred_class)
+    cm_matrix = confusion_matrix(given_class, pred_mineral)
 
     labels = [valid_mapping[x] for x in unique]
     cm_df = pd.DataFrame(cm_matrix, index=labels, columns=labels)
@@ -208,8 +365,35 @@ def confusion_matrix_df(df, pred_class):
     return cm_df
 
 
-
 def train_nn(model, optimizer, train_loader, valid_loader, n_epoch, criterion, kl_weight_decay, kl_decay_epochs=750, patience=50):
+
+    """
+
+    Trains a neural network model using the provided data loaders, optimizer, and loss criterion. It incorporates KL divergence 
+    into the loss to enable learning in a variational framework, with the KL weight increasing each epoch until a maximum value 
+    is reached. The function includes an early stopping mechanism that terminates training if validation loss does not improve 
+    for a specified number of consecutive epochs.
+
+    Parameters:
+        model (nn.Module): The neural network model to train.
+        optimizer (Optimizer): The optimization algorithm used to update model weights.
+        train_loader (DataLoader): The DataLoader containing the training data.
+        valid_loader (DataLoader): The DataLoader containing the validation data.
+        n_epoch (int): The total number of training epochs.
+        criterion (Loss): The loss function used for training.
+        kl_weight_decay (float): The increment to the KL divergence weight per epoch.
+        kl_decay_epochs (int): The number of epochs over which to increment the KL weight. Defaults to 750.
+        patience (int): The number of epochs to wait for improvement in validation loss before early stopping. Defaults to 50.
+
+    Returns:
+        train_output (Tensor): The output from the model for the last training batch.
+        valid_output (Tensor): The output from the model for the last validation batch.
+        avg_train_loss (list): The list of average training losses per epoch.
+        avg_valid_loss (list): The list of average validation losses per epoch.
+        best_valid_loss (float): The best validation loss observed during training.
+        best_model_state (dict): The state dictionary of the model at the point of the best validation loss.
+
+    """
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
 
@@ -284,6 +468,31 @@ def train_nn(model, optimizer, train_loader, valid_loader, n_epoch, criterion, k
     return train_output, valid_output, avg_train_loss, avg_valid_loss, best_valid_loss, best_model_state
 
 def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balanced):
+
+    """
+
+    Trains a neural network with various configurations of hidden layer sizes and KL weight 
+    decay parameters to find the best model for classifying minerals based on their oxide 
+    composition. It normalizes input data, balances the dataset if required, initializes 
+    the model and optimizer, and performs training and validation. The best performing 
+    model's parameters are saved, along with training and validation losses, and prediction 
+    reports.
+
+    Parameters:
+        df (DataFrame): The input DataFrame with mineral composition data and labels.
+        hls_list (list of list of int): List of configurations for hidden layer sizes.
+        kl_weight_decay_list (list of float): List of KL weight decay values to try during training.
+        lr (float): Learning rate for the optimizer.
+        wd (float): Weight decay factor for regularization.
+        dr (float): Dropout rate for the model.
+        ep (int): Number of epochs to train.
+        n (float): Test size fraction or absolute number for splitting the dataset.
+        balanced (bool): Whether to balance the dataset or not.
+
+    Returns:
+        best_model_state (dict): The state dictionary of the best performing model.
+        
+    """
 
     path_beg = os.getcwd() + '/'
     output_dir = ["parametermatrix_neuralnetwork"] 
