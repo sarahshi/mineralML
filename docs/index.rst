@@ -39,3 +39,11 @@ Welcome to mineralML's documentation!
 
    codedoc
 
+
+.. toctree::
+   :maxdepth: 2
+   :caption: References
+
+   references
+
+
