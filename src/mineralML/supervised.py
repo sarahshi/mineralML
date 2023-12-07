@@ -26,7 +26,6 @@ from mineralML.core import *
 def load_minclass_nn():
 
     """
-
     Loads mineral classes and their corresponding mappings from a .npz file. 
     The file is expected to contain an array of class names under the 'classes' key. 
     This function creates a dictionary that maps an integer code to each class name.
@@ -35,7 +34,6 @@ def load_minclass_nn():
         min_cat (list): A list of mineral class names.
         mapping (dict): A dictionary that maps each integer code to its corresponding 
                         class name in the 'min_cat' list.
-
     """
 
     current_dir = os.path.dirname(__file__)
@@ -449,7 +447,6 @@ def predict_class_prob_nn(df, n_iterations=250):
 def unique_mapping_nn(pred_class): 
 
     """
-
     Generates a mapping of unique class codes from given and predicted class labels, 
     considering only the classes present in both input arrays. It loads a predefined 
     category list and mapping, encodes the 'given_class' labels into categorical codes, 
@@ -457,14 +454,12 @@ def unique_mapping_nn(pred_class):
     classes by assigning them a code of -1 and mapping the 'Unknown' label to them.
 
     Parameters:
-        given_class (array-like): The array of actual class labels.
         pred_class (array-like): The array of predicted class labels.
 
     Returns:
         unique (ndarray): Array of unique class codes found in both given and predicted classes.
         valid_mapping (dict): Dictionary mapping class codes to their corresponding labels, 
                               including 'Unknown' for any class code of -1.
-
     """
 
     _, mapping = load_minclass_nn()

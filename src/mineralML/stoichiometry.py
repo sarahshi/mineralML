@@ -726,15 +726,13 @@ def calculate_cat_fractions_plagioclase(plag_comps):
     
     Import plagioclase compositions using plag_comps=My_plagioclases, returns cation fractions
 
-   Parameters
-    -------
-    plag_comps: pandas.DataFrame
-        plagioclase compositions with column headings SiO2_Plag, MgO_Plag etc.
+    Parameters: 
+        plag_comps (pandas.DataFrame): plagioclase compositions with column headings SiO2_Plag, 
+                                       MgO_Plag etc.
 
-    Returns
-    -------
-    pandas DataFrame
-        cation fractions for plagioclase with column headings of the form ...Plag_cat_frac.
+    Returns: 
+        cat_frac_anhyd2 (pandas.DataFrame): cation fractions for plagioclase with column headings 
+                                            of the form ...Plag_cat_frac.
 
     """
 
@@ -1125,29 +1123,20 @@ def calculate_clinopyroxene_liquid_components(
     
     
     """
-
     Import clinopyroxene compositions using cpx_comps=My_Cpxs and liquid compositions using liq_comps=My_Liquids,
         returns clinopyroxene and liquid components.
 
-   Parameters
-    -------
-    liq_comps: pandas.DataFrame
-        liquid compositions with column headings SiO2_Liq, MgO_Liq etc.
-    AND
-     cpx_comps: pandas.DataFrame
-        clinopyroxene compositions with column headings SiO2_Cpx, MgO_Cpx etc.
-    OR
-    meltmatch: pandas.DataFrame
-        Panda DataFrame of merged clinopyroxene and liquid compositions used for melt matching
+    Parameters: 
+        liq_comps (pandas.DataFrame): liquid compositions with column headings SiO2_Liq, MgO_Liq etc.
+        cpx_comps (pandas.DataFrame): clinopyroxene compositions with column headings SiO2_Cpx, MgO_Cpx etc.
+        meltmatch (pandas.DataFrame): merged clinopyroxene and liquid compositions used for melt matching
+        Fe3Fet_Liq (int, float, pandas.Series): overwrites Fe3FeT ratio inliquid input
 
-    Fe3Fet_Liq: opt, int, float, pandas.Series
-        overwrites Fe3FeT ratio inliquid input
-    Returns
-    -------
-    pandas DataFrame
-       Merged dataframe of inputted liquids, liquid mole fractions, liquid cation fractions,
-       inputted cpx compositions, cpx cations on 6 oxygen basis, cpx components and cpx-liquid components.
+    Returns: 
 
+        combo_liq_cpxs (pandas.DataFrame): Merged dataframe of inputted liquids, liquid mole fractions, liquid 
+                                           cation fractions, inputted cpx compositions, cpx cations on 6 oxygen basis, 
+                                           cpx components and cpx-liquid components.
     """
 
     # For when users enter a combined dataframe meltmatch=""
@@ -2898,9 +2887,7 @@ def calculate_sites_ridolfi(amp_comps):
 def get_amp_sites_from_input_not_amp(dfin, col_drop):
 
     """
-    
     get amp_sites from amp_comps input from import_excel() function.
-    
     """
 
     amp_comps_lie=dfin.copy()
@@ -2918,7 +2905,6 @@ def get_amp_sites_from_input_not_amp(dfin, col_drop):
 def get_amp_sites_leake(amp_apfu_df):
 
     """
-
     get_amp_sites takes generalized atom per formula unit calculations from
     calculate_23oxygens_amphibole and puts them in the proper cation sites
     according to Leake et al., 1997.
@@ -2935,10 +2921,10 @@ def get_amp_sites_leake(amp_apfu_df):
         a samples by cation sites dimension dataframe where each column corresponds
         to a cation site in amphibole. The suffix at the end corresponds to which site
         the cation is in:
-            T = tetrahedral sites (8 total)
-            C = octahedral sites (5 total)
-            B  = M4 sites (2 total)
-            A = A site (0 - 1 total)
+        T = tetrahedral sites (8 total)
+        C = octahedral sites (5 total)
+        B  = M4 sites (2 total)
+        A = A site (0 - 1 total)
 
     """
     norm_cations = amp_apfu_df.copy()
@@ -3245,10 +3231,10 @@ def get_amp_sites2(amp_apfu_df):
         a samples by cation sites dimension dataframe where each column corresponds
         to a cation site in amphibole. The suffix at the end corresponds to which site
         the cation is in:
-            T = tetrahedral sites (8 total)
-            C = octahedral sites (5 total)
-            B  = M4 sites (2 total)
-            A = A site (0 - 1 total)
+        T = tetrahedral sites (8 total)
+        C = octahedral sites (5 total)
+        B  = M4 sites (2 total)
+        A = A site (0 - 1 total)
 
     """
 
@@ -3411,31 +3397,25 @@ def amp_components_ferric_ferrous(sites_df, norm_cations):
 def get_amp_sites_ferric_ferrous(amp_apfu_df):
 
     """
-
     get_amp_sites_ferric_ferrous is very similar to get_amp_sites, however it now
     incorporates the newly calculated Fe2O3 and FeO apfu values such that all
     Fe2O3 gets incorporated into the octahedral sites before any FeO. For more
     information see Leake et al., 1997 Appendix A.
 
-    Parameters
-    ----------
-    amp_apfu_df :pandas DataFrame
-        amphibole apfu values for each cation, now reflecting Fe2O3 and FeO
-        values. This is the output from amp_components_ferric_ferrous and does
-        not need to be modified at all.
+    Parameters: 
+        amp_apfu_df (pandas DataFrame): amphibole apfu values for each cation, now reflecting Fe2O3 
+            and FeO values. This is the output from amp_components_ferric_ferrous and does
+            not need to be modified at all.
 
-    Returns
-    -------
-    sites_df : pandas DataFrame
-    a samples by cation sites dimension dataframe where each column corresponds
-        to a cation site in amphibole. The suffix at the end corresponds to which site
-        the cation is in:
+    Returns: 
+        sites_df (pandas DataFrame): a samples by cation sites dimension dataframe where each column corresponds
+            to a cation site in amphibole. The suffix at the end corresponds to which site
+            the cation is in: 
             T = tetrahedral sites (8 total)
             C = octahedral sites (5 total)
             B  = M4 sites (2 total)
-            A = A site (0 - 1 total)
-        See Leake et al., 1997 for a discussion on cation site prioritization
-
+            A = A site (0 - 1 total). 
+            See Leake et al., 1997 for a discussion on cation site prioritization
     """
     samples = amp_apfu_df.index.tolist()
     Si_T = np.empty(len(samples))
@@ -3531,10 +3511,10 @@ def get_amp_sites_mutch(amp_apfu_df):
         a samples by cation sites dimension dataframe where each column corresponds
         to a cation site in amphibole. The suffix at the end corresponds to which site
         the cation is in:
-            T = tetrahedral sites (8 total)
-            C = octahedral sites (5 total)
-            B  = M4 sites (2 total)
-            A = A site (0 - 1 total)
+        T = tetrahedral sites (8 total)
+        C = octahedral sites (5 total)
+        B  = M4 sites (2 total)
+        A = A site (0 - 1 total)
 
     """
 
@@ -3680,7 +3660,6 @@ def amp_components_ferric_ferrous_mutch(sites_df, norm_cations):
 def get_amp_sites_ferric_ferrous_mutch(amp_apfu_df):
 
     """
-
     get_amp_sites_ferric_ferrous is very similar to get_amp_sites, however it now
     incorporates the newly calculated Fe2O3 and FeO apfu values such that all
     Fe2O3 gets incorporated into the octahedral sites before any FeO. For more
@@ -3698,13 +3677,9 @@ def get_amp_sites_ferric_ferrous_mutch(amp_apfu_df):
     sites_df : pandas DataFrame
     a samples by cation sites dimension dataframe where each column corresponds
         to a cation site in amphibole. The suffix at the end corresponds to which site
-        the cation is in:
-            T = tetrahedral sites (8 total)
-            C = octahedral sites (5 total)
-            B  = M4 sites (2 total)
-            A = A site (0 - 1 total)
+        the cation is in: T = tetrahedral sites (8 total); C = octahedral sites (5 total); 
+        B  = M4 sites (2 total); A = A site (0 - 1 total). 
         See Leake et al., 1997 for a discussion on cation site prioritization
-
     """
     samples = amp_apfu_df.index.tolist()
     Si_T = np.empty(len(samples))

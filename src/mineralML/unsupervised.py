@@ -107,15 +107,15 @@ def feature_normalisation(feature, return_params = False, mean_norm = True):
     Function to perform mean normalisation on the dataset passed to it.
     
     Parameters: 
-        feature (numpy array) - features to be normalised
-        return_params (boolean, optional) - set True if parameters used for mean normalisation
-                                are to be returned for each feature
+        feature (numpy array): Features to be normalised.
+        return_params (boolean, optional): Set to True if parameters used for mean normalisation
+                                           are to be returned for each feature.
                             
     Returns: 
-        norm (numpy array) - mean normalised features
-        params (list of numpy arrays) - only returned if set to True above; list of parameters
-                                used for the mean normalisation as derived from the features
-                                (ie. mean, min and max).
+        norm (numpy array): Mean normalised features.
+        params (list of numpy arrays): Only returned if set to True above; list of parameters
+                                       used for the mean normalisation as derived from the features
+                                       (i.e., mean, min, and max).
     """
     
     params = []
@@ -655,7 +655,6 @@ def predict_class_prob_ae(df):
 def unique_mapping_ae(pred_class): 
 
     """
-
     Generates a mapping of unique class codes from given and predicted class labels, 
     considering only the classes present in both input arrays. It loads a predefined 
     category list and mapping, encodes the 'given_class' labels into categorical codes, 
@@ -663,14 +662,12 @@ def unique_mapping_ae(pred_class):
     classes by assigning them a code of -1 and mapping the 'Unknown' label to them.
 
     Parameters:
-        given_class (array-like): The array of actual class labels.
         pred_class (array-like): The array of predicted class labels.
 
     Returns:
         unique (ndarray): Array of unique class codes found in both given and predicted classes.
         valid_mapping (dict): Dictionary mapping class codes to their corresponding labels, 
                               including 'Unknown' for any class code of -1.
-
     """
 
     mapping = load_minclass_ae()
@@ -685,7 +682,6 @@ def unique_mapping_ae(pred_class):
 def class2mineral_ae(pred_class): 
 
     """
-
     Translates predicted class codes into mineral names using a mapping obtained from the
     unique classes present in the 'pred_class' array. It utilizes the 'unique_mapping_ae' 
     function to establish the relevant class-to-mineral name mapping.
@@ -695,7 +691,6 @@ def class2mineral_ae(pred_class):
 
     Returns:
         pred_mineral (ndarray): An array of mineral names corresponding to the predicted class codes.
-        
     """
 
     _, valid_mapping = unique_mapping_ae(pred_class)
