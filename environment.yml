@@ -22,4 +22,3 @@ dependencies:
         - pyrolite
         - PyIRoGlass
         - hdbscan
-        - imblearn

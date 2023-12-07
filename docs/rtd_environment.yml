@@ -13,10 +13,11 @@ dependencies:
         - sphinxcontrib-bibtex>=2.3.0
         - nbsphinx==0.8.12
         - ipykernel
-        - pandas
-        - numpy
         - matplotlib
-        - scikit-learn
+        - numpy
+        - pandas
         - scipy
-        - hdbscan
+        - seaborn
+        - scikit-learn
         - torch
+        - hdbscan
