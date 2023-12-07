@@ -21,6 +21,50 @@ These folks have been fundamental to the development of ``mineralML``:
 - `Paula Antoshechkina <https://github.com/magmasource>`_ (California Institute of Technology)
 - `Kerstin Lehnert <https://lamont.columbia.edu/directory/kerstin-lehnert>`_ (LDEO)
 
+========
+Minerals
+========
+
+``mineralML`` is trained on a curated dataset of 86k analyses of 17 minerals. The machine learning models classify these minerals:
+
+- Amphibole
+- Apatite
+- Biotite
+- Clinopyroxene
+- Garnet
+- Ilmenite
+- K-Feldspar
+- Magnetite
+- Muscovite
+- Olivine
+- Orthopyroxene
+- Plagioclase
+- Quartz
+- Rutile
+- Spinel
+- Tourmaline
+- Zircon
+
+
+=========
+Chemistry
+=========
+
+``mineralML`` requires inputs of mineral chemistry, in the form of oxides. The machine learning models are trained on 10 oxides: 
+
+*  Sample
+*  SiO:sub:`2`
+*  TiO\ :sub:`2`
+*  Al\ :sub:`2` O\ :sub:`3`
+*  FeO\ :sub:`t`
+*  MnO
+*  MgO 
+*  CaO 
+*  Na\ :sub:`2` O
+*  K\ :sub:`2` O
+*  Cr\ :sub:`2` O\ :sub:`3`
+
+
 =====
 Units
 =====
