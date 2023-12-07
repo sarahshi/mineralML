@@ -115,8 +115,8 @@ array_norm = ss.fit_transform(min_df_lim[oxides])
 
 # Step 2: Read in your DataFrame, drop rows with NaN in specific oxide columns, fill NaNs, and filter minerals
 lepr_df_load = mm.load_df('Validation_Data/lepr_allphases_lim_sp.csv')
-lepr_df, lepr_df_ex = mm.prep_df(lepr_df_load)
-lepr_df_pred, lepr_probability_matrix = mm.predict_class_prob(lepr_df)
+lepr_df, lepr_df_ex = mm.prep_df_nn(lepr_df_load)
+lepr_df_pred, lepr_probability_matrix = mm.predict_class_prob_nn(lepr_df)
 
 lepr_bayes_valid_report = classification_report(
     lepr_df_pred['Mineral'], lepr_df_pred['Predict_Mineral'], zero_division=0

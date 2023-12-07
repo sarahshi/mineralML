@@ -423,14 +423,21 @@ def predict_class_prob_nn(df, n_iterations=250):
             output_list.append(torch.nn.functional.softmax(output, dim=1).detach().cpu().numpy())
 
     output_list = np.array(output_list)
-    
     probability_matrix = output_list.mean(axis=0)
-    predict_class = np.argmax(probability_matrix, axis=1)
-    predict_prob = np.max(probability_matrix, axis=1)
-    predict_mineral = class2mineral_nn(predict_class)
+    # predict_class = np.argmax(probability_matrix, axis=1)
+    # predict_prob = np.max(probability_matrix, axis=1)
+    # predict_mineral = class2mineral_nn(predict_class)
 
-    df['Predict_Mineral'] = predict_mineral
-    df['Predict_Probability'] = predict_prob
+    top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
+    first_predict_prob = probability_matrix[np.arange(probability_matrix.shape[0]), top_two_indices[:, 1]]
+    second_predict_prob = probability_matrix[np.arange(probability_matrix.shape[0]), top_two_indices[:, 0]]
+    first_predict_mineral = class2mineral_nn(top_two_indices[:, 1])
+    second_predict_mineral = class2mineral_nn(top_two_indices[:, 0])
+
+    df['Predict_Mineral'] = first_predict_mineral
+    df['Predict_Probability'] = first_predict_prob
+    df['Second_Predict_Mineral'] = second_predict_mineral
+    df['Second_Predict_Probability'] = second_predict_prob
 
     return df, probability_matrix
 

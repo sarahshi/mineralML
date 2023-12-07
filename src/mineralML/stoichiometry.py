@@ -222,7 +222,9 @@ def import_excel(filename, sheet_name, sample_label=None, GEOROC=False, suffix=N
 
 def calculate_mol_proportions(comps):
 
-    '''Import mineral compositions using comps=My_Oxides, returns mole proportions. 
+    """
+    
+    Import mineral compositions using comps=My_Oxides, returns mole proportions. 
 
     Parameters
     -------
@@ -233,7 +235,8 @@ def calculate_mol_proportions(comps):
     -------
     pandas DataFrame
         mole proportions for oxides with column headings of the form SiO2_mol_prop
-    '''
+    
+    """
 
     oxide_mass_ox = {'SiO2': 60.0843, 'MgO': 40.3044, 'FeOt': 71.8464, 'CaO': 56.0774,'Al2O3': 101.961, 'Na2O': 61.9789, 'K2O': 94.196, 'MnO': 70.9375, 'TiO2': 79.7877, 'Cr2O3': 151.9982, 'P2O5': 141.937}
 
@@ -348,11 +351,13 @@ def SiteCalculator(phase_filt, append, phase_name):
 
 
 def calculate_mol_proportions_olivine(ol_comps):
-    '''Import Olivine compositions using ol_comps=My_Olivines, returns mole proportions
 
-   Parameters
+    """
+    
+    Import Olivine compositions using ol_comps=My_Olivines, returns mole proportions
+
+    Parameters
     -------
-
     ol_comps: pandas.DataFrame
             Panda DataFrame of olivine compositions with column headings SiO2_Ol, MgO_Ol etc.
 
@@ -361,7 +366,7 @@ def calculate_mol_proportions_olivine(ol_comps):
     pandas DataFrame
         mole proportions for olivines with column headings of the form SiO2_Ol_mol_prop
 
-    '''
+    """
 
     oxide_mass_ol = {'SiO2_Ol': 60.0843, 'MgO_Ol': 40.3044, 'FeOt_Ol': 71.8464, 'CaO_Ol': 56.0774,'Al2O3_Ol': 101.961, 'Na2O_Ol': 61.9789, 'K2O_Ol': 94.196, 'MnO_Ol': 70.9375, 'TiO2_Ol': 79.7877}
     oxide_mass_ol_df = pd.DataFrame.from_dict(oxide_mass_ol, orient='index').T
@@ -382,7 +387,9 @@ def calculate_mol_proportions_olivine(ol_comps):
 
 def calculate_oxygens_olivine(ol_comps):
 
-    '''Import olivine compositions using ol_comps=My_Ols, returns number of oxygens 
+    """
+    
+    Import olivine compositions using ol_comps=My_Ols, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
     Parameters
@@ -394,7 +401,8 @@ def calculate_oxygens_olivine(ol_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Ol_ox
-    '''
+
+    """
 
     oxygen_num_ol = {'SiO2_Ol': 2, 'MgO_Ol': 1, 'FeOt_Ol': 1, 'CaO_Ol': 1, 'Al2O3_Ol': 3, 'Na2O_Ol': 1, 'K2O_Ol': 1, 'MnO_Ol': 1, 'TiO2_Ol': 2, 'Cr2O3_Ol': 3, 'P2O5_Ol': 5}
     oxygen_num_ol_df = pd.DataFrame.from_dict(oxygen_num_ol, orient='index').T
@@ -416,7 +424,9 @@ def calculate_oxygens_olivine(ol_comps):
 
 def calculate_4oxygens_olivine(ol_comps):
 
-    '''Import olivine compositions using ol_comps=My_Ols, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import olivine compositions using ol_comps=My_Ols, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -427,7 +437,8 @@ def calculate_4oxygens_olivine(ol_comps):
     -------
     pandas DataFrame
         cations on the basis of 4 oxygens, with column headings of the form... Ol_cat_4ox.
-    '''
+    
+    """
 
     cation_num_ol = {'SiO2_Ol': 1, 'MgO_Ol': 1, 'FeOt_Ol': 1, 'CaO_Ol': 1, 'Al2O3_Ol': 2, 'Na2O_Ol': 2, 'K2O_Ol': 2, 'MnO_Ol': 1, 'TiO2_Ol': 1, 'Cr2O3_Ol': 2, 'P2O5_Ol': 2}
 
@@ -468,11 +479,13 @@ def calculate_4oxygens_olivine(ol_comps):
     return cation_4_2
 
 def calculate_cat_proportions_olivine(ol_comps):
-    '''Import Olivine compositions using ol_comps=My_Olivines, returns cation proportions
+    
+    """
+    
+    Import Olivine compositions using ol_comps=My_Olivines, returns cation proportions
 
-   Parameters
+    Parameters
     -------
-
     ol_comps: pandas.DataFrame
             olivine compositions with column headings SiO2_Ol, MgO_Ol etc.
 
@@ -482,7 +495,8 @@ def calculate_cat_proportions_olivine(ol_comps):
         cation proportions for olivine with column headings of the form SiO2_Ol_cat_prop
         For simplicity, and consistency of column heading types, oxide names are preserved,
         so outputs are Na2O_Ol_cat_prop rather than Na_Ol_cat_prop.
-    '''
+
+    """
 
     oxide_mass_ol = {'SiO2_Ol': 60.0843, 'MgO_Ol': 40.3044, 'FeOt_Ol': 71.8464, 'CaO_Ol': 56.0774,'Al2O3_Ol': 101.961, 'Na2O_Ol': 61.9789, 'K2O_Ol': 94.196, 'MnO_Ol': 70.9375, 'TiO2_Ol': 79.7877}
     oxide_mass_ol_df = pd.DataFrame.from_dict(oxide_mass_ol, orient='index').T
@@ -524,7 +538,9 @@ def calculate_cat_proportions_olivine(ol_comps):
 
 def calculate_olivine_components(ol_comps, append):
 
-    '''Import olivine compositions using ol_comps=My_Ols, returns components on the basis of 4 oxygens.
+    """
+    
+    Import olivine compositions using ol_comps=My_Ols, returns components on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -535,7 +551,8 @@ def calculate_olivine_components(ol_comps, append):
     -------
     pandas DataFrame
         components on the basis of 4 oxygens, with column headings of the form... Ol_cat_4ox.
-    '''
+
+    """
 
     ol_comps_new = ol_comps.copy()
     ol_comps_new.columns = [col.replace(append, '_Ol') for col in ol_comps_new.columns]
@@ -569,9 +586,12 @@ def calculate_olivine_components(ol_comps, append):
 
 
 def calculate_mol_proportions_plagioclase(*, plag_comps=None):
-    '''Import plagioclase compositions using plag_comps=My_plagioclases, returns mole proportions
 
-   Parameters
+    """
+    
+    Import plagioclase compositions using plag_comps=My_plagioclases, returns mole proportions
+
+    Parameters
     -------
     plag_comps: pandas.DataFrame
             Panda DataFrame of plagioclase compositions with column headings SiO2_Plag, MgO_Plag etc.
@@ -581,7 +601,7 @@ def calculate_mol_proportions_plagioclase(*, plag_comps=None):
     pandas DataFrame
         mole proportions for plagioclases with column headings of the form SiO2_Plag_mol_prop
 
-    '''
+    """
 
     oxide_mass_plag = {'SiO2_Plag': 60.0843, 'MgO_Plag': 40.3044, 'FeOt_Plag': 71.8464, 'CaO_Plag': 56.0774, 'Al2O3_Plag': 101.961, 'Na2O_Plag': 61.9789, 'K2O_Plag': 94.196, 'MnO_Plag': 70.9375, 'TiO2_Plag': 79.8788, 'Cr2O3_Plag': 151.9982}
     oxide_mass_plag_df = pd.DataFrame.from_dict(oxide_mass_plag, orient='index').T
@@ -605,11 +625,12 @@ def calculate_mol_proportions_plagioclase(*, plag_comps=None):
 
 
 def calculate_mol_fractions_plagioclase(*, plag_comps=None):
-    '''Import plagioclase compositions using plag_comps=My_plagioclases, returns mole fractions
 
-   Parameters
+    """
+    Import plagioclase compositions using plag_comps=My_plagioclases, returns mole fractions
+
+    Parameters
     -------
-
     plag_comps: pandas.DataFrame
             plagioclase compositions with column headings SiO2_Plag, MgO_Plag etc.
 
@@ -618,8 +639,7 @@ def calculate_mol_fractions_plagioclase(*, plag_comps=None):
     pandas DataFrame
         mole fractions for plagioclases with column headings of the form SiO2_Plag_mol_frac
 
-
-    '''
+    """
 
     if plag_comps is not None:
         plag_comps = plag_comps
@@ -635,26 +655,27 @@ def calculate_mol_fractions_plagioclase(*, plag_comps=None):
 
 
 def calculate_cat_proportions_plagioclase(*, plag_comps=None, oxide_headers=False):
-    '''Import plagioclase compositions using plag_comps=My_plagioclases, returns cation proportions
+    
+    """
+    
+    Import plagioclase compositions using plag_comps=My_plagioclases, returns cation proportions
 
-   Parameters
+    Parameters
     -------
-
     plag_comps: pandas.DataFrame
             plagioclase compositions with column headings SiO2_Plag, MgO_Plag etc.
-
     oxide_headers: bool
         default=False, returns as Ti_Plag_cat_prop.
         =True returns Ti_Plag_cat_prop.
         This is used for rapid matrix division for
         pre-processing of data for cation fractions etc
 
-
     Returns
     -------
     pandas DataFrame
         cation proportions for plagioclase with column headings of the form ...Plag_cat_prop
-    '''
+        
+    """
 
     oxide_mass_plag = {'SiO2_Plag': 60.0843, 'MgO_Plag': 40.3044, 'FeOt_Plag': 71.8464, 'CaO_Plag': 56.0774, 'Al2O3_Plag': 101.961, 'Na2O_Plag': 61.9789, 'K2O_Plag': 94.196, 'MnO_Plag': 70.9375, 'TiO2_Plag': 79.8788, 'Cr2O3_Plag': 151.9982}
     oxide_mass_plag_df = pd.DataFrame.from_dict(oxide_mass_plag, orient='index').T
@@ -700,7 +721,10 @@ def calculate_cat_proportions_plagioclase(*, plag_comps=None, oxide_headers=Fals
 
 
 def calculate_cat_fractions_plagioclase(plag_comps):
-    '''Import plagioclase compositions using plag_comps=My_plagioclases, returns cation fractions
+    
+    """
+    
+    Import plagioclase compositions using plag_comps=My_plagioclases, returns cation fractions
 
    Parameters
     -------
@@ -712,8 +736,7 @@ def calculate_cat_fractions_plagioclase(plag_comps):
     pandas DataFrame
         cation fractions for plagioclase with column headings of the form ...Plag_cat_frac.
 
-
-    '''
+    """
 
     cat_prop = calculate_cat_proportions_plagioclase(plag_comps=plag_comps)
     cat_prop['sum'] = cat_prop.sum(axis='columns')
@@ -732,7 +755,9 @@ def calculate_cat_fractions_plagioclase(plag_comps):
 
 def calculate_oxygens_plagioclase(plag_comps):
     
-    '''Import plagioclase compositions using plag_comps=My_Plags, returns number of oxygens 
+    """
+    
+    Import plagioclase compositions using plag_comps=My_Plags, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
     
     Parameters
@@ -744,7 +769,8 @@ def calculate_oxygens_plagioclase(plag_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Plag_ox
-    '''
+
+    """
 
     oxygen_num_plag = {'SiO2_Plag': 2, 'MgO_Plag': 1, 'FeOt_Plag': 1, 'CaO_Plag': 1, 'Al2O3_Plag': 3, 'Na2O_Plag': 1, 'K2O_Plag': 1, 'MnO_Plag': 1, 'TiO2_Plag': 2, 'Cr2O3_Plag': 3, 'P2O5_Plag': 5}
     oxygen_num_plag_df = pd.DataFrame.from_dict(oxygen_num_plag, orient='index').T
@@ -765,7 +791,9 @@ def calculate_oxygens_plagioclase(plag_comps):
 
 def calculate_8oxygens_plagioclase(plag_comps):
     
-    '''Import plagioclase compositions using plag_comps=My_Plags, returns cations on the basis of 8 oxygens.
+    """
+    
+    Import plagioclase compositions using plag_comps=My_Plags, returns cations on the basis of 8 oxygens.
 
     Parameters
     -------
@@ -776,7 +804,8 @@ def calculate_8oxygens_plagioclase(plag_comps):
     -------
     pandas DataFrame
         cations on the basis of 8 oxygens, with column headings of the form... Plag_cat_8ox.
-    '''
+
+    """
     cation_num_plag = {'SiO2_Plag': 1, 'MgO_Plag': 1, 'FeOt_Plag': 1, 'CaO_Plag': 1, 'Al2O3_Plag': 2, 'Na2O_Plag': 2, 'K2O_Plag': 2, 'MnO_Plag': 1, 'TiO2_Plag': 1, 'Cr2O3_Plag': 2, 'P2O5_Plag': 2}
 
     cation_num_plag_df = pd.DataFrame.from_dict(cation_num_plag, orient='index').T
@@ -817,7 +846,9 @@ def calculate_8oxygens_plagioclase(plag_comps):
 
 def calculate_plagioclase_components(plag_comps, append):
 
-    '''Import plagioclase compositions using plag_comps=My_Plags, returns components on the basis of 8 oxygens.
+    """
+    
+    Import plagioclase compositions using plag_comps=My_Plags, returns components on the basis of 8 oxygens.
 
     Parameters
     -------
@@ -828,7 +859,8 @@ def calculate_plagioclase_components(plag_comps, append):
     -------
     pandas DataFrame
         cations on the basis of 8 oxygens, with column headings of the form... Plag_cat_8ox.
-    '''
+
+    """
 
     plag_comps_new = plag_comps.copy()
     plag_comps_new.columns = [col.replace(append, '_Plag') for col in plag_comps_new.columns]
@@ -869,9 +901,12 @@ def calculate_plagioclase_components(plag_comps, append):
 
 
 def calculate_mol_proportions_clinopyroxene(cpx_comps):
-    '''Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns mole proportions
+    
+    """
+    
+    Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns mole proportions
 
-   Parameters
+    Parameters
     -------
     cpx_comps: pandas.DataFrame
         clinopyroxene compositions with column headings SiO2_Cpx, MgO_Cpx etc.
@@ -881,7 +916,7 @@ def calculate_mol_proportions_clinopyroxene(cpx_comps):
     pandas DataFrame
         mole proportions for clinopyroxene with column headings of the form SiO2_Cpx_mol_prop
 
-    '''
+    """
 
     oxide_mass_cpx = {'SiO2_Cpx': 60.0843, 'MgO_Cpx': 40.3044, 'FeOt_Cpx': 71.8464, 'CaO_Cpx': 56.0774, 'Al2O3_Cpx': 101.961, 'Na2O_Cpx': 61.9789, 'K2O_Cpx': 94.196, 'MnO_Cpx': 70.9375, 'TiO2_Cpx': 79.8788, 'Cr2O3_Cpx': 151.9982}
 
@@ -903,9 +938,12 @@ def calculate_mol_proportions_clinopyroxene(cpx_comps):
 
 
 def calculate_oxygens_clinopyroxene(cpx_comps):
-    '''Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
+    
+    """
+    
+    Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
 
-   Parameters
+    Parameters
     -------
     cpx_comps: pandas.DataFrame
         clinopyroxene compositions with column headings SiO2_Cpx, MgO_Cpx etc.
@@ -915,7 +953,7 @@ def calculate_oxygens_clinopyroxene(cpx_comps):
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Cpx_ox
 
-    '''
+    """
     
     oxygen_num_cpx = {'SiO2_Cpx': 2, 'MgO_Cpx': 1, 'FeOt_Cpx': 1, 'CaO_Cpx': 1, 'Al2O3_Cpx': 3, 'Na2O_Cpx': 1, 'K2O_Cpx': 1, 'MnO_Cpx': 1, 'TiO2_Cpx': 2, 'Cr2O3_Cpx': 3}
     oxygen_num_cpx_df = pd.DataFrame.from_dict(oxygen_num_cpx, orient='index').T
@@ -936,9 +974,12 @@ def calculate_oxygens_clinopyroxene(cpx_comps):
 
 
 def calculate_6oxygens_clinopyroxene(cpx_comps):
-    '''Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns cations on the basis of 6 oxygens.
+    
+    """
+    
+    Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns cations on the basis of 6 oxygens.
 
-   Parameters
+    Parameters
     -------
     cpx_comps: pandas.DataFrame
         clinopyroxene compositions with column headings SiO2_Cpx, MgO_Cpx etc.
@@ -949,7 +990,7 @@ def calculate_6oxygens_clinopyroxene(cpx_comps):
     pandas DataFrame
         cations on the basis of 6 oxygens, with column headings of the form ...Cpx_cat_6ox.
 
-    '''
+    """
 
     cation_num_cpx = {'SiO2_Cpx': 1, 'MgO_Cpx': 1, 'FeOt_Cpx': 1, 'CaO_Cpx': 1, 'Al2O3_Cpx': 2, 'Na2O_Cpx': 2, 'K2O_Cpx': 2, 'MnO_Cpx': 1,'TiO2_Cpx': 1, 'Cr2O3_Cpx': 2}
     cation_num_cpx_df = pd.DataFrame.from_dict(cation_num_cpx, orient='index').T
@@ -1002,13 +1043,13 @@ def calculate_6oxygens_clinopyroxene(cpx_comps):
     return cation_6_2
 
 
-# calculating Clinopyroxene components following Putirka spreadsheet
-
-
 def calculate_clinopyroxene_components(cpx_comps):
-    '''Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns clinopyroxene components along with entered Cpx compositions
+    
+    """
+    
+    Import clinopyroxene compositions using cpx_comps=My_Cpxs, returns clinopyroxene components along with entered Cpx compositions
 
-   Parameters
+    Parameters
     -------
 
     cpx_comps: pandas.DataFrame
@@ -1019,7 +1060,7 @@ def calculate_clinopyroxene_components(cpx_comps):
     pandas DataFrame
         Clinopyroxene components (column headings: Cation_Sum, CrCaTs, a_cpx_En, Mgno_Cpx, Jd, CaTs, CaTi, DiHd_1996, DiHd_2003, En_Fs), cations on bases of 6 oxygens (column headings of form  Cr2O3_Cpx_cat_6ox), as well as inputted Cpx compositions (column headings of form MgO_Cpx)
 
-    '''
+    """
     cpx_calc = calculate_6oxygens_clinopyroxene(cpx_comps=cpx_comps)
 
     # Sum of cations, used by Neave and Putirka (2017) to filter out bad
@@ -1057,7 +1098,6 @@ def calculate_clinopyroxene_components(cpx_comps):
     cpx_calc['CaTi_Cpx'] = (cpx_calc['Al_IV_cat_6ox'] - cpx_calc['CaTs_Cpx']) / 2
     cpx_calc.loc[(AlVI_minus_CaTs<0), 'CaTi_Cpx'] = 0
 
-
     #  If CaO-CaTs-CaTi-CrCaTs is >0
     Ca_CaTs_CaTi_CrCaTs=(cpx_calc['Ca_Cpx_cat_6ox'] - cpx_calc['CaTs_Cpx'] - cpx_calc['CaTi_Cpx'] - cpx_calc['CrCaTs_Cpx'])
 
@@ -1082,7 +1122,11 @@ def calculate_clinopyroxene_components(cpx_comps):
 
 def calculate_clinopyroxene_liquid_components(
         *, cpx_comps=None, liq_comps=None, meltmatch=None, Fe3Fet_Liq=None):
-    '''Import clinopyroxene compositions using cpx_comps=My_Cpxs and liquid compositions using liq_comps=My_Liquids,
+    
+    
+    """
+
+    Import clinopyroxene compositions using cpx_comps=My_Cpxs and liquid compositions using liq_comps=My_Liquids,
         returns clinopyroxene and liquid components.
 
    Parameters
@@ -1104,7 +1148,8 @@ def calculate_clinopyroxene_liquid_components(
        Merged dataframe of inputted liquids, liquid mole fractions, liquid cation fractions,
        inputted cpx compositions, cpx cations on 6 oxygen basis, cpx components and cpx-liquid components.
 
-    '''
+    """
+
     # For when users enter a combined dataframe meltmatch=""
     if meltmatch is not None:
         combo_liq_cpxs = meltmatch
@@ -1135,14 +1180,14 @@ def calculate_clinopyroxene_liquid_components(
             if "Sample_ID_Liq" in combo_liq_cpxs:
                 combo_liq_cpxs.drop(['Sample_ID_Liq'], axis=1)
 
-# Measured Kd Fe-Mg (using 2+)
+    # Measured Kd Fe-Mg (using 2+)
     combo_liq_cpxs['Kd_Fe_Mg_Fe2'] = ((combo_liq_cpxs['Fet_Cpx_cat_6ox'] / combo_liq_cpxs['Mg_Cpx_cat_6ox']) / ((combo_liq_cpxs['Fet_Liq_cat_frac'] * (1 - combo_liq_cpxs['Fe3Fet_Liq']) / combo_liq_cpxs['Mg_Liq_cat_frac'])))
 
-# Measured Kd Fe-Mg using 2+ in the liquid and Cpx based on Lindley
+    # Measured Kd Fe-Mg using 2+ in the liquid and Cpx based on Lindley
     combo_liq_cpxs['Kd_Fe_Mg_Fe2_Lind'] = ((combo_liq_cpxs['Lindley_Fe2_Cpx'] / combo_liq_cpxs['Mg_Cpx_cat_6ox']) / ((combo_liq_cpxs['Fet_Liq_cat_frac'] * (1 - combo_liq_cpxs['Fe3Fet_Liq']) / combo_liq_cpxs['Mg_Liq_cat_frac'])))
 
 
-# Measured Kd Fe-Mg using Fet
+    # Measured Kd Fe-Mg using Fet
     combo_liq_cpxs['Kd_Fe_Mg_Fet'] = ((combo_liq_cpxs['Fet_Cpx_cat_6ox'] / combo_liq_cpxs['Mg_Cpx_cat_6ox']) / ((combo_liq_cpxs['Fet_Liq_cat_frac'] / combo_liq_cpxs['Mg_Liq_cat_frac'])))
 
     combo_liq_cpxs['lnK_Jd_liq'] = np.log((combo_liq_cpxs['Jd_Cpx'].astype(float)) / ((combo_liq_cpxs['Na_Liq_cat_frac']) * (combo_liq_cpxs['Al_Liq_cat_frac']) * ((combo_liq_cpxs['Si_Liq_cat_frac'])**2)))
@@ -1158,8 +1203,7 @@ def calculate_clinopyroxene_liquid_components(
     combo_liq_cpxs['Mgno_Liq_Fe2']=(combo_liq_cpxs['MgO_Liq'] / 40.3044) / ((combo_liq_cpxs['MgO_Liq'] / 40.3044) + (combo_liq_cpxs['FeOt_Liq'] * (1 - combo_liq_cpxs['Fe3Fet_Liq']) / 71.844))
 
 
-# Different ways to calculate DeltaFeMg
-
+    # Different ways to calculate DeltaFeMg
     combo_liq_cpxs['DeltaFeMg_WB'] = abs(combo_liq_cpxs['Kd_Fe_Mg_Fe2'] - combo_liq_cpxs['Kd_Fe_Mg_IdealWB'])
     # Adding back in sample names
     if meltmatch is not None and "Sample_ID_Cpx" in meltmatch:
@@ -1198,9 +1242,11 @@ def calculate_cpx_sites_from_input_not_cpx(dfin, col_drop):
 
 def calculate_mol_proportions_orthopyroxene(opx_comps):
 
-    '''Import orthopyroxene compositions using opx_comps=My_Opxs, returns mole proportions
+    """
+    
+    Import orthopyroxene compositions using opx_comps=My_Opxs, returns mole proportions
 
-   Parameters
+    Parameters
     -------
     opx_comps: pandas.DataFrame
         orthopyroxene compositions with column headings SiO2_Opx, MgO_Opx etc.
@@ -1210,7 +1256,7 @@ def calculate_mol_proportions_orthopyroxene(opx_comps):
     pandas DataFrame
         mole proportions for orthopyroxene with column headings of the form SiO2_Opx_mol_prop
 
-    '''
+    """
 
     oxide_mass_opx = {'SiO2_Opx': 60.0843, 'MgO_Opx': 40.3044, 'FeOt_Opx': 71.8464, 'CaO_Opx': 56.0774, 'Al2O3_Opx': 101.961, 'Na2O_Opx': 61.9789, 'K2O_Opx': 94.196, 'MnO_Opx': 70.9375, 'TiO2_Opx': 79.8788, 'Cr2O3_Opx': 151.9982}
     oxide_mass_opx_df = pd.DataFrame.from_dict(oxide_mass_opx, orient='index').T
@@ -1233,9 +1279,11 @@ def calculate_mol_proportions_orthopyroxene(opx_comps):
 
 def calculate_oxygens_orthopyroxene(opx_comps):
 
-    '''Import orthopyroxene compositions using opx_comps=My_Opxs, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
+    """
+    
+    Import orthopyroxene compositions using opx_comps=My_Opxs, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
 
-   Parameters
+    Parameters
     -------
     opx_comps: pandas.DataFrame
         Panda DataFrame of orthopyroxene compositions with column headings SiO2_Opx, MgO_Opx etc.
@@ -1245,7 +1293,7 @@ def calculate_oxygens_orthopyroxene(opx_comps):
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Opx_ox
 
-    '''
+    """
 
     oxygen_num_opx = {'SiO2_Opx': 2, 'MgO_Opx': 1, 'FeOt_Opx': 1, 'CaO_Opx': 1,'Al2O3_Opx': 3, 'Na2O_Opx': 1, 'K2O_Opx': 1, 'MnO_Opx': 1, 'TiO2_Opx': 2, 'Cr2O3_Opx': 3}
     oxygen_num_opx_df = pd.DataFrame.from_dict(oxygen_num_opx, orient='index').T
@@ -1266,9 +1314,12 @@ def calculate_oxygens_orthopyroxene(opx_comps):
 
 
 def calculate_6oxygens_orthopyroxene(opx_comps):
-    '''Import orthopyroxene compositions using opx_comps=My_Opxs, returns cations on the basis of 6 oxygens.
+    
+    """
+    
+    Import orthopyroxene compositions using opx_comps=My_Opxs, returns cations on the basis of 6 oxygens.
 
-   Parameters
+    Parameters
     -------
 
     opx_comps: pandas.DataFrame
@@ -1279,7 +1330,7 @@ def calculate_6oxygens_orthopyroxene(opx_comps):
     pandas DataFrame
         cations on the basis of 6 oxygens, with column headings of the form ...Opx_cat_6ox.
 
-    '''
+    """
 
     cation_num_opx = {'SiO2_Opx': 1, 'MgO_Opx': 1, 'FeOt_Opx': 1, 'CaO_Opx': 1, 'Al2O3_Opx': 2, 'Na2O_Opx': 2, 'K2O_Opx': 2, 'MnO_Opx': 1, 'TiO2_Opx': 1, 'Cr2O3_Opx': 2}
     cation_num_opx_df = pd.DataFrame.from_dict(cation_num_opx, orient='index').T
@@ -1333,13 +1384,15 @@ def calculate_6oxygens_orthopyroxene(opx_comps):
 
 
 def calculate_orthopyroxene_components(opx_comps):
-    '''Import orthopyroxene compositions using opx_comps=My_Opxs, returns orthopyroxene components along with entered Cpx compositions
+    
+    """
+    
+    Import orthopyroxene compositions using opx_comps=My_Opxs, returns orthopyroxene components along with entered Cpx compositions
 
-   Parameters
+    Parameters
     -------
     opx_comps: pandas.DataFrame
         Panda DataFrame of orthopyroxene compositions with column headings SiO2_Cpx, MgO_Cpx etc.
-
 
     Returns
     -------
@@ -1348,7 +1401,7 @@ def calculate_orthopyroxene_components(opx_comps):
         -cations on bases of 6 oxygens (column headings of form  Cr2O3_Opx_cat_6ox, as well as Cation_Sum_Opx)
         -orthopyroxene components (NaAlSi2O6, FmTiAlSiO6, CrAl2SiO6, FmAl2SiO6, CaFmSi2O6, Fm2Si2O6, En_Opx, Di_Opx, Mgno_Opx)
 
-    '''
+    """
 
     opx_calc = calculate_6oxygens_orthopyroxene(opx_comps=opx_comps)
     # Sum of cations, used to filter bad analyses
@@ -1373,10 +1426,13 @@ def calculate_orthopyroxene_components(opx_comps):
 
 def calculate_orthopyroxene_liquid_components(
         *, opx_comps=None, liq_comps=None, meltmatch=None, Fe3Fet_Liq=None):
-    '''Import orthopyroxene compositions using opx_comps=My_Opxs and liquid compositions using liq_comps=My_Liquids,
+    
+    """
+    
+    Import orthopyroxene compositions using opx_comps=My_Opxs and liquid compositions using liq_comps=My_Liquids,
         returns orthopyroxene and liquid components.
 
-   Parameters
+    Parameters
     -------
     liq_comps: pandas.DataFrame
         liquid compositions with column headings SiO2_Liq, MgO_Liq etc.
@@ -1393,7 +1449,7 @@ def calculate_orthopyroxene_liquid_components(
        Merged dataframe of inputted liquids, liquid mole fractions, liquid cation fractions,
        inputted opx compositions, opx cations on 6 oxygen basis, opx components and opx-liquid components.
 
-    '''
+    """
     # For when users enter a combined dataframe meltmatch=""
     if meltmatch is not None:
         combo_liq_opxs = meltmatch
@@ -1440,7 +1496,9 @@ def calculate_orthopyroxene_liquid_components(
 
 def calculate_mol_proportions_kspar(kspar_comps):
     
-    '''Import Kspar compositions using kspar_comps=My_Kspar, returns mole proportions
+    """
+    
+    Import Kspar compositions using kspar_comps=My_Kspar, returns mole proportions
 
     Parameters
     -------
@@ -1451,7 +1509,8 @@ def calculate_mol_proportions_kspar(kspar_comps):
     -------
     pandas DataFrame
         mole proportions for kspar with column headings of the form SiO2_Kspar_mol_prop
-    '''
+
+    """
 
     oxide_mass_sp = {'SiO2_Kspar': 60.0843, 'MgO_Kspar': 40.3044, 'FeOt_Kspar': 71.8464, 'CaO_Kspar': 56.0774,'Al2O3_Kspar': 101.961, 'Na2O_Kspar': 61.9789, 'K2O_Kspar': 94.196, 'MnO_Kspar': 70.9375, 'TiO2_Kspar': 79.7877, 'Cr2O3_Kspar': 151.9982, 'P2O5_Kspar': 141.937}
     oxide_mass_ksp_df = pd.DataFrame.from_dict(oxide_mass_sp, orient='index').T
@@ -1470,7 +1529,9 @@ def calculate_mol_proportions_kspar(kspar_comps):
 
 def calculate_cat_proportions_kspar(*, kspar_comps=None, oxide_headers=False):
     
-    '''Import kspar compositions using kspar_comps=My_kspars, returns cation proportions
+    """
+    
+    Import kspar compositions using kspar_comps=My_kspars, returns cation proportions
 
     Parameters
     -------
@@ -1487,7 +1548,8 @@ def calculate_cat_proportions_kspar(*, kspar_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for kspar with column headings of the form... Ksp_cat_prop
-    '''
+   
+    """
 
     cation_num_sp = {'SiO2_Kspar': 1, 'MgO_Kspar': 1, 'FeOt_Kspar': 1, 'CaO_Kspar': 1, 'Al2O3_Kspar': 2, 'Na2O_Kspar': 2, 'K2O_Kspar': 2, 'MnO_Kspar': 1, 'TiO2_Kspar': 1, 'Cr2O3_Kspar': 2, 'P2O5_Kspar': 2}
     cation_num_ksp_df = pd.DataFrame.from_dict(cation_num_sp, orient='index').T
@@ -1527,7 +1589,9 @@ def calculate_cat_proportions_kspar(*, kspar_comps=None, oxide_headers=False):
 
 def calculate_oxygens_kspar(kspar_comps):
 
-    '''Import kspar compositions using kspar_comps=My_Kspars, returns number of oxygens 
+    """
+    
+    Import kspar compositions using kspar_comps=My_Kspars, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
     Parameters
@@ -1539,7 +1603,8 @@ def calculate_oxygens_kspar(kspar_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Kspar_ox
-    '''
+    
+    """
 
     oxygen_num_sp = {'SiO2_Kspar': 2, 'MgO_Kspar': 1, 'FeOt_Kspar': 1, 'CaO_Kspar': 1, 'Al2O3_Kspar': 3, 'Na2O_Kspar': 1, 'K2O_Kspar': 1, 'MnO_Kspar': 1, 'TiO2_Kspar': 2, 'Cr2O3_Kspar': 3, 'P2O5_Kspar': 5}
     oxygen_num_ksp_df = pd.DataFrame.from_dict(oxygen_num_sp, orient='index').T
@@ -1558,7 +1623,9 @@ def calculate_oxygens_kspar(kspar_comps):
 
 def calculate_8oxygens_kspar(kspar_comps):
 
-    '''Import kspar compositions using kspar_comps=My_Kspars, returns cations on the basis of 8 oxygens.
+    """
+    
+    Import kspar compositions using kspar_comps=My_Kspars, returns cations on the basis of 8 oxygens.
 
     Parameters
     -------
@@ -1569,7 +1636,8 @@ def calculate_8oxygens_kspar(kspar_comps):
     -------
     pandas DataFrame
         cations on the basis of 8 oxygens, with column headings of the form... Ksp_cat_8ox.
-    '''
+    
+    """
 
     cation_num_sp = {'SiO2_Kspar': 1, 'MgO_Kspar': 1, 'FeOt_Kspar': 1, 'CaO_Kspar': 1, 'Al2O3_Kspar': 2, 'Na2O_Kspar': 2, 'K2O_Kspar': 2, 'MnO_Kspar': 1, 'TiO2_Kspar': 1, 'Cr2O3_Kspar': 2, 'P2O5_Kspar': 2}
 
@@ -1610,7 +1678,9 @@ def calculate_8oxygens_kspar(kspar_comps):
 
 def calculate_kspar_components(kspar_comps, append):
 
-    '''Import kspar compositions using kspar_comps=My_Kspars, returns cations on the basis of 8 oxygens.
+    """
+    
+    Import kspar compositions using kspar_comps=My_Kspars, returns cations on the basis of 8 oxygens.
 
     Parameters
     -------
@@ -1621,7 +1691,8 @@ def calculate_kspar_components(kspar_comps, append):
     -------
     pandas DataFrame
         cations on the basis of 8 oxygens, with column headings of the form... Ksp_cat_8ox.
-    '''
+    
+    """
 
     kspar_comps_new = kspar_comps.copy()
     kspar_comps_new.columns = [col.replace(append, '_Kspar') for col in kspar_comps_new.columns]
@@ -1652,7 +1723,9 @@ def calculate_kspar_components(kspar_comps, append):
 
 def calculate_mol_proportions_spinel(sp_comps):
     
-    '''Import spinel compositions using sp_comps=My_Spinels, returns mole proportions
+    """
+    
+    Import spinel compositions using sp_comps=My_Spinels, returns mole proportions
 
     Parameters
     -------
@@ -1663,7 +1736,8 @@ def calculate_mol_proportions_spinel(sp_comps):
     -------
     pandas DataFrame
         mole proportions for spinels with column headings of the form SiO2_Sp_mol_prop
-    '''
+    
+    """
 
     oxide_mass_sp = {'SiO2_Sp': 60.0843, 'MgO_Sp': 40.3044, 'FeOt_Sp': 71.8464, 'CaO_Sp': 56.0774,'Al2O3_Sp': 101.961, 'Na2O_Sp': 61.9789, 'K2O_Sp': 94.196, 'MnO_Sp': 70.9375, 'TiO2_Sp': 79.7877, 'Cr2O3_Sp': 151.9982, 'P2O5_Sp': 141.937}
     oxide_mass_sp_df = pd.DataFrame.from_dict(oxide_mass_sp, orient='index').T
@@ -1683,7 +1757,9 @@ def calculate_mol_proportions_spinel(sp_comps):
 
 def calculate_cat_proportions_spinel(*, sp_comps=None, oxide_headers=False):
 
-    '''Import spinel compositions using sp_comps=My_spinels, returns cation proportions
+    """
+    
+    Import spinel compositions using sp_comps=My_spinels, returns cation proportions
 
     Parameters
     -------
@@ -1700,7 +1776,8 @@ def calculate_cat_proportions_spinel(*, sp_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for spinel with column headings of the form... Sp_cat_prop
-    '''
+    
+    """
 
     cation_num_sp = {'SiO2_Sp': 1, 'MgO_Sp': 1, 'FeOt_Sp': 1, 'CaO_Sp': 1, 'Al2O3_Sp': 2, 'Na2O_Sp': 2, 'K2O_Sp': 2, 'MnO_Sp': 1, 'TiO2_Sp': 1, 'Cr2O3_Sp': 2, 'P2O5_Sp': 2}
     cation_num_sp_df = pd.DataFrame.from_dict(cation_num_sp, orient='index').T
@@ -1740,7 +1817,9 @@ def calculate_cat_proportions_spinel(*, sp_comps=None, oxide_headers=False):
 
 def calculate_oxygens_spinel(sp_comps):
 
-    '''Import spinel compositions using sp_comps=My_Sps, returns number of oxygens 
+    """
+    
+    Import spinel compositions using sp_comps=My_Sps, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
     Parameters
@@ -1752,7 +1831,8 @@ def calculate_oxygens_spinel(sp_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Sp_ox
-    '''
+
+    """
 
     oxygen_num_sp = {'SiO2_Sp': 2, 'MgO_Sp': 1, 'FeOt_Sp': 1, 'CaO_Sp': 1, 'Al2O3_Sp': 3, 'Na2O_Sp': 1, 'K2O_Sp': 1, 'MnO_Sp': 1, 'TiO2_Sp': 2, 'Cr2O3_Sp': 3, 'P2O5_Sp': 5}
     oxygen_num_sp_df = pd.DataFrame.from_dict(oxygen_num_sp, orient='index').T
@@ -1771,7 +1851,9 @@ def calculate_oxygens_spinel(sp_comps):
 
 def calculate_4oxygens_spinel(sp_comps):
 
-    '''Import spinel compositions using sp_comps=My_Sps, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import spinel compositions using sp_comps=My_Sps, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -1782,7 +1864,8 @@ def calculate_4oxygens_spinel(sp_comps):
     -------
     pandas DataFrame
         cations on the basis of 4 oxygens, with column headings of the form... Sp_cat_4ox.
-    '''
+
+    """
 
     cation_num_sp = {'SiO2_Sp': 1, 'MgO_Sp': 1, 'FeOt_Sp': 1, 'CaO_Sp': 1, 'Al2O3_Sp': 2, 'Na2O_Sp': 2, 'K2O_Sp': 2, 'MnO_Sp': 1, 'TiO2_Sp': 1, 'Cr2O3_Sp': 2, 'P2O5_Sp': 2}
     cation_num_sp_df = pd.DataFrame.from_dict(cation_num_sp, orient='index').T
@@ -1822,7 +1905,9 @@ def calculate_4oxygens_spinel(sp_comps):
 
 def calculate_spinel_components(sp_comps, append):
 
-    '''Import spinel compositions using sp_comps=My_Sps, returns components on the basis of 4 oxygens.
+    """
+    
+    Import spinel compositions using sp_comps=My_Sps, returns components on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -1833,7 +1918,8 @@ def calculate_spinel_components(sp_comps, append):
     -------
     pandas DataFrame
         components on the basis of 4 oxygens, with column headings of the form... Sp_cat_4ox.
-    '''
+
+    """
 
     sp_comps_new = sp_comps.copy()
     sp_comps_new.columns = [col.replace(append, '_Sp') for col in sp_comps_new.columns]
@@ -1867,7 +1953,9 @@ def calculate_spinel_components(sp_comps, append):
 
 def calculate_mol_proportions_apatite(ap_comps):
 
-    '''Import Apatite compositions using ap_comps=My_Apatites, returns mole proportions
+    """
+    
+    Import Apatite compositions using ap_comps=My_Apatites, returns mole proportions
 
     Parameters
     -------
@@ -1878,7 +1966,8 @@ def calculate_mol_proportions_apatite(ap_comps):
     -------
     pandas DataFrame
         mole proportions for apatites with column headings of the form SiO2_Ap_mol_prop
-    '''
+
+    """
 
     oxide_mass_ap = {'SiO2_Ap': 60.0843, 'MgO_Ap': 40.3044, 'FeOt_Ap': 71.8464, 'CaO_Ap': 56.0774, 'Al2O3_Ap': 101.961, 'Na2O_Ap': 61.9789, 'K2O_Ap': 94.196, 'MnO_Ap': 70.9375, 'TiO2_Ap': 79.7877, 'Cr2O3_Ap': 151.9982, 'P2O5_Ap': 141.937}
     oxide_mass_ap_df = pd.DataFrame.from_dict(oxide_mass_ap, orient='index').T
@@ -1898,9 +1987,11 @@ def calculate_mol_proportions_apatite(ap_comps):
 
 def calculate_cat_proportions_apatite(*, ap_comps=None, oxide_headers=False):
     
-    '''Import apatite compositions using ap_comps=My_Apatites, returns cation proportions
+    """
+    
+    Import apatite compositions using ap_comps=My_Apatites, returns cation proportions
 
-   Parameters
+    Parameters
     -------
     ap_comps: pandas.DataFrame
             apatite compositions with column headings SiO2_Ap, MgO_Ap etc.
@@ -1915,7 +2006,8 @@ def calculate_cat_proportions_apatite(*, ap_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for apatite with column headings of the form... Ap_cat_prop
-    '''
+    
+    """
 
     cation_num_ap = {'SiO2_Ap': 1, 'MgO_Ap': 1, 'FeOt_Ap': 1, 'CaO_Ap': 1, 'Al2O3_Ap': 2, 'Na2O_Ap': 2,
                    'K2O_Ap': 2, 'MnO_Ap': 1, 'TiO2_Ap': 1, 'Cr2O3_Ap': 2, 'P2O5_Ap': 2}
@@ -1957,10 +2049,12 @@ def calculate_cat_proportions_apatite(*, ap_comps=None, oxide_headers=False):
 
 def calculate_oxygens_apatite(ap_comps):
     
-    '''Import apatite compositions using ap_comps=My_Aps, returns number of oxygens 
+    """
+    
+    Import apatite compositions using ap_comps=My_Aps, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
-   Parameters
+    Parameters
     -------
     ap_comps: pandas.DataFrame
         apatite compositions with column headings SiO2_Ap, MgO_Ap etc.
@@ -1969,7 +2063,8 @@ def calculate_oxygens_apatite(ap_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Ap_ox
-    '''
+    
+    """
 
     oxygen_num_ap = {'SiO2_Ap': 2, 'MgO_Ap': 1, 'FeOt_Ap': 1, 'CaO_Ap': 1, 'Al2O3_Ap': 3, 'Na2O_Ap': 1, 'K2O_Ap': 1, 'MnO_Ap': 1, 'TiO2_Ap': 2, 'Cr2O3_Ap': 3, 'P2O5_Ap': 5}
     oxygen_num_ap_df = pd.DataFrame.from_dict(oxygen_num_ap, orient='index').T
@@ -1990,9 +2085,11 @@ def calculate_oxygens_apatite(ap_comps):
 
 def calculate_12oxygens_apatite(ap_comps):
 
-    '''Import apatite compositions using ap_comps=My_Aps, returns cations on the basis of 12 oxygens.
+    """
+    
+    Import apatite compositions using ap_comps=My_Aps, returns cations on the basis of 12 oxygens.
 
-   Parameters
+    Parameters
     -------
     ap_comps: pandas.DataFrame
         apatite compositions with column headings SiO2_Ap, MgO_Ap etc.
@@ -2001,7 +2098,8 @@ def calculate_12oxygens_apatite(ap_comps):
     -------
     pandas DataFrame
         cations on the basis of 12 oxygens, with column headings of the form... Ap_cat_12ox.
-    '''
+    
+    """
 
     cation_num_ap = {'SiO2_Ap': 1, 'MgO_Ap': 1, 'FeOt_Ap': 1, 'CaO_Ap': 1, 'Al2O3_Ap': 2, 'Na2O_Ap': 2, 'K2O_Ap': 2, 'MnO_Ap': 1, 'TiO2_Ap': 1, 'Cr2O3_Ap': 2, 'P2O5_Ap': 2}
 
@@ -2042,9 +2140,11 @@ def calculate_12oxygens_apatite(ap_comps):
 
 def calculate_apatite_components(ap_comps, append):
 
-    '''Import apatite compositions using ap_comps=My_Aps, returns cations on the basis of 12 oxygens.
+    """
+    
+    Import apatite compositions using ap_comps=My_Aps, returns cations on the basis of 12 oxygens.
 
-   Parameters
+    Parameters
     -------
     ap_comps: pandas.DataFrame
         apatite compositions with column headings SiO2_Ap, MgO_Ap etc.
@@ -2053,7 +2153,8 @@ def calculate_apatite_components(ap_comps, append):
     -------
     pandas DataFrame
         components on the basis of 12 oxygens, with column headings of the form... Ap_cat_12ox.
-    '''
+    
+    """
 
     ap_comps_new = ap_comps.copy()
     ap_comps_new.columns = [col.replace(append, '_Ap') for col in ap_comps_new.columns]
@@ -2084,7 +2185,9 @@ def calculate_apatite_components(ap_comps, append):
 
 def calculate_mol_proportions_garnet(gt_comps):
 
-    '''Import Garnet compositions using gt_comps=My_Garnets, returns mole proportions
+    """
+    
+    Import Garnet compositions using gt_comps=My_Garnets, returns mole proportions
 
     Parameters
     -------
@@ -2095,7 +2198,8 @@ def calculate_mol_proportions_garnet(gt_comps):
     -------
     pandas DataFrame
         mole proportions for garnets with column headings of the form SiO2_Gt_mol_prop
-    '''
+    
+    """
 
     oxide_mass_gt = {'SiO2_Gt': 60.0843, 'MgO_Gt': 40.3044, 'FeOt_Gt': 71.8464, 'CaO_Gt': 56.0774, 'Al2O3_Gt': 101.961, 'Na2O_Gt': 61.9789, 'K2O_Gt': 94.196, 'MnO_Gt': 70.9375, 'TiO2_Gt': 79.7877, 'Cr2O3_Gt': 151.9982, 'P2O5_Gt': 141.937, 'NiO_Gt': 74.6994}
     oxide_mass_gt_df = pd.DataFrame.from_dict(oxide_mass_gt, orient='index').T
@@ -2117,13 +2221,14 @@ def calculate_mol_proportions_garnet(gt_comps):
 
 def calculate_cat_proportions_garnet(*, gt_comps=None, oxide_headers=False):
 
-    '''Import garnet compositions using gt_comps=My_garnets, returns cation proportions
+    """
+    
+    Import garnet compositions using gt_comps=My_garnets, returns cation proportions
 
     Parameters
     -------
     gt_comps: pandas.DataFrame
             garnet compositions with column headings SiO2_Plag, MgO_Plag etc.
-    
     oxide_headers: bool
         default=False, returns as Ti_Gt_cat_prop.
         =True returns Ti_Gt_cat_prop.
@@ -2134,7 +2239,8 @@ def calculate_cat_proportions_garnet(*, gt_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for garnet with column headings of the form... Gt_cat_prop
-    '''
+    
+    """
 
     cation_num_gt = {'SiO2_Gt': 1, 'MgO_Gt': 1, 'FeOt_Gt': 1, 'CaO_Gt': 1, 'Al2O3_Gt': 2, 'Na2O_Gt': 2, 'K2O_Gt': 2, 'MnO_Gt': 1, 'TiO2_Gt': 1, 'Cr2O3_Gt': 2, 'P2O5_Gt': 2, 'NiO_Gt': 1}
     cation_num_gt_df = pd.DataFrame.from_dict(cation_num_gt, orient='index').T
@@ -2176,7 +2282,9 @@ def calculate_cat_proportions_garnet(*, gt_comps=None, oxide_headers=False):
 
 def calculate_oxygens_garnet(gt_comps):
     
-    '''Import garnet compositions using gt_comps=My_Gts, returns number of oxygens 
+    """
+    
+    Import garnet compositions using gt_comps=My_Gts, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
     Parameters
@@ -2188,7 +2296,8 @@ def calculate_oxygens_garnet(gt_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Gt_ox
-    '''
+    
+    """
 
     oxygen_num_gt = {'SiO2_Gt': 2, 'MgO_Gt': 1, 'FeOt_Gt': 1, 'CaO_Gt': 1, 'Al2O3_Gt': 3, 'Na2O_Gt': 1, 'K2O_Gt': 1, 'MnO_Gt': 1, 'TiO2_Gt': 2, 'Cr2O3_Gt': 3, 'P2O5_Gt': 5, 'NiO_Gt': 1}
     oxygen_num_gt_df = pd.DataFrame.from_dict(oxygen_num_gt, orient='index').T
@@ -2208,7 +2317,9 @@ def calculate_oxygens_garnet(gt_comps):
 
 def calculate_12oxygens_garnet(gt_comps):
 
-    '''Import garnet compositions using gt_comps=My_Gts, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import garnet compositions using gt_comps=My_Gts, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -2219,7 +2330,8 @@ def calculate_12oxygens_garnet(gt_comps):
     -------
     pandas DataFrame
         cations on the basis of 12 oxygens, with column headings of the form... Gt_cat_12ox.
-    '''
+    
+    """
 
     cation_num_gt = {'SiO2_Gt': 1, 'MgO_Gt': 1, 'FeOt_Gt': 1, 'CaO_Gt': 1, 'Al2O3_Gt': 2, 'Na2O_Gt': 2, 'K2O_Gt': 2, 'MnO_Gt': 1, 'TiO2_Gt': 1, 'Cr2O3_Gt': 2, 'P2O5_Gt': 2, 'NiO_Gt': 1}
 
@@ -2262,7 +2374,9 @@ def calculate_12oxygens_garnet(gt_comps):
 
 def calculate_garnet_components(gt_comps, append):
 
-    '''Import garnet compositions using gt_comps=My_Gts, returns cations on the basis of 12 oxygens.
+    """
+    
+    Import garnet compositions using gt_comps=My_Gts, returns cations on the basis of 12 oxygens.
 
     Parameters
     -------
@@ -2273,7 +2387,8 @@ def calculate_garnet_components(gt_comps, append):
     -------
     pandas DataFrame
         components on the basis of 12 oxygens, with column headings of the form... Gt_cat_12ox.
-    '''
+    
+    """
 
     gt_comps_new = gt_comps.copy()
     gt_comps_new.columns = [col.replace(append, '_Gt') for col in gt_comps_new.columns]
@@ -2307,11 +2422,13 @@ def calculate_garnet_components(gt_comps, append):
 # %% AMPHIBOLE 
 
 def calculate_mol_proportions_amphibole(amp_comps):
-    '''Import amphibole compositions using amp_comps=My_amphiboles, returns mole proportions
 
-   Parameters
+    """
+    
+    Import amphibole compositions using amp_comps=My_amphiboles, returns mole proportions
+
+    Parameters
     -------
-
     amp_comps: pandas.DataFrame
             Panda DataFrame of amphibole compositions with column headings SiO2_Amp, MgO_Amp etc.
 
@@ -2320,7 +2437,7 @@ def calculate_mol_proportions_amphibole(amp_comps):
     pandas DataFrame
         mole proportions for amphiboles with column headings of the form SiO2_Amp_mol_prop
 
-    '''
+    """
 
     oxide_mass_amp = {'SiO2_Amp': 60.0843, 'MgO_Amp': 40.3044, 'FeOt_Amp': 71.8464, 'CaO_Amp': 56.0774, 'Al2O3_Amp': 101.961,'Na2O_Amp': 61.9789, 'K2O_Amp': 94.196, 'MnO_Amp': 70.9375, 'TiO2_Amp': 79.8788, 'Cr2O3_Amp': 151.9982}
     oxide_mass_amp_df = pd.DataFrame.from_dict(oxide_mass_amp, orient='index').T
@@ -2340,20 +2457,21 @@ def calculate_mol_proportions_amphibole(amp_comps):
 
 
 def calculate_cat_proportions_amphibole(*, amp_comps=None, oxide_headers=False):
-    '''Import amphibole compositions using amp_comps=My_amphiboles, returns cation proportions
 
-   Parameters
+    """
+    Import amphibole compositions using amp_comps=My_amphiboles, returns cation proportions
+
+    Parameters
     -------
-
     amp_comps: pandas.DataFrame
             amphibole compositions with column headings SiO2_Amp, MgO_Amp etc.
-
 
     Returns
     -------
     pandas DataFrame
         cation proportions for amphibole with column headings of the form ...Amp_cat_prop
-    '''
+
+    """
 
     cation_num_amp = {'SiO2_Amp': 1, 'MgO_Amp': 1, 'FeOt_Amp': 1, 'CaO_Amp': 1, 'Al2O3_Amp': 2, 'Na2O_Amp': 2, 'K2O_Amp': 2, 'MnO_Amp': 1, 'TiO2_Amp': 1, 'Cr2O3_Amp': 2}
 
@@ -2388,11 +2506,12 @@ def calculate_cat_proportions_amphibole(*, amp_comps=None, oxide_headers=False):
 
 def calculate_oxygens_amphibole(amp_comps):
 
-    '''Import amphiboles compositions using amp_comps=My_Amps, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
+    """
+    
+    Import amphiboles compositions using amp_comps=My_Amps, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
 
-   Parameters
+    Parameters
     -------
-
     amp_comps: pandas.DataFrame
         amphiboles compositions with column headings SiO2_Amp, MgO_Amp etc.
 
@@ -2401,7 +2520,7 @@ def calculate_oxygens_amphibole(amp_comps):
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Amp_ox
 
-    '''
+    """
 
     oxygen_num_amp = {'SiO2_Amp': 2, 'MgO_Amp': 1, 'FeOt_Amp': 1, 'CaO_Amp': 1, 'Al2O3_Amp': 3, 'Na2O_Amp': 1, 'K2O_Amp': 1, 'MnO_Amp': 1, 'TiO2_Amp': 2, 'Cr2O3_Amp': 3}
     oxygen_num_amp_df = pd.DataFrame.from_dict(oxygen_num_amp, orient='index').T
@@ -2419,11 +2538,12 @@ def calculate_oxygens_amphibole(amp_comps):
 
 def calculate_23oxygens_amphibole(amp_comps):
 
-    '''Import amphibole compositions using amp_comps=My_Amps, returns cations on the basis of 23 oxygens.
+    """
+    
+    Import amphibole compositions using amp_comps=My_Amps, returns cations on the basis of 23 oxygens.
 
-   Parameters
+    Parameters
     -------
-
     amp_comps: pandas.DataFrame
         amphibole compositions with column headings SiO2_Amp, MgO_Amp etc.
 
@@ -2434,7 +2554,7 @@ def calculate_23oxygens_amphibole(amp_comps):
         For simplicity, and consistency of column labelling to aid calculations, oxide names are preserved,
         so outputs are Na_Amp_cat_23ox rather than Na_Amp_cat_23ox.
 
-    '''
+    """
     
     cation_num_amp = {'SiO2_Amp': 1, 'MgO_Amp': 1, 'FeOt_Amp': 1, 'CaO_Amp': 1, 'Al2O3_Amp': 2, 'Na2O_Amp': 2, 'K2O_Amp': 2, 'MnO_Amp': 1, 'TiO2_Amp': 1, 'Cr2O3_Amp': 2}
 
@@ -2479,11 +2599,13 @@ def calculate_23oxygens_amphibole(amp_comps):
 
 
 def calculate_mol_proportions_amphibole_ridolfi(amp_comps):
-    '''Import amphibole compositions using amp_comps=My_amphiboles, returns mole proportions
 
-   Parameters
+    """
+    
+    Import amphibole compositions using amp_comps=My_amphiboles, returns mole proportions
+
+    Parameters
     -------
-
     amp_comps: pandas.DataFrame
             Panda DataFrame of amphibole compositions with column headings SiO2_Amp, MgO_Amp etc.
 
@@ -2492,7 +2614,7 @@ def calculate_mol_proportions_amphibole_ridolfi(amp_comps):
     pandas DataFrame
         mole proportions for amphiboles with column headings of the form SiO2_Amp_mol_prop
 
-    '''
+    """
 
     oxide_mass_amp_Ridolfi = {'SiO2_Amp': 60.084, 'MgO_Amp': 40.304, 'FeOt_Amp': 71.846, 'CaO_Amp': 56.079, 'Al2O3_Amp': 101.961, 'Na2O_Amp': 61.979, 'K2O_Amp': 94.195, 'MnO_Amp': 70.937, 'TiO2_Amp': 79.898, 'Cr2O3_Amp': 151.9902, 'F_Amp': 18.998, 'Cl_Amp': 35.453}
     oxide_mass_amp_df_Ridolfi = pd.DataFrame.from_dict(oxide_mass_amp_Ridolfi, orient='index').T
@@ -2513,11 +2635,12 @@ def calculate_mol_proportions_amphibole_ridolfi(amp_comps):
 
 def calculate_cat_proportions_amphibole_ridolfi(*, amp_comps=None):
     
-    '''Import amphibole compositions using amp_comps=My_amphiboles, returns cation proportions
+    """
+    
+    Import amphibole compositions using amp_comps=My_amphiboles, returns cation proportions
 
-   Parameters
+    Parameters
     -------
-
     amp_comps: pandas.DataFrame
             amphibole compositions with column headings SiO2_Amp, MgO_Amp etc.
 
@@ -2528,7 +2651,7 @@ def calculate_cat_proportions_amphibole_ridolfi(*, amp_comps=None):
         For simplicity, and consistency of column heading types, oxide names are preserved,
         so outputs are Na2O_Amp_cat_prop rather than Na_Amp_cat_prop.
 
-    '''
+    """
 
     amp_prop_no_cat_num = calculate_mol_proportions_amphibole_ridolfi(amp_comps=amp_comps)
     amp_prop_no_cat_num.columns = [str(col).replace('_mol_prop', '') for col in amp_prop_no_cat_num.columns]
@@ -2542,12 +2665,11 @@ def calculate_cat_proportions_amphibole_ridolfi(*, amp_comps=None):
 
 def calculate_13cations_amphibole_ridolfi(amp_comps):
     
-    '''Import amphibole compositions using amp_comps=My_amphiboles, returns
+    """Import amphibole compositions using amp_comps=My_amphiboles, returns
     components calculated on basis of 13 cations following Ridolfi supporting information
 
-   Parameters
+    Parameters
     -------
-
     amp_comps: pandas.DataFrame
             amphibole compositions with column headings SiO2_Amp, MgO_Amp etc.
 
@@ -2556,7 +2678,7 @@ def calculate_13cations_amphibole_ridolfi(amp_comps):
     pandas DataFrame
         cation fractions for amphiboles with column headings of the form SiO2_Amp_13_cat...
 
-    '''
+    """
     cats = calculate_cat_proportions_amphibole_ridolfi(amp_comps=amp_comps)
     cats['cation_sum_Si_Mg'] = (cats['SiO2_Amp_cat_prop'] + cats['TiO2_Amp_cat_prop'] + cats['Al2O3_Amp_cat_prop'] + cats['Cr2O3_Amp_cat_prop'] + cats['FeOt_Amp_cat_prop'] + cats['MnO_Amp_cat_prop'] + cats['MgO_Amp_cat_prop'])
 
@@ -2672,7 +2794,6 @@ def calculate_sites_ridolfi(amp_comps):
 
     norm_cations['Fe2_calc']=norm_cations['Fet_Amp_13_cat']-norm_cations['Fe3_calc']
 
-
     norm_cations['Fe2O3_calc']=norm_cations['Fe3_calc']*norm_cations['cation_sum_Si_Mg']*159.691/13/2
     norm_cations.loc[(Low_sum), 'Fe2O3_calc']=0
 
@@ -2777,7 +2898,9 @@ def calculate_sites_ridolfi(amp_comps):
 def get_amp_sites_from_input_not_amp(dfin, col_drop):
 
     """
+    
     get amp_sites from amp_comps input from import_excel() function.
+    
     """
 
     amp_comps_lie=dfin.copy()
@@ -2795,6 +2918,7 @@ def get_amp_sites_from_input_not_amp(dfin, col_drop):
 def get_amp_sites_leake(amp_apfu_df):
 
     """
+
     get_amp_sites takes generalized atom per formula unit calculations from
     calculate_23oxygens_amphibole and puts them in the proper cation sites
     according to Leake et al., 1997.
@@ -2804,7 +2928,6 @@ def get_amp_sites_leake(amp_apfu_df):
     amp_apfu_df : pandas DataFrame
         This is the dataframe output from calculate_23oxygens_amphibole. You should
         not have to modify this dataframe at all.
-
 
     Returns
     -------
@@ -2816,6 +2939,7 @@ def get_amp_sites_leake(amp_apfu_df):
             C = octahedral sites (5 total)
             B  = M4 sites (2 total)
             A = A site (0 - 1 total)
+
     """
     norm_cations = amp_apfu_df.copy()
 
@@ -2956,6 +3080,7 @@ def get_amp_sites_leake(amp_apfu_df):
 
 
 def get_amp_sites_avferric_zhang(amp_comps):
+
     norm_cations=get_amp_sites_from_input(amp_comps)
 
     # Taken from Zhang et al. 2017 Supplement
@@ -3103,6 +3228,7 @@ def get_amp_sites_avferric_zhang(amp_comps):
 def get_amp_sites2(amp_apfu_df):
 
     """
+
     get_amp_sites takes generalized atom per formula unit calculations from
     calculate_23oxygens_amphibole and puts them in the proper cation sites
     according to Leake et al., 1997.
@@ -3112,7 +3238,6 @@ def get_amp_sites2(amp_apfu_df):
     amp_apfu_df : pandas DataFrame
         This is the dataframe output from calculate_23oxygens_amphibole. You should
         not have to modify this dataframe at all.
-
 
     Returns
     -------
@@ -3124,9 +3249,10 @@ def get_amp_sites2(amp_apfu_df):
             C = octahedral sites (5 total)
             B  = M4 sites (2 total)
             A = A site (0 - 1 total)
+
     """
 
-# new column names to drop the amp_cat_23ox. Can make this more flexible or we can just force the formatting
+    # new column names to drop the amp_cat_23ox. Can make this more flexible or we can just force the formatting
     # of the output inside the function. Mostly I didnt want to type it out a bunch so we can omit this little
     # loop if we want to formalize things
     newnames = []
@@ -3221,7 +3347,9 @@ def get_amp_sites2(amp_apfu_df):
 
 
 def amp_components_ferric_ferrous(sites_df, norm_cations):
+
     """
+
     amp_components_ferric_ferrous calculates the Fe3+ and Fe2+ apfu values of
     amphibole and adjusts the generic stoichiometry such that charge balance is
     maintained. This is based off the "f parameters" listed in Holland and Blundy
@@ -3234,7 +3362,6 @@ def amp_components_ferric_ferrous(sites_df, norm_cations):
     norm_cations : pandas DataFrame
         This is the dataframe output from calculate_23oxygens_amphibole. You should
         not have to modify this dataframe at all.
-
 
     Returns
     -------
@@ -3282,7 +3409,9 @@ def amp_components_ferric_ferrous(sites_df, norm_cations):
 
 
 def get_amp_sites_ferric_ferrous(amp_apfu_df):
+
     """
+
     get_amp_sites_ferric_ferrous is very similar to get_amp_sites, however it now
     incorporates the newly calculated Fe2O3 and FeO apfu values such that all
     Fe2O3 gets incorporated into the octahedral sites before any FeO. For more
@@ -3383,7 +3512,9 @@ def get_amp_sites_ferric_ferrous(amp_apfu_df):
 
 
 def get_amp_sites_mutch(amp_apfu_df):
+
     """
+
     get_amp_sites takes generalized atom per formula unit calculations from
     calculate_23oxygens_amphibole and puts them in the proper cation sites
     according to the spreasheet of Mutch et al. Gives negative numbers for Na. .
@@ -3393,7 +3524,6 @@ def get_amp_sites_mutch(amp_apfu_df):
     amp_apfu_df : pandas DataFrame
         This is the dataframe output from calculate_23oxygens_amphibole. You should
         not have to modify this dataframe at all.
-
 
     Returns
     -------
@@ -3405,9 +3535,10 @@ def get_amp_sites_mutch(amp_apfu_df):
             C = octahedral sites (5 total)
             B  = M4 sites (2 total)
             A = A site (0 - 1 total)
+
     """
 
-# new column names to drop the amp_cat_23ox. Can make this more flexible or we can just force the formatting
+    # new column names to drop the amp_cat_23ox. Can make this more flexible or we can just force the formatting
     # of the output inside the function. Mostly I didnt want to type it out a bunch so we can omit this little
     # loop if we want to formalize things
     norm_cations = amp_apfu_df.copy()
@@ -3479,7 +3610,6 @@ def get_amp_sites_mutch(amp_apfu_df):
             # Na from A site. Ask jordan where he got this from.
             Na_A[i] = amp_apfu_df['Na_Amp_cat_23ox'].iloc[i] - Na_B[i]
 
-
     site_vals = np.array([Si_T, Al_T, Al_C, Ti_C, Mg_C, Fe_C, Mn_C, Cr_C, Mg_B,
     Fe_B, Mn_B, Na_B, Ca_B, Na_A, K_A])
     sites_df = pd.DataFrame(site_vals.T, columns=['Si_T', 'Al_T_Amp', 'Al_C_Amp', 'Ti_C_Amp',
@@ -3490,7 +3620,9 @@ def get_amp_sites_mutch(amp_apfu_df):
 
 
 def amp_components_ferric_ferrous_mutch(sites_df, norm_cations):
+   
     """
+
     amp_components_ferric_ferrous calculates the Fe3+ and Fe2+ apfu values of
     amphibole and adjusts the generic stoichiometry such that charge balance is
     maintained. This is based off the "f parameters" listed in Holland and Blundy
@@ -3503,7 +3635,6 @@ def amp_components_ferric_ferrous_mutch(sites_df, norm_cations):
     norm_cations : pandas DataFrame
         This is the dataframe output from calculate_23oxygens_amphibole. You should
         not have to modify this dataframe at all.
-
 
     Returns
     -------
@@ -3546,12 +3677,10 @@ def amp_components_ferric_ferrous_mutch(sites_df, norm_cations):
     return norm_cations_hb
 
 
-##
-
-
 def get_amp_sites_ferric_ferrous_mutch(amp_apfu_df):
 
     """
+
     get_amp_sites_ferric_ferrous is very similar to get_amp_sites, however it now
     incorporates the newly calculated Fe2O3 and FeO apfu values such that all
     Fe2O3 gets incorporated into the octahedral sites before any FeO. For more
@@ -3654,14 +3783,16 @@ def get_amp_sites_ferric_ferrous_mutch(amp_apfu_df):
     return sites_df
 
 
-
 # %% BIOTITE
 
 
 def calculate_mol_proportions_biotite(bt_comps):
 
-    '''Import Biotite compositions using bt_comps=My_Biotites, returns mole proportions
-   Parameters
+    """
+
+    Import Biotite compositions using bt_comps=My_Biotites, returns mole proportions
+    
+    Parameters
     -------
     bt_comps: pandas.DataFrame
             Panda DataFrame of biotite compositions with column headings SiO2_Bt, MgO_Bt etc.
@@ -3670,7 +3801,8 @@ def calculate_mol_proportions_biotite(bt_comps):
     -------
     pandas DataFrame
         mole proportions for biotites with column headings of the form SiO2_Bt_mol_prop
-    '''
+
+    """
 
     oxide_mass_bt = {'SiO2_Bt': 60.0843, 'MgO_Bt': 40.3044, 'FeOt_Bt': 71.8464, 'CaO_Bt': 56.0774,'Al2O3_Bt': 101.961, 'Na2O_Bt': 61.9789, 'K2O_Bt': 94.196, 'MnO_Bt': 70.9375, 'TiO2_Bt': 79.7877, 'Cr2O3_Bt': 151.9982, 'P2O5_Bt': 141.937}
     oxide_mass_bt_df = pd.DataFrame.from_dict(oxide_mass_bt, orient='index').T
@@ -3690,13 +3822,14 @@ def calculate_mol_proportions_biotite(bt_comps):
 
 def calculate_cat_proportions_biotite(*, bt_comps=None, oxide_headers=False):
 
-    '''Import biotite compositions using bt_comps=My_biotites, returns cation proportions
+    """
+
+    Import biotite compositions using bt_comps=My_biotites, returns cation proportions
 
     Parameters
     -------
     bt_comps: pandas.DataFrame
             biotite compositions with column headings SiO2_Bt, MgO_Bt etc.
-    
     oxide_headers: bool
         default=False, returns as Ti_Bt_cat_prop.
         =True returns Ti_Bt_cat_prop.
@@ -3707,7 +3840,8 @@ def calculate_cat_proportions_biotite(*, bt_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for biotite with column headings of the form... Bt_cat_prop
-    '''
+
+    """
 
     cation_num_bt = {'SiO2_Bt': 1, 'MgO_Bt': 1, 'FeOt_Bt': 1, 'CaO_Bt': 1, 'Al2O3_Bt': 2, 'Na2O_Bt': 2, 'K2O_Bt': 2, 'MnO_Bt': 1, 'TiO2_Bt': 1, 'Cr2O3_Bt': 2, 'P2O5_Bt': 2}
     cation_num_bt_df = pd.DataFrame.from_dict(cation_num_bt, orient='index').T
@@ -3747,7 +3881,9 @@ def calculate_cat_proportions_biotite(*, bt_comps=None, oxide_headers=False):
 
 def calculate_oxygens_biotite(bt_comps):
     
-    '''Import biotite compositions using bt_comps=My_Bts, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
+    """
+    
+    Import biotite compositions using bt_comps=My_Bts, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
 
     Parameters
     -------
@@ -3758,7 +3894,7 @@ def calculate_oxygens_biotite(bt_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Bt_ox
-    '''
+    """
 
     oxygen_num_bt = {'SiO2_Bt': 2, 'MgO_Bt': 1, 'FeOt_Bt': 1, 'CaO_Bt': 1, 'Al2O3_Bt': 3, 'Na2O_Bt': 1, 'K2O_Bt': 1, 'MnO_Bt': 1, 'TiO2_Bt': 2, 'Cr2O3_Bt': 3, 'P2O5_Bt': 5}
     oxygen_num_bt_df = pd.DataFrame.from_dict(oxygen_num_bt, orient='index').T
@@ -3776,7 +3912,9 @@ def calculate_oxygens_biotite(bt_comps):
 
 def calculate_10oxygens_biotite(bt_comps):
     
-    '''Import biotite compositions using bt_comps=My_Bts, returns cations on the basis of 10 oxygens.
+    """
+    
+    Import biotite compositions using bt_comps=My_Bts, returns cations on the basis of 10 oxygens.
     
     Parameters
     -------
@@ -3787,7 +3925,8 @@ def calculate_10oxygens_biotite(bt_comps):
     -------
     pandas DataFrame
         cations on the basis of 10 oxygens, with column headings of the form... Bt_cat_10ox.
-    '''
+
+    """
 
     cation_num_bt = {'SiO2_Bt': 1, 'MgO_Bt': 1, 'FeOt_Bt': 1, 'CaO_Bt': 1, 'Al2O3_Bt': 2, 'Na2O_Bt': 2, 'K2O_Bt': 2, 'MnO_Bt': 1, 'TiO2_Bt': 1, 'Cr2O3_Bt': 2, 'P2O5_Bt': 2}
 
@@ -3826,7 +3965,9 @@ def calculate_10oxygens_biotite(bt_comps):
 
 def calculate_biotite_components(bt_comps, append):
     
-    '''Import Biotite compositions using bt_comps=My_Biotites, returns mole proportions
+    """
+    
+    Import Biotite compositions using bt_comps=My_Biotites, returns mole proportions
     
     Parameters
     -------
@@ -3837,7 +3978,8 @@ def calculate_biotite_components(bt_comps, append):
     -------
     pandas DataFrame
         components for biotites with column headings of the form SiO2_Bt_mol_prop
-    '''
+
+    """
 
     bt_comps_new = bt_comps.copy()
     bt_comps_new.columns = [col.replace(append, '_Bt') for col in bt_comps_new.columns]
@@ -3867,8 +4009,11 @@ def calculate_biotite_components(bt_comps, append):
 
 def calculate_mol_proportions_muscovite(ms_comps):
 
-    '''Import Muscovite compositions using ms_comps=My_Muscovites, returns mole proportions
-   Parameters
+    """
+    
+    Import Muscovite compositions using ms_comps=My_Muscovites, returns mole proportions
+   
+    Parameters
     -------
     ms_comps: pandas.DataFrame
             Panda DataFrame of muscovite compositions with column headings SiO2_Ms, MgO_Ms etc.
@@ -3877,7 +4022,8 @@ def calculate_mol_proportions_muscovite(ms_comps):
     -------
     pandas DataFrame
         mole proportions for muscovites with column headings of the form SiO2_Ms_mol_prop
-    '''
+
+    """
 
     oxide_mass_ms = {'SiO2_Ms': 60.0843, 'MgO_Ms': 40.3044, 'FeOt_Ms': 71.8464, 'CaO_Ms': 56.0774,'Al2O3_Ms': 101.961, 'Na2O_Ms': 61.9789, 'K2O_Ms': 94.196, 'MnO_Ms': 70.9375, 'TiO2_Ms': 79.7877, 'Cr2O3_Ms': 151.9982, 'P2O5_Ms': 141.937}
     oxide_mass_ms_df = pd.DataFrame.from_dict(oxide_mass_ms, orient='index').T
@@ -3897,13 +4043,14 @@ def calculate_mol_proportions_muscovite(ms_comps):
 
 def calculate_cat_proportions_muscovite(*, ms_comps=None, oxide_headers=False):
 
-    '''Import muscovite compositions using ms_comps=My_muscovites, returns cation proportions
+    """
+    
+    Import muscovite compositions using ms_comps=My_muscovites, returns cation proportions
 
     Parameters
     -------
     ms_comps: pandas.DataFrame
             muscovite compositions with column headings SiO2_Ms, MgO_Ms etc.
-    
     oxide_headers: bool
         default=False, returns as Ti_Ms_cat_prop.
         =True returns Ti_Ms_cat_prop.
@@ -3914,7 +4061,8 @@ def calculate_cat_proportions_muscovite(*, ms_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for muscovite with column headings of the form... Ms_cat_prop
-    '''
+
+    """
 
     cation_num_ms = {'SiO2_Ms': 1, 'MgO_Ms': 1, 'FeOt_Ms': 1, 'CaO_Ms': 1, 'Al2O3_Ms': 2, 'Na2O_Ms': 2, 'K2O_Ms': 2, 'MnO_Ms': 1, 'TiO2_Ms': 1, 'Cr2O3_Ms': 2, 'P2O5_Ms': 2}
     cation_num_ms_df = pd.DataFrame.from_dict(cation_num_ms, orient='index').T
@@ -3954,7 +4102,9 @@ def calculate_cat_proportions_muscovite(*, ms_comps=None, oxide_headers=False):
 
 def calculate_oxygens_muscovite(ms_comps):
     
-    '''Import muscovite compositions using ms_comps=My_Mss, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
+    """
+    
+    Import muscovite compositions using ms_comps=My_Mss, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
 
     Parameters
     -------
@@ -3965,7 +4115,8 @@ def calculate_oxygens_muscovite(ms_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Ms_ox
-    '''
+
+    """
 
     oxygen_num_ms = {'SiO2_Ms': 2, 'MgO_Ms': 1, 'FeOt_Ms': 1, 'CaO_Ms': 1, 'Al2O3_Ms': 3, 'Na2O_Ms': 1, 'K2O_Ms': 1, 'MnO_Ms': 1, 'TiO2_Ms': 2, 'Cr2O3_Ms': 3, 'P2O5_Ms': 5}
     oxygen_num_ms_df = pd.DataFrame.from_dict(oxygen_num_ms, orient='index').T
@@ -3983,7 +4134,9 @@ def calculate_oxygens_muscovite(ms_comps):
 
 def calculate_10oxygens_muscovite(ms_comps):
     
-    '''Import muscovite compositions using ms_comps=My_Mss, returns cations on the basis of 10 oxygens.
+    """
+    
+    Import muscovite compositions using ms_comps=My_Mss, returns cations on the basis of 10 oxygens.
     
     Parameters
     -------
@@ -3994,7 +4147,8 @@ def calculate_10oxygens_muscovite(ms_comps):
     -------
     pandas DataFrame
         cations on the basis of 10 oxygens, with column headings of the form... Ms_cat_10ox.
-    '''
+
+    """
 
     cation_num_ms = {'SiO2_Ms': 1, 'MgO_Ms': 1, 'FeOt_Ms': 1, 'CaO_Ms': 1, 'Al2O3_Ms': 2, 'Na2O_Ms': 2, 'K2O_Ms': 2, 'MnO_Ms': 1, 'TiO2_Ms': 1, 'Cr2O3_Ms': 2, 'P2O5_Ms': 2}
 
@@ -4033,7 +4187,9 @@ def calculate_10oxygens_muscovite(ms_comps):
 
 def calculate_muscovite_components(ms_comps, append):
     
-    '''Import Muscovite compositions using ms_comps=My_Muscovites, returns mole proportions
+    """
+    
+    Import Muscovite compositions using ms_comps=My_Muscovites, returns mole proportions
     
     Parameters
     -------
@@ -4044,7 +4200,8 @@ def calculate_muscovite_components(ms_comps, append):
     -------
     pandas DataFrame
         components for muscovites with column headings of the form SiO2_Ms_mol_prop
-    '''
+
+    """
 
     ms_comps_new = ms_comps.copy()
     ms_comps_new.columns = [col.replace(append, '_Ms') for col in ms_comps_new.columns]
@@ -4074,7 +4231,9 @@ def calculate_muscovite_components(ms_comps, append):
 
 def calculate_mol_proportions_rutile(rt_comps):
 
-    '''Import Rutile compositions using rt_comps=My_Rutiles, returns mole proportions
+    """
+    
+    Import Rutile compositions using rt_comps=My_Rutiles, returns mole proportions
 
     Parameters
     -------
@@ -4085,7 +4244,8 @@ def calculate_mol_proportions_rutile(rt_comps):
     -------
     pandas DataFrame
         mole proportions for rutiles with column headings of the form SiO2_Rt_mol_prop
-    '''
+
+    """
 
     oxide_mass_rt = {'SiO2_Rt': 60.0843, 'MgO_Rt': 40.3044, 'FeOt_Rt': 71.8464, 'CaO_Rt': 56.0774, 'Al2O3_Rt': 101.961, 'Na2O_Rt': 61.9789, 'K2O_Rt': 94.196, 'MnO_Rt': 70.9375, 'TiO2_Rt': 79.7877, 'Cr2O3_Rt': 151.9982, 'P2O5_Rt': 141.937, 'ZrO2_Rt':123.218}
     oxide_mass_rt_df = pd.DataFrame.from_dict(oxide_mass_rt, orient='index').T
@@ -4106,7 +4266,9 @@ def calculate_mol_proportions_rutile(rt_comps):
 
 def calculate_cat_proportions_rutile(*, rt_comps=None, oxide_headers=False):
     
-    '''Import rutile compositions using rt_comps=My_rutiles, returns cation proportions
+    """
+    
+    Import rutile compositions using rt_comps=My_rutiles, returns cation proportions
     
     Parameters
     -------
@@ -4122,7 +4284,8 @@ def calculate_cat_proportions_rutile(*, rt_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for rutile with column headings of the form... Rt_cat_prop
-    '''
+
+    """
 
     cation_num_rt = {'SiO2_Rt': 1, 'MgO_Rt': 1, 'FeOt_Rt': 1, 'CaO_Rt': 1, 'Al2O3_Rt': 2, 'Na2O_Rt': 2, 'K2O_Rt': 2, 'MnO_Rt': 1, 'TiO2_Rt': 1, 'Cr2O3_Rt': 2, 'P2O5_Rt': 2, 'ZrO2_Rt': 1}
     cation_num_rt_df = pd.DataFrame.from_dict(cation_num_rt, orient='index').T
@@ -4167,7 +4330,9 @@ def calculate_cat_proportions_rutile(*, rt_comps=None, oxide_headers=False):
 
 def calculate_oxygens_rutile(rt_comps):
     
-    '''Import rutile compositions using rt_comps=My_Rts, returns number of oxygens 
+    """
+    
+    Import rutile compositions using rt_comps=My_Rts, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
     Parameters
@@ -4179,7 +4344,8 @@ def calculate_oxygens_rutile(rt_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Rt_ox
-    '''
+
+    """
 
     oxygen_num_rt = {'SiO2_Rt': 2, 'MgO_Rt': 1, 'FeOt_Rt': 1, 'CaO_Rt': 1, 'Al2O3_Rt': 3, 'Na2O_Rt': 1, 'K2O_Rt': 1, 'MnO_Rt': 1, 'TiO2_Rt': 2, 'Cr2O3_Rt': 3, 'P2O5_Rt': 5, 'ZrO2_Rt': 2}
     oxygen_num_rt_df = pd.DataFrame.from_dict(oxygen_num_rt, orient='index').T
@@ -4200,7 +4366,9 @@ def calculate_oxygens_rutile(rt_comps):
 
 def calculate_2oxygens_rutile(rt_comps):
     
-    '''Import rutile compositions using rt_comps=My_Rts, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import rutile compositions using rt_comps=My_Rts, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -4211,7 +4379,8 @@ def calculate_2oxygens_rutile(rt_comps):
     -------
     pandas DataFrame
         cations on the basis of 2 oxygens, with column headings of the form... Rt_cat_2ox.
-    '''
+
+    """
 
     cation_num_rt = {'SiO2_Rt': 1, 'MgO_Rt': 1, 'FeOt_Rt': 1, 'CaO_Rt': 1, 'Al2O3_Rt': 2, 'Na2O_Rt': 2, 'K2O_Rt': 2, 'MnO_Rt': 1, 'TiO2_Rt': 1, 'Cr2O3_Rt': 2, 'P2O5_Rt': 2, 'ZrO2_Rt': 1}
 
@@ -4250,7 +4419,9 @@ def calculate_2oxygens_rutile(rt_comps):
 
 def calculate_rutile_components(rt_comps, append):
 
-    '''Import rutile compositions using rt_comps=My_Rts, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import rutile compositions using rt_comps=My_Rts, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -4261,7 +4432,8 @@ def calculate_rutile_components(rt_comps, append):
     -------
     pandas DataFrame
         components on the basis of 2 oxygens, with column headings of the form... Rt_cat_2ox.
-    '''
+    
+    """
 
     rt_comps_new = rt_comps.copy()
     rt_comps_new.columns = [col.replace(append, '_Rt') for col in rt_comps_new.columns]
@@ -4288,8 +4460,10 @@ def calculate_rutile_components(rt_comps, append):
 
 def calculate_mol_proportions_tourmaline(trm_comps):
 
-    '''Import Muscovite compositions using trm_comps=My_Muscovites, returns mole proportions
-   Parameters
+    """
+    Import Muscovite compositions using trm_comps=My_Muscovites, returns mole proportions
+    
+    Parameters
     -------
     trm_comps: pandas.DataFrame
             Panda DataFrame of tourmaline compositions with column headings SiO2_Trm, MgO_Trm etc.
@@ -4298,7 +4472,8 @@ def calculate_mol_proportions_tourmaline(trm_comps):
     -------
     pandas DataFrame
         mole proportions for tourmalines with column headings of the form SiO2_Trm_mol_prop
-    '''
+
+    """
 
     oxide_mass_trm = {'SiO2_Trm': 60.0843, 'MgO_Trm': 40.3044, 'FeOt_Trm': 71.8464, 'CaO_Trm': 56.0774,'Al2O3_Trm': 101.961, 'Na2O_Trm': 61.9789, 'K2O_Trm': 94.196, 'MnO_Trm': 70.9375, 'TiO2_Trm': 79.7877, 'Cr2O3_Trm': 151.9982, 'P2O5_Trm': 141.937}
     oxide_mass_trm_df = pd.DataFrame.from_dict(oxide_mass_trm, orient='index').T
@@ -4318,13 +4493,14 @@ def calculate_mol_proportions_tourmaline(trm_comps):
 
 def calculate_cat_proportions_tourmaline(*, trm_comps=None, oxide_headers=False):
 
-    '''Import tourmaline compositions using trm_comps=My_tourmalines, returns cation proportions
+    """
+    
+    Import tourmaline compositions using trm_comps=My_tourmalines, returns cation proportions
 
     Parameters
     -------
     trm_comps: pandas.DataFrame
             tourmaline compositions with column headings SiO2_Trm, MgO_Trm etc.
-    
     oxide_headers: bool
         default=False, returns as Ti_Trm_cat_prop.
         =True returns Ti_Trm_cat_prop.
@@ -4335,7 +4511,8 @@ def calculate_cat_proportions_tourmaline(*, trm_comps=None, oxide_headers=False)
     -------
     pandas DataFrame
         cation proportions for tourmaline with column headings of the form... Trm_cat_prop
-    '''
+
+    """
 
     cation_num_trm = {'SiO2_Trm': 1, 'MgO_Trm': 1, 'FeOt_Trm': 1, 'CaO_Trm': 1, 'Al2O3_Trm': 2, 'Na2O_Trm': 2, 'K2O_Trm': 2, 'MnO_Trm': 1, 'TiO2_Trm': 1, 'Cr2O3_Trm': 2, 'P2O5_Trm': 2}
     cation_num_trm_df = pd.DataFrame.from_dict(cation_num_trm, orient='index').T
@@ -4375,7 +4552,9 @@ def calculate_cat_proportions_tourmaline(*, trm_comps=None, oxide_headers=False)
 
 def calculate_oxygens_tourmaline(trm_comps):
     
-    '''Import tourmaline compositions using trm_comps=My_Trms, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
+    """
+    
+    Import tourmaline compositions using trm_comps=My_Trms, returns number of oxygens (e.g., mol proportions * number of O in formula unit)
 
     Parameters
     -------
@@ -4386,7 +4565,8 @@ def calculate_oxygens_tourmaline(trm_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Trm_ox
-    '''
+
+    """
 
     oxygen_num_trm = {'SiO2_Trm': 2, 'MgO_Trm': 1, 'FeOt_Trm': 1, 'CaO_Trm': 1, 'Al2O3_Trm': 3, 'Na2O_Trm': 1, 'K2O_Trm': 1, 'MnO_Trm': 1, 'TiO2_Trm': 2, 'Cr2O3_Trm': 3, 'P2O5_Trm': 5}
     oxygen_num_trm_df = pd.DataFrame.from_dict(oxygen_num_trm, orient='index').T
@@ -4404,7 +4584,9 @@ def calculate_oxygens_tourmaline(trm_comps):
 
 def calculate_18oxygens_tourmaline(trm_comps):
     
-    '''Import tourmaline compositions using trm_comps=My_Trms, returns cations on the basis of 10 oxygens.
+    """
+    
+    Import tourmaline compositions using trm_comps=My_Trms, returns cations on the basis of 10 oxygens.
     
     Parameters
     -------
@@ -4415,7 +4597,8 @@ def calculate_18oxygens_tourmaline(trm_comps):
     -------
     pandas DataFrame
         cations on the basis of 10 oxygens, with column headings of the form... Trm_cat_18ox.
-    '''
+
+    """
 
     cation_num_trm = {'SiO2_Trm': 1, 'MgO_Trm': 1, 'FeOt_Trm': 1, 'CaO_Trm': 1, 'Al2O3_Trm': 2, 'Na2O_Trm': 2, 'K2O_Trm': 2, 'MnO_Trm': 1, 'TiO2_Trm': 1, 'Cr2O3_Trm': 2, 'P2O5_Trm': 2}
 
@@ -4454,7 +4637,9 @@ def calculate_18oxygens_tourmaline(trm_comps):
 
 def calculate_tourmaline_components(trm_comps, append):
     
-    '''Import Muscovite compositions using trm_comps=My_Muscovites, returns mole proportions
+    """
+    
+    Import Muscovite compositions using trm_comps=My_Muscovites, returns mole proportions
     
     Parameters
     -------
@@ -4465,7 +4650,8 @@ def calculate_tourmaline_components(trm_comps, append):
     -------
     pandas DataFrame
         components for tourmalines with column headings of the form SiO2_Trm_mol_prop
-    '''
+
+    """
 
     trm_comps_new = trm_comps.copy()
     trm_comps_new.columns = [col.replace(append, '_Trm') for col in trm_comps_new.columns]
@@ -4494,7 +4680,9 @@ def calculate_tourmaline_components(trm_comps, append):
 
 def calculate_mol_proportions_oxide(ox_comps):
 
-    '''Import Oxide compositions using ox_comps=My_Oxides, returns mole proportions. 
+    """
+    
+    Import Oxide compositions using ox_comps=My_Oxides, returns mole proportions. 
     Retain _Ox appendix
 
     Parameters
@@ -4506,7 +4694,9 @@ def calculate_mol_proportions_oxide(ox_comps):
     -------
     pandas DataFrame
         mole proportions for oxides with column headings of the form SiO2_Ox_mol_prop
-    '''
+
+
+    """
 
     oxide_mass_ox = {'SiO2_Ox': 60.0843, 'MgO_Ox': 40.3044, 'FeOt_Ox': 71.8464, 'CaO_Ox': 56.0774,'Al2O3_Ox': 101.961, 'Na2O_Ox': 61.9789, 'K2O_Ox': 94.196, 'MnO_Ox': 70.9375, 'TiO2_Ox': 79.7877, 'Cr2O3_Ox': 151.9982, 'P2O5_Ox': 141.937}
 
@@ -4527,7 +4717,9 @@ def calculate_mol_proportions_oxide(ox_comps):
 
 def calculate_cat_proportions_oxide(*, ox_comps=None, oxide_headers=False):
 
-    '''Import oxide compositions using ox_comps=My_oxides, returns cation proportions
+    """
+    
+    Import oxide compositions using ox_comps=My_oxides, returns cation proportions
     Retain _Ox appendix
 
     Parameters
@@ -4545,7 +4737,8 @@ def calculate_cat_proportions_oxide(*, ox_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for oxide with column headings of the form... Sp_cat_prop
-    '''
+
+    """
 
     cation_num_ox = {'SiO2_Ox': 1, 'MgO_Ox': 1, 'FeOt_Ox': 1, 'CaO_Ox': 1, 'Al2O3_Ox': 2, 'Na2O_Ox': 2, 'K2O_Ox': 2, 'MnO_Ox': 1, 'TiO2_Ox': 1, 'Cr2O3_Ox': 2, 'P2O5_Ox': 2}
     cation_num_ox_df = pd.DataFrame.from_dict(cation_num_ox, orient='index').T
@@ -4584,11 +4777,12 @@ def calculate_cat_proportions_oxide(*, ox_comps=None, oxide_headers=False):
 
 def calculate_oxygens_oxide(ox_comps):
 
-    '''Import oxide compositions using ox_comps=My_Oxs, returns number of oxygens 
-    (e.g., mol proportions * number of O in formula unit)
-    Retain _Ox appendix
+    """
+    
+    Import oxide compositions using ox_comps=My_Oxs, returns number of oxygens 
+    (e.g., mol proportions * number of O in formula unit). Retain _Ox appendix
 
-   Parameters
+    Parameters
     -------
     ox_comps: pandas.DataFrame
         oxide compositions with column headings SiO2_Ox, MgO_Ox etc.
@@ -4596,8 +4790,9 @@ def calculate_oxygens_oxide(ox_comps):
     Returns
     -------
     pandas DataFrame
-        number of oxygens with column headings of the form SiO2_Ox_ox
-    '''
+        number of oxygens with column headings of the form SiO2_Ox
+
+    """
 
     oxygen_num_ox = {'SiO2_Ox': 2, 'MgO_Ox': 1, 'FeOt_Ox': 1, 'CaO_Ox': 1, 'Al2O3_Ox': 3, 'Na2O_Ox': 1,'K2O_Ox': 1, 'MnO_Ox': 1, 'TiO2_Ox': 2, 'Cr2O3_Ox': 3, 'P2O5_Ox': 5}
     oxygen_num_ox_df = pd.DataFrame.from_dict(oxygen_num_ox, orient='index').T
@@ -4615,9 +4810,10 @@ def calculate_oxygens_oxide(ox_comps):
 
 def calculate_oxygens_oxide(ox_comps):
 
-    '''Import oxide compositions using ox_comps=My_Oxs, returns number of oxygens 
-    (e.g., mol proportions * number of O in formula unit)
-    Retain _Ox appendix
+    """
+    
+    Import oxide compositions using ox_comps=My_Oxs, returns number of oxygens 
+    (e.g., mol proportions * number of O in formula unit). Retain _Ox appendix
 
     Parameters
     -------
@@ -4627,8 +4823,9 @@ def calculate_oxygens_oxide(ox_comps):
     Returns
     -------
     pandas DataFrame
-        number of oxygens with column headings of the form SiO2_Ox_ox
-    '''
+        number of oxygens with column headings of the form SiO2_Ox
+
+    """
 
     oxygen_num_ox = {'SiO2_Ox': 2, 'MgO_Ox': 1, 'FeOt_Ox': 1, 'CaO_Ox': 1, 'Al2O3_Ox': 3, 'Na2O_Ox': 1,'K2O_Ox': 1, 'MnO_Ox': 1, 'TiO2_Ox': 2, 'Cr2O3_Ox': 3, 'P2O5_Ox': 5}
     oxygen_num_ox_df = pd.DataFrame.from_dict(oxygen_num_ox, orient='index').T
@@ -4646,10 +4843,12 @@ def calculate_oxygens_oxide(ox_comps):
 
 def calculate_3oxygens_oxide(ox_comps):
 
-    '''Import oxide compositions using ox_comps=My_Oxs, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import oxide compositions using ox_comps=My_Oxs, returns cations on the basis of 4 oxygens.
     Retain _Ox appendix
 
-   Parameters
+    Parameters
     -------
     ox_comps: pandas.DataFrame
         oxide compositions with column headings SiO2_Ox, MgO_Ox etc.
@@ -4658,7 +4857,8 @@ def calculate_3oxygens_oxide(ox_comps):
     -------
     pandas DataFrame
         cations on the basis of 3 oxygens, with column headings of the form... Sp_cat_3ox.
-    '''
+        
+    """
 
     cation_num_ox = {'SiO2_Ox': 1, 'MgO_Ox': 1, 'FeOt_Ox': 1, 'CaO_Ox': 1, 'Al2O3_Ox': 2, 'Na2O_Ox': 2,'K2O_Ox': 2, 'MnO_Ox': 1, 'TiO2_Ox': 1, 'Cr2O3_Ox': 2, 'P2O5_Ox': 2}
     cation_num_ox_df = pd.DataFrame.from_dict(cation_num_ox, orient='index').T
@@ -4695,10 +4895,12 @@ def calculate_3oxygens_oxide(ox_comps):
 
 def calculate_oxide_components(ox_comps, append):
 
-    '''Import oxide compositions using ox_comps=My_Oxs, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import oxide compositions using ox_comps=My_Oxs, returns cations on the basis of 4 oxygens.
     Retain _Ox appendix
 
-   Parameters
+    Parameters
     -------
     ox_comps: pandas.DataFrame
         oxide compositions with column headings SiO2_Ox, MgO_Ox etc.
@@ -4707,7 +4909,8 @@ def calculate_oxide_components(ox_comps, append):
     -------
     pandas DataFrame
         cations on the basis of 3 oxygens, with column headings of the form... Sp_cat_3ox.
-    '''
+
+    """
     
     ox_comps_new = ox_comps.copy()
     ox_comps_new.columns = [col.replace(append, '_Ox') for col in ox_comps_new.columns]
@@ -4743,7 +4946,9 @@ def calculate_oxide_components(ox_comps, append):
 
 def calculate_mol_proportions_zircon(zr_comps):
     
-    '''Import zircon compositions using zr_comps=My_Zircons, returns mole proportions
+    """
+    
+    Import zircon compositions using zr_comps=My_Zircons, returns mole proportions
 
     Parameters
     -------
@@ -4754,7 +4959,8 @@ def calculate_mol_proportions_zircon(zr_comps):
     -------
     pandas DataFrame
         mole proportions for zircons with column headings of the form SiO2_Zr_mol_prop
-    '''
+
+    """
 
     oxide_mass_zr = {'SiO2_Zr': 60.0843, 'MgO_Zr': 40.3044, 'FeOt_Zr': 71.8464, 'CaO_Zr': 56.0774,'Al2O3_Zr': 101.961, 'Na2O_Zr': 61.9789, 'K2O_Zr': 94.196, 'MnO_Zr': 70.9375, 'TiO2_Zr': 79.7877, 'Cr2O3_Zr': 151.9982, 'P2O5_Zr': 141.937, 'ZrO2_Zr': 123.218, 'HfO2_Zr': 210.49}
     oxide_mass_zr_df = pd.DataFrame.from_dict(oxide_mass_zr, orient='index').T
@@ -4774,13 +4980,14 @@ def calculate_mol_proportions_zircon(zr_comps):
 
 def calculate_cat_proportions_zircon(*, zr_comps=None, oxide_headers=False):
 
-    '''Import zircon compositions using zr_comps=My_zircons, returns cation proportions
+    """
+    
+    Import zircon compositions using zr_comps=My_zircons, returns cation proportions
 
     Parameters
     -------
     zr_comps: pandas.DataFrame
             zircon compositions with column headings SiO2_Zr, MgO_Zr etc.
-
     oxide_headers: bool
         default=False, returns as Ti_Zr_cat_prop.
         =True returns Ti_Zr_cat_prop.
@@ -4791,7 +4998,8 @@ def calculate_cat_proportions_zircon(*, zr_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for zircon with column headings of the form... Zr_cat_prop
-    '''
+
+    """
 
     cation_num_zr = {'SiO2_Zr': 1, 'MgO_Zr': 1, 'FeOt_Zr': 1, 'CaO_Zr': 1, 'Al2O3_Zr': 2, 'Na2O_Zr': 2, 'K2O_Zr': 2, 'MnO_Zr': 1, 'TiO2_Zr': 1, 'Cr2O3_Zr': 2, 'P2O5_Zr': 2, 'ZrO2_Zr': 1, 'HfO2': 1}
     cation_num_zr_df = pd.DataFrame.from_dict(cation_num_zr, orient='index').T
@@ -4833,7 +5041,9 @@ def calculate_cat_proportions_zircon(*, zr_comps=None, oxide_headers=False):
 
 def calculate_oxygens_zircon(zr_comps):
 
-    '''Import zircon compositions using zr_comps=My_Zrs, returns number of oxygens 
+    """
+    
+    Import zircon compositions using zr_comps=My_Zrs, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
     Parameters
@@ -4845,7 +5055,8 @@ def calculate_oxygens_zircon(zr_comps):
     -------
     pandas DataFrame
         number of oxygens with column headings of the form SiO2_Zr_ox
-    '''
+
+    """
 
     oxygen_num_zr = {'SiO2_Zr': 2, 'MgO_Zr': 1, 'FeOt_Zr': 1, 'CaO_Zr': 1, 'Al2O3_Zr': 3, 'Na2O_Zr': 1, 'K2O_Zr': 1, 'MnO_Zr': 1, 'TiO2_Zr': 2, 'Cr2O3_Zr': 3, 'P2O5_Zr': 5, 'ZrO2': 2, 'HfO2': 2}
     oxygen_num_zr_df = pd.DataFrame.from_dict(oxygen_num_zr, orient='index').T
@@ -4864,7 +5075,9 @@ def calculate_oxygens_zircon(zr_comps):
 
 def calculate_4oxygens_zircon(zr_comps):
 
-    '''Import zircon compositions using zr_comps=My_Zrs, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import zircon compositions using zr_comps=My_Zrs, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -4875,7 +5088,8 @@ def calculate_4oxygens_zircon(zr_comps):
     -------
     pandas DataFrame
         cations on the basis of 4 oxygens, with column headings of the form... Zr_cat_4ox.
-    '''
+
+    """
 
     cation_num_zr = {'SiO2_Zr': 1, 'MgO_Zr': 1, 'FeOt_Zr': 1, 'CaO_Zr': 1, 'Al2O3_Zr': 2, 'Na2O_Zr': 2, 'K2O_Zr': 2, 'MnO_Zr': 1, 'TiO2_Zr': 1, 'Cr2O3_Zr': 2, 'P2O5_Zr': 2, 'ZrO2_Zr': 1, 'HfO2_Zr': 1}
     cation_num_zr_df = pd.DataFrame.from_dict(cation_num_zr, orient='index').T
@@ -4917,7 +5131,9 @@ def calculate_4oxygens_zircon(zr_comps):
 
 def calculate_zircon_components(zr_comps, append):
 
-    '''Import zircon compositions using zr_comps=My_Zrs, returns components on the basis of 4 oxygens.
+    """
+    
+    Import zircon compositions using zr_comps=My_Zrs, returns components on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -4928,7 +5144,8 @@ def calculate_zircon_components(zr_comps, append):
     -------
     pandas DataFrame
         components on the basis of 4 oxygens, with column headings of the form... Zr_cat_4ox.
-    '''
+
+    """
 
     zr_comps_new = zr_comps.copy()
     zr_comps_new.columns = [col.replace(append, '_Zr') for col in zr_comps_new.columns]
@@ -4955,7 +5172,9 @@ def calculate_zircon_components(zr_comps, append):
 
 def calculate_mol_proportions_quartz(qz_comps):
 
-    '''Import Quartz compositions using qz_comps=My_Quartzs, returns mole proportions
+    """
+    
+    Import Quartz compositions using qz_comps=My_Quartzs, returns mole proportions
 
     Parameters
     -------
@@ -4966,7 +5185,8 @@ def calculate_mol_proportions_quartz(qz_comps):
     -------
     pandas DataFrame
         mole proportions for quartzs with column headings of the form SiO2_Qz_mol_prop
-    '''
+
+    """
 
     oxide_mass_qz = {'SiO2_Qz': 60.0843, 'MgO_Qz': 40.3044, 'FeOt_Qz': 71.8464, 'CaO_Qz': 56.0774,'Al2O3_Qz': 101.961, 'Na2O_Qz': 61.9789, 'K2O_Qz': 94.196, 'MnO_Qz': 70.9375, 'TiO2_Qz': 79.7877, 'Cr2O3_Qz': 151.9982, 'P2O5_Qz': 141.937}
     oxide_mass_qz_df = pd.DataFrame.from_dict(oxide_mass_qz, orient='index').T
@@ -4987,7 +5207,9 @@ def calculate_mol_proportions_quartz(qz_comps):
 
 def calculate_cat_proportions_quartz(*, qz_comps=None, oxide_headers=False):
     
-    '''Import quartz compositions using qz_comps=My_quartzs, returns cation proportions
+    """
+    
+    Import quartz compositions using qz_comps=My_quartzs, returns cation proportions
     
     Parameters
     -------
@@ -5003,7 +5225,8 @@ def calculate_cat_proportions_quartz(*, qz_comps=None, oxide_headers=False):
     -------
     pandas DataFrame
         cation proportions for quartz with column headings of the form... Qz_cat_prop
-    '''
+
+    """
 
     cation_num_qz = {'SiO2_Qz': 1, 'MgO_Qz': 1, 'FeOt_Qz': 1, 'CaO_Qz': 1, 'Al2O3_Qz': 2, 'Na2O_Qz': 2, 'K2O_Qz': 2, 'MnO_Qz': 1, 'TiO2_Qz': 1, 'Cr2O3_Qz': 2, 'P2O5_Qz': 2}
     cation_num_qz_df = pd.DataFrame.from_dict(cation_num_qz, orient='index').T
@@ -5047,7 +5270,9 @@ def calculate_cat_proportions_quartz(*, qz_comps=None, oxide_headers=False):
 
 def calculate_oxygens_quartz(qz_comps):
     
-    '''Import quartz compositions using qz_comps=My_Qzs, returns number of oxygens 
+    """
+    
+    Import quartz compositions using qz_comps=My_Qzs, returns number of oxygens 
     (e.g., mol proportions * number of O in formula unit)
 
     Parameters
@@ -5058,8 +5283,9 @@ def calculate_oxygens_quartz(qz_comps):
     Returns
     -------
     pandas DataFrame
-        number of oxygens with column headings of the form SiO2_Qz_ox
-    '''
+        number of oxygens with column headings of the form SiO2_Qz
+
+    """
 
     oxygen_num_qz = {'SiO2_Qz': 2, 'MgO_Qz': 1, 'FeOt_Qz': 1, 'CaO_Qz': 1, 'Al2O3_Qz': 3, 'Na2O_Qz': 1, 'K2O_Qz': 1, 'MnO_Qz': 1, 'TiO2_Qz': 2, 'Cr2O3_Qz': 3, 'P2O5_Qz': 5}
     oxygen_num_qz_df = pd.DataFrame.from_dict(oxygen_num_qz, orient='index').T
@@ -5080,7 +5306,9 @@ def calculate_oxygens_quartz(qz_comps):
 
 def calculate_2oxygens_quartz(qz_comps):
     
-    '''Import quartz compositions using qz_comps=My_Qzs, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import quartz compositions using qz_comps=My_Qzs, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -5091,7 +5319,8 @@ def calculate_2oxygens_quartz(qz_comps):
     -------
     pandas DataFrame
         cations on the basis of 2 oxygens, with column headings of the form... Qz_cat_2ox.
-    '''
+
+    """
 
     cation_num_qz = {'SiO2_Qz': 1, 'MgO_Qz': 1, 'FeOt_Qz': 1, 'CaO_Qz': 1, 'Al2O3_Qz': 2, 'Na2O_Qz': 2, 'K2O_Qz': 2, 'MnO_Qz': 1, 'TiO2_Qz': 1, 'Cr2O3_Qz': 2, 'P2O5_Qz': 2}
 
@@ -5133,7 +5362,9 @@ def calculate_2oxygens_quartz(qz_comps):
 
 def calculate_quartz_components(qz_comps, append):
 
-    '''Import quartz compositions using qz_comps=My_Qzs, returns cations on the basis of 4 oxygens.
+    """
+    
+    Import quartz compositions using qz_comps=My_Qzs, returns cations on the basis of 4 oxygens.
 
     Parameters
     -------
@@ -5144,7 +5375,8 @@ def calculate_quartz_components(qz_comps, append):
     -------
     pandas DataFrame
         components on the basis of 2 oxygens, with column headings of the form... Qz_cat_2ox.
-    '''
+
+    """
 
     qz_comps_new = qz_comps.copy()
     qz_comps_new.columns = [col.replace(append, '_Qz') for col in qz_comps_new.columns]
@@ -5164,8 +5396,4 @@ def calculate_quartz_components(qz_comps, append):
     cat_frac_anhyd2 = pd.concat([qz_comps, qz_calc, cat_frac_anhyd], axis=1)
 
     return cat_frac_anhyd2
-
-
-# %% 
-
 
