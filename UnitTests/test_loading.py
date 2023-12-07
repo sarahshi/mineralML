@@ -76,7 +76,6 @@ class test_load_functions(unittest.TestCase):
         pd.testing.assert_frame_equal(df, mock_df)
 
     @patch('numpy.load')
-    @patch('os.path.dirname')
     def test_load_scaler(self, mock_np_load):
         # Set up the mock return values
         mean_array = np.random.rand(10)  # Create an array with 10 elements
