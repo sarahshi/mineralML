@@ -7,6 +7,8 @@ Welcome to mineralML's documentation!
 ======================================
 
 .. image:: _static/mineralML_logo.png
+   :width: 300px
+
 
 .. toctree::
    :maxdepth: 2
