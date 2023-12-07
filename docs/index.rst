@@ -21,16 +21,9 @@ Welcome to mineralML's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Training Data Cleanup
-
-   examples/traindata_clean/TrainingData_Cleanup
-
-
-.. toctree::
-   :maxdepth: 2
    :caption: Applying Trained ML Models
 
-   examples/ml_models/mineralML_colab
+   examples/ml_models/mineralML_docs
 
 
 .. toctree::
