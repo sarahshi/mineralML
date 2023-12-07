@@ -1,6 +1,6 @@
 .DS_Store
 __pycache__
-*.ipynb
+/Data_Clean/TrainingData_Cleanup.ipynb
 *.icloud
 /GEOROC_minerals/
 /backup/
