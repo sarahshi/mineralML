@@ -30,9 +30,10 @@ setup(
     install_requires=[
             'pandas',
             'numpy',
+            'scipy',
+            'seaborn', 
             'matplotlib',
             'scikit-learn',
-            'scipy',
             'torch',
             'hdbscan', 
             'imblearn'
