@@ -26,10 +26,6 @@ from pyrolite.plot import pyroplot
 sys.path.append('src')
 import mineralML as mm
 
-import concurrent.futures
-from multiprocessing import freeze_support
-import itertools 
-
 from matplotlib import pyplot as plt
 from matplotlib import rc
 import seaborn as sns
