@@ -151,7 +151,7 @@ def balance(train_x, train_y, n=1000):
     try:
         from imblearn.over_sampling import RandomOverSampler
     except ImportError:
-        raise RuntimeError('You havent installed imblearn, which is required to balance the datasets used for training the neural networks. If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn.')
+        raise RuntimeError('You have not installed imblearn, which is required to balance the datasets used for training the neural networks. If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn.')
 
     oversample = RandomOverSampler(sampling_strategy='minority', random_state=42)
 
