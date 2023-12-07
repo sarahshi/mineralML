@@ -1,5 +1,5 @@
 # mineralML
-<!-- [![PyPI](https://badgen.net/pypi/v/mineralML)](https://pypi.org/project/mineralML/) -->
+[![PyPI](https://badgen.net/pypi/v/mineralML)](https://pypi.org/project/mineralML/)
 [![Build Status](https://github.com/SarahShi/mineralML/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/SarahShi/mineralML/actions/workflows/main.yml)
 [![Documentation Status](https://readthedocs.org/projects/mineralml/badge/?version=latest)](https://mineralml.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/SarahShi/mineralML/branch/main/graph/badge.svg)](https://codecov.io/gh/SarahShi/mineralML/branch/main)

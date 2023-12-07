@@ -55,14 +55,14 @@ Chemistry
 
 *  SiO\ :sub:`2`
 *  TiO\ :sub:`2`
-*  Al\ :sub:`2`O\ :sub:`3`
+*  Al\ :sub:`2` O\ :sub:`3`
 *  FeO\ :sub:`t`
 *  MnO
 *  MgO 
 *  CaO 
-*  Na\ :sub:`2`O
-*  K\ :sub:`2`O
-*  Cr\ :sub:`2`O\ :sub:`3`
+*  Na\ :sub:`2` O
+*  K\ :sub:`2` O
+*  Cr\ :sub:`2` O\ :sub:`3`
 
 
 =====
