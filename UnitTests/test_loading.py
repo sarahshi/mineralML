@@ -77,16 +77,17 @@ class test_load_functions(unittest.TestCase):
 
     @patch('numpy.load')
     @patch('os.path.dirname')
-    def test_load_scaler(self, mock_dirname, mock_np_load):
+    def test_load_scaler(self, mock_np_load):
         # Set up the mock return values
-        mock_dirname.return_value = '/dummy/path'
-        mock_np_load.return_value = {'mean': np.array([1, 2]), 'scale': np.array([3, 4])}
+        mean_array = np.random.rand(10)  # Create an array with 10 elements
+        std_array = np.random.rand(10)   # Create an array with 10 elements
+        mock_np_load.return_value = {'mean': mean_array, 'scale': std_array}
 
         mean, std = mm.load_scaler()
 
-        # Check if values are correct
-        self.assertTrue((mean == pd.Series([1, 2], index=['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3'][:2])).all())
-        self.assertTrue((std == pd.Series([3, 4], index=['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3'][:2])).all())
+        expected_index = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+        self.assertTrue((mean == pd.Series(mean_array, index=expected_index)).all())
+        self.assertTrue((std == pd.Series(std_array, index=expected_index)).all())
 
         # Test for FileNotFoundError
         mock_np_load.side_effect = FileNotFoundError
