@@ -17,9 +17,6 @@ dependencies:
     - scikit-learn
     - pathlib
     - torch 
-    - torchaudio 
-    - torchvision 
-    - torchtext
     - pip
     - pip:
         - pyrolite

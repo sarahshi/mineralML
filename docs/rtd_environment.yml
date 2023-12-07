@@ -5,6 +5,7 @@ channels:
 dependencies:
     - python
     - pandoc
+    - torch 
     - pip:
         - sphinx_rtd_theme>=0.5.0
         - ipython
@@ -16,8 +17,3 @@ dependencies:
         - matplotlib
         - scikit-learn
         - scipy
-        - torch 
-        - torchaudio 
-        - torchvision 
-        - torchtext
-
