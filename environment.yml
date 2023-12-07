@@ -24,3 +24,4 @@ dependencies:
     - pip:
         - pyrolite
         - PyIRoGlass
+        - hdbscan

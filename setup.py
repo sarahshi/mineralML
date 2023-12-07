@@ -25,7 +25,7 @@ setup(
 
     package_data={
         # Include all pickle files
-        "": ["*.npz", "*.joblib", "*.pt"],
+        "": ["*.npz", "*.pt"],
     },
     install_requires=[
             'pandas',
@@ -33,7 +33,8 @@ setup(
             'matplotlib',
             'scikit-learn',
             'scipy',
-            'torch'
+            'torch',
+            'hdbscan'
             ],
 
     classifiers=[
