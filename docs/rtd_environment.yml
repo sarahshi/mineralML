@@ -1,6 +1,7 @@
 name: mineralML-RTD
 channels:
     - conda-forge
+    - pytorch
     - defaults
 dependencies:
     - python
@@ -16,5 +17,5 @@ dependencies:
         - matplotlib
         - scikit-learn
         - scipy
-        - imblearn
         - hdbscan
+        - torch

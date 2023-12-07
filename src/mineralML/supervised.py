@@ -11,7 +11,6 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split 
 from sklearn.metrics import classification_report, confusion_matrix
-from imblearn.over_sampling import RandomOverSampler
 
 import torch
 import torch.nn as nn
@@ -148,6 +147,11 @@ def balance(train_x, train_y, n=1000):
     for training a machine learning model.
 
     """
+
+    try:
+        from imblearn.over_sampling import RandomOverSampler
+    except ImportError:
+        raise RuntimeError('You havent installed imblearn, which is required to balance the datasets used for training the neural networks. If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn.')
 
     oversample = RandomOverSampler(sampling_strategy='minority', random_state=42)
 

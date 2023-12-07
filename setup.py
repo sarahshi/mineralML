@@ -36,7 +36,6 @@ setup(
             'scikit-learn',
             'torch',
             'hdbscan', 
-            'imblearn'
             ],
 
     classifiers=[
