@@ -1,4 +1,4 @@
-name: MIN_ML
+name: mineralML
 channels:
   - conda-forge
   - defaults
@@ -16,7 +16,10 @@ dependencies:
     - pep8
     - scikit-learn
     - pathlib
-    - pytorch
+    - torch 
+    - torchaudio 
+    - torchvision 
+    - torchtext
     - pip
     - pip:
         - pyrolite

@@ -8,5 +8,14 @@ __pycache__
 /Validation_Data/LEPR_Penny/
 /Validation_Data/GEOROC_validationdata.csv
 /Training_Data/Mineral/
-/MIN_ML_Cluster/t
-/parametermatrix_autoencoder/features/
+/mineralML_Cluster/t
+GEOROC_CpxAmp_NN_Variational.csv
+GEOROC_NN_Variational.csv
+LEPR_NN_Variational.csv
+PetDB_NN_Variational.csv
+Cascades_in_prep.ipynb
+Train_CovMatch.ipynb
+Validate_AE.ipynb
+Train_CovMatch.py
+Train_LinearModels.py
+Validate_AE.py

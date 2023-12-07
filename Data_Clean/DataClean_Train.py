@@ -30,7 +30,7 @@ from sklearn.preprocessing import scale, normalize, StandardScaler
 
 import Thermobar as pt
 sys.path.append('src')
-import MIN_ML as mm
+import mineralML as mm
 
 import matplotlib
 from matplotlib import pyplot as plt

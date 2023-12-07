@@ -5,21 +5,21 @@ from os import path
 
 this_directory = path.abspath(path.dirname(__file__))
 
-with open(path.join(this_directory, 'src', 'minML', '_version.py'), encoding='utf-8') as f:
+with open(path.join(this_directory, 'src', 'mineralML', '_version.py'), encoding='utf-8') as f:
     exec(f.read())
 
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name="minML",
+    name="mineralML",
     version=__version__,
     author="Sarah C. Shi",
     author_email="sarah.c.shi@gmail.com",
-    description="minML",
+    description="mineralML",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/sarahshi/minML",
+    url="https://github.com/sarahshi/mineralML",
     package_dir={'': 'src'},  # Optional
     packages=find_packages(where='src'),  # Required
 

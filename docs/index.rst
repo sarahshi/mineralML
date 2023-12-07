@@ -1,9 +1,11 @@
-.. MIN_ML documentation master file, created by sphinx-quickstart on July 21
+.. mineralML documentation master file, created by sphinx-quickstart on July 21
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to MIN_ML's documentation!
+
+Welcome to mineralML's documentation!
 ======================================
+
 
 .. toctree::
    :maxdepth: 2
@@ -19,22 +21,16 @@ Welcome to MIN_ML's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Transmission FTIR
+   :caption: Training Data Cleanup
+
+   examples/traindata_clean/TrainingData_Cleanup
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: Reflectance FTIR
+   :caption: Applying Trained ML Models
 
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Density/Molar Absorptivity Calculators
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Molar Absorptivity Inversion
+   examples/ml_models/mineralML_colab
 
 
 .. toctree::
@@ -42,23 +38,4 @@ Welcome to MIN_ML's documentation!
    :caption: Detailed Code Documentation
 
    codedoc
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: References
-
-   references
-
-
-
-
-
-
-
-
-
-
-
-
 

@@ -24,7 +24,7 @@ import torch.nn.functional as F
 from pyrolite.plot import pyroplot
 
 sys.path.append('src')
-import MIN_ML as mm
+import mineralML as mm
 
 import concurrent.futures
 from multiprocessing import freeze_support
@@ -57,8 +57,35 @@ n = 0.20
 kl_weight_decay_list = [0.75] # [0.0, 0.25, 0.5, 0.75, 1.0]
 hls_list = [[64, 32, 16]] # [[8], [16], [16, 8], [32, 16], [64, 32], [64, 32, 16]]
 epochs = 1500 
-
 # best_model_state = neuralnetwork(min_df_lim, hls_list, kl_weight_decay_list, lr, wd, dr, epochs, n, balanced=True) 
+
+# %% 
+
+opx = min_df_lim[min_df_lim.Mineral=='Orthopyroxene']
+cpx = min_df_lim[min_df_lim.Mineral=='Clinopyroxene']
+constants = ['Sample Name', 'Mineral']
+
+opx_components = mm.calculate_clinopyroxene_components(opx.rename(columns={c: c+'_Cpx' for c in opx.columns if c not in constants}))
+cpx_components = mm.calculate_clinopyroxene_components(cpx.rename(columns={c: c+'_Cpx' for c in cpx.columns if c not in constants}))
+
+opx.loc[(opx_components['Ca_CaMgFe_Cpx']<0.05), 'Empirical_Mineral'] = 'Orthopyroxene'
+opx.loc[(opx_components['Ca_CaMgFe_Cpx'].between(0.05, 0.2)), 'Empirical_Mineral'] = 'Pigeonite'
+opx.loc[(opx_components['Ca_CaMgFe_Cpx']>0.2), 'Empirical_Mineral'] = 'Clinopyroxene'
+
+
+cpx.loc[(cpx_components['Ca_CaMgFe_Cpx']<0.05), 'Empirical_Mineral'] = 'Orthopyroxene'
+cpx.loc[(cpx_components['Ca_CaMgFe_Cpx'].between(0.05, 0.2)), 'Empirical_Mineral'] = 'Pigeonite'
+cpx.loc[(cpx_components['Ca_CaMgFe_Cpx']>0.2), 'Empirical_Mineral'] = 'Clinopyroxene'
+
+opx_bad = opx[opx.Mineral != opx.Empirical_Mineral]
+cpx_bad = cpx[cpx.Mineral != cpx.Empirical_Mineral]
+
+
+# %% 
+
+
+ss = StandardScaler()
+array_norm = ss.fit_transform(min_df_lim[oxides])
 
 # %% 
 
@@ -86,56 +113,67 @@ epochs = 1500
 
 # %%
 
-# Step 1: Load your scaler from the pickle file
-scaler = mm.load_scaler()
-
 # Step 2: Read in your DataFrame, drop rows with NaN in specific oxide columns, fill NaNs, and filter minerals
 lepr_df_load = mm.load_df('Validation_Data/lepr_allphases_lim_sp.csv')
 lepr_df, lepr_df_ex = mm.prep_df(lepr_df_load)
-lepr_pred_class, lepr_pred_prob = mm.predict_class_prob(lepr_df)
-
-unique_lepr, valid_mapping_lepr = mm.unique_mapping(lepr_df, lepr_pred_class)
-lepr_pred_min = mm.class2mineral(lepr_df, lepr_pred_class)
-
+lepr_df_pred, lepr_probability_matrix = mm.predict_class_prob(lepr_df)
 
 lepr_bayes_valid_report = classification_report(
-    lepr_df.Mineral, lepr_pred_min, 
-    zero_division=0
+    lepr_df_pred['Mineral'], lepr_df_pred['Predict_Mineral'], zero_division=0
 )
 print("LEPR Validation Report:\n", lepr_bayes_valid_report)
 
-lepr_cm = mm.confusion_matrix_df(lepr_df, lepr_pred_class)
-print("LEPR Confusion Matrix:\n", lepr_bayes_valid_report)
-lepr_cm[lepr_cm < len(lepr_pred_min)*0.0005] = 0
+lepr_cm = mm.confusion_matrix_df(lepr_df_pred['Mineral'], lepr_df_pred['Predict_Mineral'])
+print("LEPR Confusion Matrix:\n", lepr_cm)
+
+lepr_cm[lepr_cm < len(lepr_df_pred['Predict_Mineral'])*0.0005] = 0
 mm.pp_matrix(lepr_cm, savefig = 'none') 
 
+
 # %% 
-# Calculate and print classification metrics for the validation dataset
-
-lepr_bayes_valid_report = classification_report(
-    valid_y_lepr, bayes_pred_y_lepr, 
-    # labels=unique_lepr, 
-    # target_names=[mapping_lepr[x] for x in unique_lepr], 
-    zero_division=0
-)
-print("LEPR Validation Report:\n", lepr_bayes_valid_report)
-
-bayes_cm_lepr = confusion_matrix(valid_y_lepr, bayes_pred_y_lepr)
-
-def create_confusion_matrix_df(cm, unique_classes, sorted_mapping):
-    # Use a list comprehension to prepare the index and columns once,
-    # as they are the same for both indices and columns.
-    labels = [sorted_mapping[x] for x in unique_classes]
-    return pd.DataFrame(cm, index=labels, columns=labels)
-
-bayes_cm_lepr_df = create_confusion_matrix_df(bayes_cm_lepr, unique_lepr, mapping_lepr)
-bayes_cm_lepr_df[bayes_cm_lepr_df < len(valid_y_lepr)*0.001] = 0
-
-mm.pp_matrix(bayes_cm_lepr_df, savefig = 'lepr_valid', figsize = (11.5, 11.5)) 
 
 
-lepr_df['NN_Labels_Test'] = bayes_pred_label_lepr
+def mineral_supergroup(df): 
 
+    df['Supergroup'] = df['Predict_Mineral']
+
+    pyroxene_condition = df['Predict_Mineral'].isin(['Orthopyroxene', 'Clinopyroxene'])
+    feldspar_condition = df['Predict_Mineral'].isin(['KFeldspar', 'Plagioclase'])
+    oxide_condition = df['Predict_Mineral'].isin(['Spinel', 'Ilmenite', 'Magnetite'])
+
+    df.loc[pyroxene_condition, 'Supergroup'] = 'Pyroxene'
+    df.loc[feldspar_condition, 'Supergroup'] = 'Feldspar'
+    df.loc[oxide_condition, 'Supergroup'] = 'Oxide'
+
+    return df
+
+def empirical_classification(df): 
+
+    constants = ['Mineral']
+    df['Empirical_Mineral'] = df['Supergroup']
+    
+    pyroxene_condition = df['Supergroup']=='Pyroxene'
+    pyroxene_components = mm.calculate_clinopyroxene_components(df[pyroxene_condition].rename(columns={c: c+'_Cpx' for c in df.columns if c not in constants}))
+    df.loc[(pyroxene_condition & (pyroxene_components['Ca_CaMgFe_Cpx']<0.05)), 'Empirical_Mineral'] = 'Orthopyroxene'
+    df.loc[(pyroxene_condition & (pyroxene_components['Ca_CaMgFe_Cpx'].between(0.05, 0.2))), 'Empirical_Mineral'] = 'Pigeonite'
+    df.loc[(pyroxene_condition & (pyroxene_components['Ca_CaMgFe_Cpx']>0.2)), 'Empirical_Mineral'] = 'Clinopyroxene'
+
+    feldspar_condition = df['Supergroup']=='Feldspar'
+    feldspar_components = mm.calculate_cat_fractions_plagioclase(df[feldspar_condition].rename(columns={c: c+'_Plag' for c in df.columns if c not in constants}))
+    df.loc[(feldspar_condition & (feldspar_components['An_Plag']>0.1) & (feldspar_components['Or_Plag']<0.1)), 'Empirical_Mineral'] = 'Plagioclase'
+    df.loc[(feldspar_condition & (feldspar_components['An_Plag']<0.1) & (feldspar_components['Or_Plag']>0.1)), 'Empirical_Mineral'] = 'KFeldspar'
+    df.loc[(feldspar_condition & (feldspar_components['An_Plag']<0.1) & (feldspar_components['Or_Plag']<0.1)), 'Empirical_Mineral'] = 'Albite'
+
+    oxide_condition = df['Supergroup']=='Oxide' # all oxyspinels 
+
+
+    return df
+
+
+lepr_df_pred_super = mm.mineral_supergroup(lepr_df_pred)
+lepr_df_emp = empirical_classification(lepr_df_pred_super)
+
+# %% 
 # %%
 
 
@@ -182,7 +220,7 @@ plt.legend()
 
 # %%
 
-with open('src/MIN_ML/scaler.pkl','rb') as f:
+with open('src/mineralML/scaler.pkl','rb') as f:
     scaler = pickle.load(f)
 
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']

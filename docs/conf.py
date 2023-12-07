@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('../src'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'MIN_ML'
+project = 'mineralML'
 copyright = '2023, Sarah Shi'
 author = 'Sarah Shi'
 
@@ -76,13 +76,13 @@ nbsphinx_prolog = r"""
 
     <div class="admonition note">
       <p>This page was generated from
-        <a class="reference external" href="https://github.com/SarahShi/MIN_ML/blob/{{ git_ref|e }}/{{ docname|e }}">{{ docname|e }}</a>.
+        <a class="reference external" href="https://github.com/SarahShi/mineralML/blob/{{ git_ref|e }}/{{ docname|e }}">{{ docname|e }}</a>.
 
             Interactive online version:
-            <a href="https://mybinder.org/v2/gh/SarahShi/MIN_ML/{{ git_ref|e }}?filepath={{ docname|e }}"><img alt="Binder badge" src="https://mybinder.org/badge_logo.svg" style="vertical-align:text-bottom"></a>.
+            <a href="https://mybinder.org/v2/gh/SarahShi/mineralML/{{ git_ref|e }}?filepath={{ docname|e }}"><img alt="Binder badge" src="https://mybinder.org/badge_logo.svg" style="vertical-align:text-bottom"></a>.
     </p>
     <p>
-    <a class="reference download internal" download="" href="https://github.com/SarahShi/MIN_ML/blob/{{ git_ref|e }}/{{ docname|e }}"><code class="xref download docutils literal notranslate"><span class="pre">Python</span> <span class="pre">Notebook</span> <span class="pre">Download</span></code></a>
+    <a class="reference download internal" download="" href="https://github.com/SarahShi/mineralML/blob/{{ git_ref|e }}/{{ docname|e }}"><code class="xref download docutils literal notranslate"><span class="pre">Python</span> <span class="pre">Notebook</span> <span class="pre">Download</span></code></a>
       </p>
       <script>
         if (document.location.host) {
@@ -173,7 +173,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'MIN_MLdoc'
+htmlhelp_basename = 'mineralMLdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -200,7 +200,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'MIN_ML.tex', 'MIN_ML Documentation',
+    (master_doc, 'mineralML.tex', 'mineralML Documentation',
      'Sarah Shi', 'manual'),
 ]
 
@@ -210,7 +210,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'MIN_ML', 'MIN_ML Documentation',
+    (master_doc, 'mineralML', 'mineralML Documentation',
      [author], 1)
 ]
 
@@ -221,8 +221,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'MIN_ML', 'MIN_ML Documentation',
-     author, 'MIN_ML', 'One line description of project.',
+    (master_doc, 'mineralML', 'mineralML Documentation',
+     author, 'mineralML', 'One line description of project.',
      'Miscellaneous'),
 ]
 

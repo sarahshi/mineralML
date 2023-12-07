@@ -1,4 +1,4 @@
-name: MIN_ML-RTD
+name: mineralML-RTD
 channels:
     - conda-forge
     - defaults

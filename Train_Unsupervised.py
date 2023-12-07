@@ -14,12 +14,11 @@ import random
 import warnings
 warnings.simplefilter('ignore', category=(FutureWarning,UserWarning))
 
-from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
-from sklearn.decomposition import PCA, KernelPCA
-from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE
+from sklearn.model_selection import train_test_split
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, f1_score, precision_recall_fscore_support
-from imblearn.over_sampling import RandomOverSampler
+
+from hdbscan.flat import (HDBSCAN_flat, approximate_predict_flat)
 
 import torch
 import torch.nn as nn
@@ -28,13 +27,18 @@ from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
 
 sys.path.append('src')
-import MIN_ML as mm
+import mineralML as mm
 
 import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib import rc
 import matplotlib.colors as mcolors
 import seaborn as sns
+
+from matplotlib.gridspec import GridSpec
+import matplotlib.cm as mcm
+
+from pyrolite.comp.codata import ILR, CLR
 
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
@@ -43,9 +47,11 @@ plt.rcParams['pdf.fonttype'] = 42
 
 # %% 
 
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-oxideslab = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'NiO', 'Mineral']
+min_df = pd.read_csv('Training_Data/mindf_filt_new.csv')
+
+oxideslab = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'Mineral']
 oxides = oxideslab[:-1]
 
 df = min_df[oxideslab].copy()
@@ -53,165 +59,224 @@ df = df.fillna(0)
 df_ox = df[oxides]
 mins = np.unique(df['Mineral'])
 
-fig, ax = plt.subplots(4, 5, figsize=(22, 22))
-ax = ax.flatten()
-for i in range(len(mins)): 
-    ax[i].violinplot(df[df['Mineral']==mins[i]][oxides], positions = np.linspace(0, 10, 11), showmeans = True, showextrema= False)
-    ax[i].set_title(mins[i])
-    ax[i].set_xticks(np.linspace(0, 10, 11))
-    ax[i].set_xticklabels(oxides, rotation = 45)
-    ax[i].set_ylim([-5, 105])
-plt.tight_layout()
+# fig, ax = plt.subplots(4, 5, figsize=(22, 22))
+# ax = ax.flatten()
+# for i in range(len(mins)): 
+#     ax[i].violinplot(df[df['Mineral']==mins[i]][oxides], positions = np.linspace(0, 9, 10), showmeans = True, showextrema= False)
+#     ax[i].set_title(mins[i])
+#     ax[i].set_xticks(np.linspace(0, 9, 10))
+#     ax[i].set_xticklabels(oxides, rotation = 45)
+#     ax[i].set_ylim([-5, 105])
+# plt.tight_layout()
+
+# min_df = pd.read_csv('Training_Data/mindf_filt_new.csv')
+
+# names = ["ae_256_64_16", "ae_64_16_4", "ae_128_32_8", 'ae_256_32_8']
+# nodes_list = [(256, 64, 16), (64, 16, 4), (128, 32, 8), (256, 32, 8)]
+
+# for i in range(len(names)): 
+#     start_time = time.time()
+#     print("starting " + str(names[i]))
+#     z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 50) # (512, 128, 32, 8)
+#     print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
 
 # %% 
 
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
+clusterer, z_df = mm.load_clusterer()
 
-names = ['mindf_128_64_25ep', 'mindf_256_128_25ep', "mindf_128_32_8_25ep", "mindf_256_64_16_25ep"]
-
-nodes_list = [(128, 64), (256, 128), (128, 32, 8), (256, 64, 16), (512, 128, 32)]
-
-for i in range(len(names)): 
-    start_time = time.time()
-    print("starting " + str(names[i]))
-    z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 25) # (512, 128, 32, 8)
-    print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
-
-# %% 
-
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
-
-names = ['mindf_128_64_40ep', 'mindf_256_128_40ep', "mindf_128_32_8_40ep", "mindf_256_64_16_40ep"]
-
-nodes_list = [(128, 64), (256, 128), (128, 32, 8), (256, 64, 16), (512, 128, 32)]
-
-for i in range(len(names)): 
-    start_time = time.time()
-    print("starting " + str(names[i]))
-    z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 40) # (512, 128, 32, 8)
-    print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
-
-# %% 
-
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
-
-names = ['mindf_128_64_45ep', 'mindf_256_128_45ep', "mindf_128_32_8_45ep", "mindf_256_64_16_45ep"]
-
-nodes_list = [(128, 64), (256, 128), (128, 32, 8), (256, 64, 16), (512, 128, 32)]
-
-for i in range(len(names)): 
-    start_time = time.time()
-    print("starting " + str(names[i]))
-    z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 45) # (512, 128, 32, 8)
-    print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
-
-# %% 
-
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
-
-names = ['mindf_128_64_50ep', 'mindf_256_128_50ep', "mindf_128_32_8_50ep", "mindf_256_64_16_50ep"]
-
-nodes_list = [(128, 64), (256, 128), (128, 32, 8), (256, 64, 16), (512, 128, 32)]
-
-for i in range(len(names)): 
-    start_time = time.time()
-    print("starting " + str(names[i]))
-    z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 50) # (512, 128, 32, 8)
-    print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
-
-# %% 
-
-
-min_df = pd.read_csv('Training_Data/mindf_filt.csv')
-
-names = ['mindf_128_64_55ep', 'mindf_256_128_55ep', "mindf_128_32_8_55ep", "mindf_256_64_16_55ep"]
-
-nodes_list = [(128, 64), (256, 128), (128, 32, 8), (256, 64, 16), (512, 128, 32)]
-
-for i in range(len(names)): 
-    start_time = time.time()
-    print("starting " + str(names[i]))
-    z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 55) # (512, 128, 32, 8)
-    print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
-
-# %% 
-
-# %% 
-
-name = 'mindf_256_64_16'
-
-z = np.load('autoencoder_parametermatrix/' + name + '_tanh.npz')['z']
-
-z_scores_df = pd.DataFrame(columns = ['LV1', 'LV2']) 
-z_scores_df['LV1'] = z[:,0]
-z_scores_df['LV2'] = z[:,1]
+phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 
+    'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
+    'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])    
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=plt.get_cmap('tab20'))
 
 fig = plt.figure(figsize = (14, 14))
 gs = GridSpec(4, 4)
 ax_scatter = fig.add_subplot(gs[1:4, 0:3])
 ax_hist_x = fig.add_subplot(gs[0,0:3])
 ax_hist_y = fig.add_subplot(gs[1:4, 3])
-
-min_df = pd.read_csv('TrainingData/mindf_filt.csv')
-
-phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'FeTiOxide',
-        'Garnet', 'KFeldspar', 'Muscovite', 'Olivine', 'Orthopyroxene',
-        'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])
-
-# phase = list(set(df['Mineral']))
-tab = plt.get_cmap('tab20')
-cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
-scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
-
 for i in range(len(phase)):
     indx = min_df['Mineral'] == phase[i]
-    ax_scatter.scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
+    ax_scatter.scatter(z_df.LV1[indx], z_df.LV2[indx], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i])
 ax_scatter.set_xlabel("Latent Variable 1")
 ax_scatter.set_ylabel("Latent Variable 2")
 ax_scatter.set_xlim([-1.5, 2.0])
 ax_scatter.set_ylim([-2.5, 2.5])
 ax_scatter.legend(prop={'size': 8})
-
-pc1_sns = sns.kdeplot(data = z_scores_df, x = 'LV1', color = 'k', ax = ax_hist_x)
+pc1_sns = sns.kdeplot(data = z_df, x = 'LV1', color = 'k', ax = ax_hist_x)
 pc1_sns.set_xlim([-1.5, 2.0])
 pc1_sns.set(xlabel = None)
-
-pc2_sns = sns.kdeplot(data = z_scores_df, y = 'LV2', color = 'k')
+pc2_sns = sns.kdeplot(data = z_df, y = 'LV2', color = 'k')
 pc2_sns.set_ylim([-2.5, 2.5])
 pc2_sns.set(ylabel = None)
-
 plt.tight_layout()
 # plt.savefig(name + "_density.pdf")
+
+# %% 
+
+lepr = mm.load_df('Validation_Data/lepr_allphases_lim.csv')
+lepr_df, lepr_df_ex = mm.prep_df_ae(lepr)
+lepr_df_pred = mm.predict_class_prob_ae(lepr_df)
+
+georoc = mm.load_df('Validation_Data/GEOROC_validationdata_Fe.csv')
+georoc_df, georoc_df_ex = mm.prep_df_ae(georoc)
+georoc_df_pred = mm.predict_class_prob_ae(georoc_df)
+
+petdb = mm.load_df('Validation_Data/PetDB_validationdata_Fe.csv')
+petdb_df, petdb_df_ex = mm.prep_df_ae(petdb)
+petdb_pred = mm.predict_class_prob_ae(petdb_df)
+
+# %% 
+
+phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 
+    'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
+    'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])    
+oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+
+wt = min_df[oxides].fillna(0).to_numpy()
+wt_scale = StandardScaler().fit_transform(wt)
+pca_for_z = PCA(n_components = 3)
+wt_z_pca = pca_for_z.fit_transform(wt_scale)
+
+fig, ax = plt.subplots(1, 3, figsize = (24, 8))
+ax = ax.flatten()
+for i in range(len(phase)):
+    indx = min_df['Mineral'] == phase[i]
+    ax[0].scatter(wt_z_pca[indx][:, 0], wt_z_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=0.1, ec='k', label=phase[i], rasterized = True)
+    ax[1].scatter(z_df.LV1[indx], z_df.LV2[indx], s=15, color=scalarMap.to_rgba(i), lw=0.1, ec='k', label=phase[i], rasterized = True)
+for i in range(len(phase)):
+    lepr_indx = lepr_df_pred['Predict_Mineral'] == phase[i]
+    ax[2].scatter(lepr_df_pred.LV1[lepr_indx], lepr_df_pred.LV2[lepr_indx], s=15, color=scalarMap.to_rgba(i), lw=0.1, ec='k', rasterized = True)
+ax[0].legend(prop={'size': 8})
+ax[0].set_ylabel('Latent Variable 2')
+ax[0].annotate("PCA", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+ax[1].set_xlabel('Latent Variable 1')
+ax[1].set_xlim([-1.5, 2.0])
+ax[1].set_ylim([-2.5, 2.5])
+ax[1].annotate("AE Test", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+ax[2].set_xlim([-1.5, 2.0])
+ax[2].set_ylim([-2.5, 2.5])
+ax[2].annotate("AE LEPR", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[2].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[2].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+plt.tight_layout()
+# plt.savefig('PCA_AE1_test.png', dpi = 300, transparent = False, bbox_inches='tight', pad_inches = 0.025)
 
 
 # %% 
 
-oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-lepr = pd.read_csv('ValidationData/lepr_allphases_lim.csv', index_col=0)
-lepr_df = lepr.dropna(subset=oxides, thresh = 6)
+# %% 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# %% 
 
-name = 'mindf_256_64_16_noP'
-path = 'autoencoder_parametermatrix/' + name + '_tanh_params.pt'
-model = Tanh_Autoencoder(input_dim=10, hidden_layer_sizes=(256, 64, 16)).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=0)
-load_model(model, optimizer, path)
+import matplotlib.colors as mcolors
+import matplotlib.cm as mcm
+import matplotlib.lines as mlines
 
-lepr_wt = lepr_df[oxides].fillna(0)
-lepr_wt = lepr_wt.to_numpy()
-ss2 = StandardScaler()
-lepr_norm_wt = ss2.fit_transform(lepr_wt)
-z_lepr = getLatent(model, lepr_norm_wt)
+array, params = mm.feature_normalisation(z, return_params = True)
+clusterer = HDBSCAN_flat(array, min_cluster_size=30, cluster_selection_epsilon=0.025, prediction_data=True)
+labels, probs = clusterer.labels_, clusterer.probabilities_
+array_filt = array[labels!=-1]
+labels_filt = labels[labels!=-1]
+probs_filt = probs[labels!=-1]
 
+
+df_cluster = pd.DataFrame(z, columns=['LV1', 'LV2'])
+df_cluster['Predict_Code'] = labels
+df_cluster['Predict_Probability'] = probs
+
+label_plot = list(set(labels_filt))
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(label_plot))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+
+label_to_color_idx = {label: idx for idx, label in enumerate(label_plot)}
+label_to_color_idx[6] = label_to_color_idx[7]  # Olivine
+label_to_color_idx[11] = label_to_color_idx[12]  # Orthopyroxene
+
+
+fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+legend_handles = {}  # Dictionary to store custom legend handles
+
+for label in label_plot:
+    indx = labels == label
+    if np.any(indx):
+        alphas = probs[indx]
+        ax.scatter(z[indx, 0], z[indx, 1], 
+                   color=scalarMap.to_rgba(label_to_color_idx[label]),
+                   alpha=alphas, marker = 'o', lw=0.1, ec = 'k',
+                   label=label_dict[label] if label_dict[label] not in ax.get_legend_handles_labels()[1] else "")
+        
+        # Check if label is not already in legend
+        if label_dict[label] not in legend_handles:
+            # Create a custom legend handle with alpha=1
+            legend_handles[label_dict[label]] = mlines.Line2D([], [], color=scalarMap.to_rgba(label_to_color_idx[label]),
+                                                             marker='o', linestyle='None', mec='k', mew=0.1,
+                                                             markersize=7, label=label_dict[label])
+ax.set_title('Mineral Group Clustering in Latent Space')
+ax.set_xlabel('Latent Dimension 1')
+ax.set_ylabel('Latent Dimension 2')
+ax.set_xlim([-1.5, 2.0])
+ax.set_ylim([-2.5, 2.5])
+ax.legend(handles=legend_handles.values())
+plt.show()
+
+
+
+
+
+
+# cluster_to_label = {i: phase[i] for i in label_plot}
+
+for label in label_plot:
+    fig, ax = plt.subplots(1, 1, figsize = (10, 10))
+
+    indx = labels == label
+    if np.any(indx):  # Add this condition
+        alphas = probs[indx]
+        ax.scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, alpha=alphas, rasterized=True)
+        ax.set_title(label)
+    ax.set_xlim([-1.5, 2.0])
+    ax.set_ylim([-2.5, 2.5])
+    ax.set_xlabel('Latent Dimension 1')
+    ax.set_ylabel('Latent Dimension 2')
+
+
+
+# %%
+for label in label_plot:
+    indx = labels == label
+    if np.any(indx):  # Add this condition
+        fig, ax = plt.subplots(1, 1, figsize = (10, 10))
+        alphas = probs[indx]
+        ax.scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(label_to_color_idx[label]), lw=1, alpha=alphas, rasterized=True)
+        ax.set_title(label)
+        ax.set_xlim([-1.5, 2.0])
+        ax.set_ylim([-2.5, 2.5])
+
+plt.scatter(z[:, 0], z[:, 1], s=15, c=labels, cmap='tab20', lw=1, rasterized=True)
+
+
+
+
+
+# %% 
+
+
+# %% 
+
+# %%
+
+
+
+z_lepr = mm.get_latent_space(lepr_df)
 
 phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 'FeTiOxide',
     'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene',
     'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])
-
-
-min_df = pd.read_csv('TrainingData/mindf_filt.csv')
 
 oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 label = ['Mineral']
@@ -232,186 +297,39 @@ print(str(round(end-start, 2)) + ' seconds elapsed')
 fig, ax = plt.subplots(1, 3, figsize = (24, 8))
 ax = ax.flatten()
 for i in range(len(phase)):
-    indx = min['Mineral'] == phase[i]
+    indx = min_df['Mineral'] == phase[i]
     ax[0].scatter(wt_z_pca[indx][:, 0], wt_z_pca[indx][:, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized = True)
     ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized = True)
 
 for i in range(len(phase)):
-    indx = lepr_df['Mineral'] == phase[i]
-    ax[2].scatter(z_lepr[indx, 0], z_lepr[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized = True)
-ax[0].legend(prop={'size': 12}, loc = 'lower right')
-# ax[0].set_xlabel('Principal Component 1')
+    lepr_indx = lepr_df['Mineral'] == phase[i]
+    ax[2].scatter(z_lepr.Latent_Var1[lepr_indx], z_lepr.Latent_Var2[lepr_indx], s=15, color=scalarMap.to_rgba(i), lw=1, rasterized = True)
+
+ax[0].legend(prop={'size': 8})
 ax[0].set_ylabel('Latent Variable 2')
 ax[0].annotate("PCA", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
 ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
 ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
-
 ax[1].set_xlabel('Latent Variable 1')
-# ax[1].set_ylabel('Latent Variable 2')
 ax[1].set_xlim([-1.5, 2.0])
 ax[1].set_ylim([-2.5, 2.5])
 ax[1].annotate("AE Test", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
 ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
 ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
-
-# ax[2].set_xlabel('Latent Variable 1')
-# ax[2].set_ylabel('Latent Variable 2')
 ax[2].set_xlim([-1.5, 2.0])
 ax[2].set_ylim([-2.5, 2.5])
 ax[2].annotate("AE LEPR", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
 ax[2].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
 ax[2].tick_params(axis="y", direction='in', length=5, pad = 6.5)
-
 plt.tight_layout()
 
-plt.savefig('PCA_AE1.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
+# plt.savefig('PCA_AE1_test.png', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
+plt.savefig('PCA_AE1_test.png', dpi = 300, transparent = False, bbox_inches='tight', pad_inches = 0.025)
 
 # %% 
 
 
 # %% 
-
-
-def feature_normalisation(feature, return_params = False, mean_norm = True):
-    """
-    Function to perform mean normalisation on the dataset passed to it.
-    
-    Input
-    ----------
-    feature (numpy array) - features to be normalised
-    return_params (boolean, optional) - set True if parameters used for mean normalisation
-                            are to be returned for each feature
-                            
-    Returns
-    ----------
-    norm (numpy array) - mean normalised features
-    params (list of numpy arrays) - only returned if set to True above; list of parameters
-                            used for the mean normalisation as derived from the features
-                            (ie. mean, min and max).
-    """
-    
-    params = []
-    
-    norm = np.zeros_like(feature)
-    
-    if len(feature.shape) == 2:
-        for i in range(feature.shape[1]):
-            if mean_norm == True:
-                temp_mean = feature[:,i].mean()
-            elif mean_norm == False:
-                temp_mean = 0
-            else:
-                raise ValueError("Mean_norm must be boolean")
-            norm[:,i] = (feature[:,i] - temp_mean) / (feature[:,i].max() - feature[:,i].min())
-            params.append(np.asarray([temp_mean,feature[:,i].min(),feature[:,i].max()]))
-    
-    elif len(feature.shape) == 1:
-        if mean_norm == True:
-            temp_mean = feature[:].mean()
-        elif mean_norm == False:
-                temp_mean = 0
-        else:
-            raise ValueError("Mean_norm must be boolean")
-        norm[:] = (feature[:] - temp_mean) / (feature.max() - feature.min())
-        params.append(np.asarray([temp_mean,feature[:].min(),feature[:].max()]))
-        
-    else:
-        raise ValueError("Feature array must be either 1D or 2D numpy array.")
-        
-    
-    if return_params == True:
-        return norm, params
-    else:
-        return norm
-
-def cluster(data, n_clusters, method, plot = False, plot_return = False, elements = None, df_shape = None, min_samples = None):
-    
-    """
-    Function to perform clustering on the dataset passed using the selected clustering
-    algorithm.
-    
-    Input
-    ------------
-    data (either 2D or 3D numpy array) - the dataset to perform clustering on.
-    n_clusters (int) - number of clusters to find, default is 2.
-    method (str) - clustering algorithm to be used ["k_means", "gmm"]; default is k_means.
-    plot (bool) - Make True if results are to be plotted; default is false.
-    plot_return (bool) - optional, if plot=true, make True to return fig and ax objects, default is false.
-    elements (list/array) - optional, used when plotting results only, default is None.
-    
-    Return
-    ------------
-    labels (2D numpy array) - assigned labels for each cluster found within the passed dataset. 
-        Shape is the same as first two dimensions of data if it's 3D, otherwise it's
-        the shape parameter passed to the function.
-    centers (2D numpy array of shape [n_clusters, n_features]) - list of the centres of clusters
-        found in the dataset.
-    fig, ax (matplotlib objects (both of length 2)) - only if both plot and plot_return are set True.
-    """
-    
-    if len(data.shape) == 2:
-        #assume it's in the right form
-        array = data
-    else:
-        raise ValueError("Input array needs to have 2 dimensions or be Pandas dataframe.")
-
-    array, params = feature_normalisation(array, return_params = True)
-
-    start = time.time()
-    
-    if method.lower() == "gmm":
-        from sklearn.mixture import GaussianMixture
-        #perform GMM
-        gmm = GaussianMixture(n_clusters)
-        labels = gmm.fit_predict(array) + 1
-        centers = gmm.means_
-
-    elif method.lower() == "k_means":
-        from sklearn.cluster import KMeans
-        #perform k_means clustering
-        kmeans = KMeans(n_clusters=n_clusters, init = 'k-means++').fit(array)
-        labels = kmeans.labels_
-        centers = kmeans.cluster_centers_
-
-    elif method.lower() == "b-gmm":
-        from sklearn.mixture import BayesianGaussianMixture
-        #perform b-gmm
-        bgm = BayesianGaussianMixture(n_components = n_clusters, covariance_type = 'full', init_params = 'kmeans', max_iter = 500, random_state=42)
-        labels = bgm.fit_predict(array)
-        centers = bgm.means_
-
-    elif method.lower() == "dbscan":
-        from sklearn.cluster import DBSCAN
-        #perform dbscan
-        dbscan = DBSCAN(eps = 0.025, min_samples = min_samples).fit(array)
-        labels = dbscan.labels_
-
-    else:
-        raise ValueError("Method " + str(method) + " is not recognised.")
-        
-    process_time = time.time() - start    
-    print("Clustering processing time (s): " + str(process_time))
-        
-    if plot == True:
-        fig, ax = plot_cluster(labels, centers, plot_return = True, elements=elements)
-        if plot_return == True:
-            return labels, centers, fig, ax
-        else:
-            pass
-    else:
-        pass
-    
-    return labels
-
-
-# %% 
-
-from sklearn.cluster import DBSCAN
-
-array, params = feature_normalisation(z, return_params = True)
-dbscan = DBSCAN(eps = 0.025, min_samples = 100).fit(array)
-labels = dbscan.labels_
-
 
 name = 'mindf_256_64_16'
 
@@ -440,7 +358,7 @@ ax_scatter.set_xlabel("Latent Variable 1")
 ax_scatter.set_ylabel("Latent Variable 2")
 ax_scatter.set_xlim([-1.5, 2.0])
 ax_scatter.set_ylim([-2.5, 2.5])
-ax_scatter.legend(prop={'size': 8})
+ax_scatter.legend(prop={'size': 8}, loc='lower left')
 
 pc1_sns = sns.kdeplot(data = z_scores_df, x = 'LV1', color = 'k', ax = ax_hist_x)
 pc1_sns.set_xlim([-1.5, 2.0])
