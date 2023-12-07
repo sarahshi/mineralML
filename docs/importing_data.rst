@@ -27,14 +27,14 @@ The following columns are required for this Chemistry file:
 *  Sample
 *  SiO\ :sub:`2`
 *  TiO\ :sub:`2`
-*  Al\ :sub:`2` O\ :sub:`3`
+*  Al\ :sub:`2`O\ :sub:`3`
 *  FeO\ :sub:`t`
 *  MnO
 *  MgO 
 *  CaO 
-*  Na\ :sub:`2` O
-*  K\ :sub:`2` O
-*  Cr\ :sub:`2` O\ :sub:`3`
+*  Na\ :sub:`2`O
+*  K\ :sub:`2`O
+*  Cr\ :sub:`2`O\ :sub:`3`
 
 For example, here a screenshot of a CSV spreadsheet containing the mineral composition data. You can use the ChemistryTemplate.csv from the GitHub repository to create your own. For oxides that were not analyzed or not detected, enter 0 into the cell. 
 
