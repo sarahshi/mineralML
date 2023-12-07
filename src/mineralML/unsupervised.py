@@ -109,13 +109,12 @@ def feature_normalisation(feature, return_params = False, mean_norm = True):
     Parameters: 
         feature (numpy array): Features to be normalised.
         return_params (boolean, optional): Set to True if parameters used for mean normalisation
-                                           are to be returned for each feature.
+        are to be returned for each feature.
                             
     Returns: 
         norm (numpy array): Mean normalised features.
         params (list of numpy arrays): Only returned if set to True above; list of parameters
-                                       used for the mean normalisation as derived from the features
-                                       (i.e., mean, min, and max).
+        used for the mean normalisation as derived from the features (i.e., mean, min, and max).
     """
     
     params = []
@@ -667,7 +666,7 @@ def unique_mapping_ae(pred_class):
     Returns:
         unique (ndarray): Array of unique class codes found in both given and predicted classes.
         valid_mapping (dict): Dictionary mapping class codes to their corresponding labels, 
-                              including 'Unknown' for any class code of -1.
+        including 'Unknown' for any class code of -1.
     """
 
     mapping = load_minclass_ae()

@@ -13,6 +13,7 @@ Supervised Machine Learning Functions
 
 .. automodule:: mineralML.supervised
    :members:
+   :exclude-members: forward
 
 
 Unsupervised Machine Learning Functions
@@ -20,6 +21,7 @@ Unsupervised Machine Learning Functions
 
 .. automodule:: mineralML.unsupervised
    :members:
+   :exclude-members: forward
 
 
 Stoichiometric Functions

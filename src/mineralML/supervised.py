@@ -33,7 +33,7 @@ def load_minclass_nn():
     Returns:
         min_cat (list): A list of mineral class names.
         mapping (dict): A dictionary that maps each integer code to its corresponding 
-                        class name in the 'min_cat' list.
+        class name in the 'min_cat' list.
     """
 
     current_dir = os.path.dirname(__file__)
@@ -390,7 +390,6 @@ def predict_class_prob_nn(df, n_iterations=250):
     Parameters:
         df (DataFrame): The input DataFrame containing the oxide composition data.
         n_iterations (int): The number of inference iterations to average over for predictions. 
-                            Defaults to 250.
 
     Returns:
         df (DataFrame): The input DataFrame with columns predict_mineral (predicted mineral names) 
@@ -459,7 +458,7 @@ def unique_mapping_nn(pred_class):
     Returns:
         unique (ndarray): Array of unique class codes found in both given and predicted classes.
         valid_mapping (dict): Dictionary mapping class codes to their corresponding labels, 
-                              including 'Unknown' for any class code of -1.
+        including 'Unknown' for any class code of -1.
     """
 
     _, mapping = load_minclass_nn()
