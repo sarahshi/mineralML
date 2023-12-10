@@ -758,5 +758,4 @@ def plot_latent_space(df_pred):
     ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
     ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
     plt.tight_layout()
-    plt.show()
 
