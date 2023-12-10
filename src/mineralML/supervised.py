@@ -296,7 +296,7 @@ class MultiClassClassifier(nn.Module):
 
     """
 
-    def __init__(self, input_dim=10, classes=12, dropout_rate=0.1, hidden_layer_sizes=[8]):
+    def __init__(self, input_dim=10, classes=12, dropout_rate=0.1, hidden_layer_sizes=[64, 32, 16]):
         super(MultiClassClassifier, self).__init__()
         self.input_dim = input_dim
         self.classes = classes

@@ -441,36 +441,36 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
     train_loss, valid_loss = train(model, optimizer, feature_loader, valid_loader, epochs, criterion)
     np.savez('parametermatrix_autoencoder/' + name + '_tanh_loss.npz', train_loss = train_loss, valid_loss = valid_loss)
     
-    fig, ax = plt.subplots(1, 2, figsize = (16, 8))
-    ax = ax.flatten()
-    ax[0].plot(np.linspace(1, len(train_loss), len(train_loss)), train_loss, '.-', label = 'Train Loss')
-    ax[0].plot(np.linspace(1, len(train_loss), len(train_loss)), valid_loss, '.-', label = 'Test Loss')
-    ax[0].set_xlabel("Epochs")
-    ax[0].set_ylabel("Loss")
-    ax[0].legend(prop={'size': 10})
+    # fig, ax = plt.subplots(1, 2, figsize = (16, 8))
+    # ax = ax.flatten()
+    # ax[0].plot(np.linspace(1, len(train_loss), len(train_loss)), train_loss, '.-', label = 'Train Loss')
+    # ax[0].plot(np.linspace(1, len(train_loss), len(train_loss)), valid_loss, '.-', label = 'Test Loss')
+    # ax[0].set_xlabel("Epochs")
+    # ax[0].set_ylabel("Loss")
+    # ax[0].legend(prop={'size': 10})
 
-    #transform entire dataset to latent space
-    z = getLatent(model, array_norm)
+    # #transform entire dataset to latent space
+    # z = getLatent(model, array_norm)
 
-    phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 
-        'Garnet', 'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 
-        'Orthopyroxene', 'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-        'Zircon'])    
-    phasez = range(1,len(phase))
-    tab = plt.get_cmap('tab20')
-    cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
-    scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+    # phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 
+    #     'Garnet', 'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 
+    #     'Orthopyroxene', 'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
+    #     'Zircon'])    
+    # phasez = range(1,len(phase))
+    # tab = plt.get_cmap('tab20')
+    # cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
+    # scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
 
-    # plot latent representation
-    for i in range(len(phase)):
-        indx = df['Mineral'] == phase[i]
-        ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized = True)
-    ax[1].set_xlabel("Latent Variable 1")
-    ax[1].set_ylabel("Latent Variable 2")
-    ax[1].set_title(name + " Latent Space Representation")
-    ax[1].legend(prop={'size': 8})
-    plt.tight_layout()
-    plt.savefig('parametermatrix_autoencoder/' + name + '_loss_latentspace.pdf',)
+    # # plot latent representation
+    # for i in range(len(phase)):
+    #     indx = df['Mineral'] == phase[i]
+    #     ax[1].scatter(z[indx, 0], z[indx, 1], s=15, color=scalarMap.to_rgba(i), lw=1, label=phase[i], rasterized = True)
+    # ax[1].set_xlabel("Latent Variable 1")
+    # ax[1].set_ylabel("Latent Variable 2")
+    # ax[1].set_title(name + " Latent Space Representation")
+    # ax[1].legend(prop={'size': 8})
+    # plt.tight_layout()
+    # plt.savefig('parametermatrix_autoencoder/' + name + '_loss_latentspace.pdf',)
 
     # save main model params
     model_path = 'parametermatrix_autoencoder/' + name + "_tanh_params.pt"
@@ -511,7 +511,7 @@ def getLatent(model, dataset:np):
     model.to(device)
 
     dataset_ = FeatureDataset(dataset)
-    loader = DataLoader(dataset_,batch_size=16,shuffle=False)
+    loader = DataLoader(dataset_,batch_size=20,shuffle=False)
     
     model.eval()
     with torch.no_grad():
@@ -543,13 +543,14 @@ def get_latent_space(df):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     current_dir = os.path.dirname(__file__)
-    model_path = os.path.join(current_dir, 'ae_best_model.pt')
+    # model_path = os.path.join(current_dir, 'ae_best_model.pt')
+    model_path = os.path.join(current_dir, 'ae_best_model_noP_tanh.pt')
     model = Tanh_Autoencoder(input_dim=10, hidden_layer_sizes=(256, 64, 16)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=0)
     load_model(model, optimizer, model_path)
 
-    # Set the model to evaluation mode
-    model.eval()
+    # # Set the model to evaluation mode
+    # model.eval()
 
     norm_wt = norm_data_ae(df)
     z = getLatent(model, norm_wt)
@@ -757,4 +758,5 @@ def plot_latent_space(df_pred):
     ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
     ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
     plt.tight_layout()
+    plt.show()
 

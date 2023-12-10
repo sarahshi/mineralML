@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 
 def pp_matrix(df_cm, annot=True, cmap="BuGn", fmt=".2f",
     fz=12, lw=0.5, cbar=False, figsize=[10.5, 10.5],
-    show_null_values=0, pred_val_axis="x", savefig = None,):
+    show_null_values=0, pred_val_axis="x"):  #, savefig = None,):
 
     """
 
@@ -107,8 +107,8 @@ def pp_matrix(df_cm, annot=True, cmap="BuGn", fmt=".2f",
     ax.set_ylabel(ylbl)
     plt.tight_layout()  # set layout slim
 
-    if savefig != None: 
-        plt.savefig(savefig + '.pdf')
+    # if savefig != None: 
+    #     plt.savefig(savefig + '.pdf')
 
 
 def insert_totals(df_cm):
@@ -176,7 +176,7 @@ def config_cell_text_and_colors(array_df, lin, col, oText, facecolors, posi, fz,
 
             """
 
-    import matplotlib.font_manager as fm
+    # import matplotlib.font_manager as fm
 
     text_add = []
     text_del = []
@@ -213,8 +213,8 @@ def config_cell_text_and_colors(array_df, lin, col, oText, facecolors, posi, fz,
         warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
         # text to ADD
-        font_prop = fm.FontProperties(weight="bold", size=fz)
-        text_kwargs = dict(color="k", ha="center",va="center", gid="sum", fontproperties=font_prop,)
+        # font_prop = fm.FontProperties(weight="bold", size=fz)
+        text_kwargs = dict(color="k", ha="center",va="center", gid="sum") #, fontproperties=font_prop,)
         lis_txt = ["%d" % (cell_val), per_ok_s, "%.1f%%" % (per_err)]
         lis_kwa = [text_kwargs]
         dic = text_kwargs.copy()
