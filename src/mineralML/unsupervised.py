@@ -84,7 +84,7 @@ def norm_data_ae(df):
     """
 
     oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-    mean, std = load_scaler()
+    mean, std = load_scaler('scaler_ae.npz')
 
     if df[oxides].isnull().any().any():
         df, _ = prep_df_ae(df)
@@ -543,8 +543,8 @@ def get_latent_space(df):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     current_dir = os.path.dirname(__file__)
-    # model_path = os.path.join(current_dir, 'ae_best_model.pt')
-    model_path = os.path.join(current_dir, 'ae_best_model_noP_tanh.pt')
+    model_path = os.path.join(current_dir, 'ae_best_model.pt')
+    # model_path = os.path.join(current_dir, 'ae_best_model_noP_tanh.pt')
     model = Tanh_Autoencoder(input_dim=10, hidden_layer_sizes=(256, 64, 16)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=0)
     load_model(model, optimizer, model_path)

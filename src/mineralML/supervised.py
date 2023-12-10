@@ -106,7 +106,7 @@ def norm_data_nn(df):
     """
 
     oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-    mean, std = load_scaler()
+    mean, std = load_scaler('scaler_nn.npz')
 
     scaled_df = df[oxides].copy()
 

@@ -102,7 +102,7 @@ def load_df(filepath):
     return df
 
 
-def load_scaler():
+def load_scaler(scaler_path):
     
     """
 
@@ -110,17 +110,17 @@ def load_scaler():
     for normalizing or standardizing input data before passing it to a machine learning model. 
 
     Returns:
-        mean, std (pandas Series): The mean and std from the scaler object 'scaler.npz'.
+        mean, std (pandas Series): The mean and std from the scaler object 'scaler_ae/nn.npz'.
 
     Raises:
-        FileNotFoundError: If 'scaler.npz' is not found in the expected directory.
+        FileNotFoundError: If 'scaler_ae/nn.npz' is not found in the expected directory.
         Exception: Propagates any exception raised during the scaler loading process.
 
     """
 
     # Define the path to the scaler relative to this file's location.
     current_dir = os.path.dirname(__file__)
-    scaler_path = os.path.join(current_dir, 'scaler.npz')  # Note the .joblib extension
+    scaler_path = os.path.join(current_dir, scaler_path)  # Note the .joblib extension
 
     oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
 
