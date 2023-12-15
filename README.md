@@ -13,10 +13,10 @@ We present mineralML (mineral classification using Machine Learning) for classif
 Read the [documentation](https:/mineralML.readthedocs.io/en/latest/) for a run-through of the mineralML code. 
 
 ## Run on the Cloud 
-If you do not have Python installed locally, run mineralML on [Google Colab](https://colab.research.google.com/github/SarahShi/mineralML/blob/main/mineralML_colab.ipynb).
+If you do not have Python installed locally, run mineralML on [Google Colab](https://colab.research.google.com/github/SarahShi/mineralML/blob/main/mineralML_colab.ipynb). The Cloud-based version runs rapidly, with test cases of >10,000 microanalyses classified within 4 seconds. 
 
 ## Run and Install Locally
-Obtain a version of Python between 3.7 and 3.11 if you do not already have it installed. PyIRoGlass can be installed with one line. Open terminal and type the following:
+Obtain a version of Python between 3.7 and 3.11 if you do not already have it installed. mineralML can be installed with one line. Open terminal and type the following:
 
 ```
 pip install mineralML
@@ -27,3 +27,5 @@ Make sure that you keep up with the latest version of mineralML. To upgrade to t
 ```
 pip install mineralML --upgrade
 ```
+
+Mac/Linux installation will be straightforward. Windows installations will require the additional setup of WSL
