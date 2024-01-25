@@ -14,6 +14,20 @@ import mineralML as mm
 
 
 class test_InsertTotals(unittest.TestCase):
+
+    def test_insert_totals(self):
+        # Create a sample DataFrame
+        df = pd.DataFrame({'A': [1.0, 2.0], 'B': [3.0, 4.0]})
+        mm.insert_totals(df)
+
+        # Expected DataFrame after insert_totals
+        # Ensure the index is of the same type as df's index
+        expected_df = pd.DataFrame({'A': [1.0, 2.0, 3.0], 'B': [3.0, 4.0, 7.0], 'sum_row': [4.0, 6.0, 10.0]}, 
+                                   index=[0, 1, 'sum_col'])
+
+        # Check if DataFrame is modified correctly
+        pd.testing.assert_frame_equal(df, expected_df)
+
     def test_insert_totals(self):
         # Create a sample DataFrame
         df = pd.DataFrame({'A': [1, 2], 'B': [3, 4]})
@@ -44,6 +58,7 @@ class test_ConfigCellTextAndColors(unittest.TestCase):
 
         self.assertIsInstance(text_add, list, "text_add should be a list")
         self.assertIsInstance(text_del, list, "text_del should be a list")
+
 
 class test_ppMatrix(unittest.TestCase):
 
