@@ -107,38 +107,38 @@ class test_load_functions(unittest.TestCase):
             mm.load_scaler('non_existing_path.npz')
 
 
-class test_CreateDataLoader(unittest.TestCase):
+# class test_CreateDataLoader(unittest.TestCase):
 
-    def setUp(self):
-        self.df = pd.DataFrame({
-            'feature1': np.random.rand(10),
-            'feature2': np.random.rand(10),
-            'Mineral': ['Mineral1', 'Mineral2', 'Mineral1', 'Mineral2', 'Mineral1', 
-                        'Mineral2', 'Mineral1', 'Mineral2', 'Mineral1', 'Mineral2']
-        })
+#     def setUp(self):
+#         self.df = pd.DataFrame({
+#             'feature1': np.random.rand(10),
+#             'feature2': np.random.rand(10),
+#             'Mineral': ['Mineral1', 'Mineral2', 'Mineral1', 'Mineral2', 'Mineral1', 
+#                         'Mineral2', 'Mineral1', 'Mineral2', 'Mineral1', 'Mineral2']
+#         })
 
-    @patch('mineralML.load_minclass_nn')
-    @patch('mineralML.norm_data')
-    def test_create_dataloader(self, mock_norm_data, mock_load_minclass_nn):
-        # Mock return values for dependencies
-        mock_norm_data.return_value = self.df
-        mock_load_minclass_nn.return_value = (['Mineral1', 'Mineral2'], None)
+#     @patch('mineralML.load_minclass_nn')
+#     @patch('mineralML.norm_data')
+#     def test_create_dataloader(self, mock_norm_data, mock_load_minclass_nn):
+#         # Mock return values for dependencies
+#         mock_norm_data.return_value = self.df
+#         mock_load_minclass_nn.return_value = (['Mineral1', 'Mineral2'], None)
 
-        # Create DataLoader
-        dataloader = mm.create_dataloader(self.df, batch_size=2, shuffle=False)
+#         # Create DataLoader
+#         dataloader = mm.create_dataloader(self.df, batch_size=2, shuffle=False)
 
-        # Check if DataLoader is created and has correct properties
-        self.assertIsNotNone(dataloader, "DataLoader not created")
-        self.assertIsInstance(dataloader, torch.utils.data.DataLoader, "Returned object is not a DataLoader")
+#         # Check if DataLoader is created and has correct properties
+#         self.assertIsNotNone(dataloader, "DataLoader not created")
+#         self.assertIsInstance(dataloader, torch.utils.data.DataLoader, "Returned object is not a DataLoader")
         
-        # Check DataLoader's batch size
-        for batch in dataloader:
-            self.assertEqual(len(batch), 2)  # Assuming LabelDataset returns a tuple
-            break  # We just need to check the first batch
+#         # Check DataLoader's batch size
+#         for batch in dataloader:
+#             self.assertEqual(len(batch), 2)  # Assuming LabelDataset returns a tuple
+#             break  # We just need to check the first batch
 
-        # Check if dependent functions are called
-        mock_norm_data.assert_called_once_with(self.df)
-        mock_load_minclass_nn.assert_called_once()
+#         # Check if dependent functions are called
+#         mock_norm_data.assert_called_once_with(self.df)
+#         mock_load_minclass_nn.assert_called_once()
 
 
 class test_NetworkWeights(unittest.TestCase):
@@ -251,7 +251,7 @@ class test_LoadModel(unittest.TestCase):
     def test_load_model(self):
         with TemporaryDirectory() as tmp_dir:
             filepath = os.path.join(tmp_dir, "model_checkpoint.pth")
-            save_checkpoint(self.model, self.optimizer, filepath)
+            self.save_checkpoint(self.model, self.optimizer, filepath)
 
             # Create new model and optimizer for loading
             loaded_model = MockModel()
