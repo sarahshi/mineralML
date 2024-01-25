@@ -35,7 +35,6 @@ import seaborn as sns
 rc('font',**{'family':'Avenir', 'size': 20})
 plt.rcParams['pdf.fonttype'] = 42
 
-
 # %% 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -68,38 +67,12 @@ opx.loc[(opx_components['Ca_CaMgFe_Cpx']<0.05), 'Empirical_Mineral'] = 'Orthopyr
 opx.loc[(opx_components['Ca_CaMgFe_Cpx'].between(0.05, 0.2)), 'Empirical_Mineral'] = 'Pigeonite'
 opx.loc[(opx_components['Ca_CaMgFe_Cpx']>0.2), 'Empirical_Mineral'] = 'Clinopyroxene'
 
-
 cpx.loc[(cpx_components['Ca_CaMgFe_Cpx']<0.05), 'Empirical_Mineral'] = 'Orthopyroxene'
 cpx.loc[(cpx_components['Ca_CaMgFe_Cpx'].between(0.05, 0.2)), 'Empirical_Mineral'] = 'Pigeonite'
 cpx.loc[(cpx_components['Ca_CaMgFe_Cpx']>0.2), 'Empirical_Mineral'] = 'Clinopyroxene'
 
 opx_bad = opx[opx.Mineral != opx.Empirical_Mineral]
 cpx_bad = cpx[cpx.Mineral != cpx.Empirical_Mineral]
-
-# %% 
-
-# npz = np.load('parametermatrix_neuralnetwork/best_model_data.npz')
-# hls = npz['best_hidden_layer_size']
-# kl_weight = npz['best_kl_weight_decay']
-# train_y = npz['train_y']
-# train_pred_y = npz['train_pred_y']
-# valid_y = npz['valid_y']
-# valid_pred_y = npz['valid_pred_y']
-
-# min_cat, mapping = mm.load_minclass()
-
-# cm_train = confusion_matrix(train_y, train_pred_y)
-# cm_test = confusion_matrix(valid_y, valid_pred_y)
-
-# df_train_cm = pd.DataFrame(cm_train, index=mapping.values(), columns=mapping.values())
-# cmap = 'BuGn'
-# mm.pp_matrix(df_train_cm, cmap = cmap, savefig = 'train', figsize = (11.5, 11.5)) 
-# plt.show()
-
-# df_valid_cm = pd.DataFrame(cm_test, index=mapping.values(), columns=mapping.values())
-# mm.pp_matrix(df_valid_cm, cmap = cmap, savefig = 'test', figsize = (11.5, 11.5))
-# plt.show()
-
 
 # %% 
 
