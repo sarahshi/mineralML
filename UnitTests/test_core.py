@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, mock_open
-from tempfile import TemporaryFile
+from tempfile import TemporaryDirectory
 
 import os
 import glob
@@ -110,7 +110,6 @@ class test_load_functions(unittest.TestCase):
 class test_CreateDataLoader(unittest.TestCase):
 
     def setUp(self):
-        # Mock DataFrame for testing
         self.df = pd.DataFrame({
             'feature1': np.random.rand(10),
             'feature2': np.random.rand(10),
@@ -142,34 +141,33 @@ class test_CreateDataLoader(unittest.TestCase):
         mock_load_minclass_nn.assert_called_once()
 
 
-class test_weights_init(nn.Module):
-
+class MockNetwork(nn.Module):
     def __init__(self):
-        super(test_weights_init, self).__init__()
+        super(MockNetwork, self).__init__()
         self.conv1 = nn.Conv2d(1, 20, 5)
         self.bn1 = nn.BatchNorm2d(20)
 
-    def is_normal_tensor(tensor, mean, std):
-        return torch.all(torch.abs(tensor - mean) < 3 * std)
+def is_normal_tensor(tensor, mean, std):
+    return torch.all(torch.abs(tensor - mean) < 3 * std)
 
-    class TestWeightsInit(unittest.TestCase):
+class test_weights(unittest.TestCase):
 
-        def test_weights_init(self):
-            # Create a mock network
-            net = test_weights_init()
+    def test_weights_init(self):
+        # Create a mock network
+        net = MockNetwork()
 
-            # Apply the weights_init function
-            net.apply(mm.weights_init)
+        # Apply the weights_init function
+        net.apply(mm.weights_init)
 
-            # Check if weights and biases of BatchNorm layers are initialized correctly
-            for module in net.modules():
-                if isinstance(module, nn.BatchNorm2d):
-                    # Check weights
-                    self.assertTrue(is_normal_tensor(module.weight.data, 1.0, 0.02), 
-                                    "Weights of BatchNorm layer are not properly initialized")
-                    # Check biases
-                    self.assertTrue(torch.all(module.bias.data == 0), 
-                                    "Biases of BatchNorm layer are not initialized to 0")
+        # Check if weights and biases of BatchNorm layers are initialized correctly
+        for module in net.modules():
+            if isinstance(module, nn.BatchNorm2d):
+                # Check weights
+                self.assertTrue(is_normal_tensor(module.weight.data, 1.0, 0.02), 
+                                "Weights of BatchNorm layer are not properly initialized")
+                # Check biases
+                self.assertTrue(torch.all(module.bias.data == 0), 
+                                "Biases of BatchNorm layer are not initialized to 0")
 
 class test_same_seeds(unittest.TestCase):
 
@@ -193,67 +191,71 @@ class test_same_seeds(unittest.TestCase):
         self.assertEqual(np_rand, np_rand_repeat, "NumPy random numbers do not match")
         self.assertEqual(py_rand, py_rand_repeat, "Python random numbers do not match")
 
+
+
 class MockModel(nn.Module):
     def __init__(self):
         super(MockModel, self).__init__()
         self.conv = nn.Conv2d(1, 20, 5)
 
-class test_save_model(unittest.TestCase):
+
+class test_SaveModel(unittest.TestCase):
 
     def setUp(self):
         self.model = MockModel()
         self.optimizer = optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
 
     def test_save_model_ae(self):
-        with TemporaryFile() as tmp:
-            mm.save_model_ae(self.model, self.optimizer, tmp.name)
-            
+        with TemporaryDirectory() as tmp_dir:
+            filepath = os.path.join(tmp_dir, "model_ae.pth")
+            mm.save_model_ae(self.model, self.optimizer, filepath)
+
             # Check if file exists
-            self.assertTrue(os.path.exists(tmp.name))
+            self.assertTrue(os.path.exists(filepath))
 
             # Load and check the content
-            checkpoint = torch.load(tmp.name)
+            checkpoint = torch.load(filepath)
             self.assertIn('params', checkpoint)
             self.assertIn('optimizer', checkpoint)
             self.assertDictEqual(checkpoint['params'], self.model.state_dict())
 
     def test_save_model_nn(self):
         best_model_state = self.model.state_dict()
-
-        with TemporaryFile() as tmp:
-            mm.save_model_nn(self.optimizer, best_model_state, tmp.name)
+        with TemporaryDirectory() as tmp_dir:
+            filepath = os.path.join(tmp_dir, "model_nn.pth")
+            mm.save_model_nn(self.optimizer, best_model_state, filepath)
 
             # Check if file exists
-            self.assertTrue(os.path.exists(tmp.name))
+            self.assertTrue(os.path.exists(filepath))
 
             # Load and check the content
-            checkpoint = torch.load(tmp.name)
+            checkpoint = torch.load(filepath)
             self.assertIn('params', checkpoint)
             self.assertIn('optimizer', checkpoint)
             self.assertDictEqual(checkpoint['params'], best_model_state)
-    
+
 
 def save_checkpoint(model, optimizer, path):
     check_point = {'params': model.state_dict(), 'optimizer': optimizer.state_dict()}
     torch.save(check_point, path)
 
-class test_load_model(unittest.TestCase):
+class test_LoadModel(unittest.TestCase):
 
     def setUp(self):
         self.model = MockModel()
         self.optimizer = optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
 
     def test_load_model(self):
-        # Save model and optimizer state
-        with TemporaryFile() as tmp:
-            save_checkpoint(self.model, self.optimizer, tmp.name)
+        with TemporaryDirectory() as tmp_dir:
+            filepath = os.path.join(tmp_dir, "model_checkpoint.pth")
+            save_checkpoint(self.model, self.optimizer, filepath)
 
             # Create new model and optimizer for loading
             loaded_model = MockModel()
             loaded_optimizer = optim.SGD(loaded_model.parameters(), lr=0.001, momentum=0.9)
 
             # Load the saved states
-            mm.load_model(loaded_model, loaded_optimizer, tmp.name)
+            mm.load_model(loaded_model, loaded_optimizer, filepath)
 
             # Check if model state is correctly loaded
             for param, loaded_param in zip(self.model.parameters(), loaded_model.parameters()):
