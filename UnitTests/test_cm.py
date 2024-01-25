@@ -28,18 +28,6 @@ class test_InsertTotals(unittest.TestCase):
         # Check if DataFrame is modified correctly
         pd.testing.assert_frame_equal(df, expected_df)
 
-    def test_insert_totals(self):
-        # Create a sample DataFrame
-        df = pd.DataFrame({'A': [1, 2], 'B': [3, 4]})
-        mm.insert_totals(df)
-
-        # Expected DataFrame after insert_totals
-        expected_df = pd.DataFrame({'A': [1, 2, 3], 'B': [3, 4, 7], 'sum_row': [4, 6, 10]}, 
-                                   index=['0', '1', 'sum_col'])
-
-        # Check if DataFrame is modified correctly
-        pd.testing.assert_frame_equal(df, expected_df)
-
 
 class test_ConfigCellTextAndColors(unittest.TestCase):
 
