@@ -107,40 +107,6 @@ class test_load_functions(unittest.TestCase):
             mm.load_scaler('non_existing_path.npz')
 
 
-# class test_CreateDataLoader(unittest.TestCase):
-
-#     def setUp(self):
-#         self.df = pd.DataFrame({
-#             'feature1': np.random.rand(10),
-#             'feature2': np.random.rand(10),
-#             'Mineral': ['Mineral1', 'Mineral2', 'Mineral1', 'Mineral2', 'Mineral1', 
-#                         'Mineral2', 'Mineral1', 'Mineral2', 'Mineral1', 'Mineral2']
-#         })
-
-#     @patch('mineralML.load_minclass_nn')
-#     @patch('mineralML.norm_data')
-#     def test_create_dataloader(self, mock_norm_data, mock_load_minclass_nn):
-#         # Mock return values for dependencies
-#         mock_norm_data.return_value = self.df
-#         mock_load_minclass_nn.return_value = (['Mineral1', 'Mineral2'], None)
-
-#         # Create DataLoader
-#         dataloader = mm.create_dataloader(self.df, batch_size=2, shuffle=False)
-
-#         # Check if DataLoader is created and has correct properties
-#         self.assertIsNotNone(dataloader, "DataLoader not created")
-#         self.assertIsInstance(dataloader, torch.utils.data.DataLoader, "Returned object is not a DataLoader")
-        
-#         # Check DataLoader's batch size
-#         for batch in dataloader:
-#             self.assertEqual(len(batch), 2)  # Assuming LabelDataset returns a tuple
-#             break  # We just need to check the first batch
-
-#         # Check if dependent functions are called
-#         mock_norm_data.assert_called_once_with(self.df)
-#         mock_load_minclass_nn.assert_called_once()
-
-
 class test_NetworkWeights(unittest.TestCase):
 
     class MockNetwork(nn.Module):
@@ -172,6 +138,7 @@ class test_NetworkWeights(unittest.TestCase):
                 self.assertTrue(torch.all(module.bias.data == 0).item(), 
                                 "Biases of BatchNorm layer are not initialized to 0")
 
+
 class test_same_seeds(unittest.TestCase):
 
     def test_reproducibility(self):
@@ -194,10 +161,12 @@ class test_same_seeds(unittest.TestCase):
         self.assertEqual(np_rand, np_rand_repeat, "NumPy random numbers do not match")
         self.assertEqual(py_rand, py_rand_repeat, "Python random numbers do not match")
 
+
 class MockModel(nn.Module):
     def __init__(self):
         super(MockModel, self).__init__()
         self.conv = nn.Conv2d(1, 20, 5)
+
 
 class test_SaveModel(unittest.TestCase):
 
@@ -271,6 +240,29 @@ class test_LoadModel(unittest.TestCase):
                 self.assertEqual(original_group['lr'], loaded_group['lr'])
                 self.assertEqual(original_group['momentum'], loaded_group['momentum'])
 
+
+class test_MineralSupergroup(unittest.TestCase):
+
+    def test_mineral_supergroup(self):
+        # Create a sample DataFrame
+        data = {
+            'Predict_Mineral': ['Orthopyroxene', 'Clinopyroxene', 'KFeldspar', 
+                                'Plagioclase', 'Spinel', 'Ilmenite', 'Magnetite', 'Other']
+        }
+        df = pd.DataFrame(data)
+
+        # Call the function
+        result_df = mm.mineral_supergroup(df)
+
+        # Expected supergroups
+        expected_supergroups = ['Pyroxene', 'Pyroxene', 'Feldspar', 
+                                'Feldspar', 'Oxide', 'Oxide', 'Oxide', 'Other']
+
+        # Check if the Supergroup column is added and correctly classified
+        self.assertIn('Supergroup', result_df.columns, "Supergroup column not added")
+        self.assertListEqual(result_df['Supergroup'].tolist(), expected_supergroups,
+                             "Supergroup classification is incorrect")
+    
 
 if __name__ == '__main__':
     unittest.main()
