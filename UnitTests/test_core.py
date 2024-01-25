@@ -149,8 +149,11 @@ class test_NetworkWeights(unittest.TestCase):
             self.conv1 = nn.Conv2d(1, 20, 5)
             self.bn1 = nn.BatchNorm2d(20)
 
-    def is_normal_tensor(self, tensor, mean, std):
-        return torch.all(torch.abs(tensor - mean) < 3 * std).item()
+    def is_normal_distribution(self, tensor, mean, std, num_std=3):
+        # Calculate Z-score
+        z_scores = (tensor - mean) / std
+        # Check if values are within num_std standard deviations
+        return torch.all(torch.abs(z_scores) < num_std).item()
 
     def setUp(self):
         self.net = test_NetworkWeights.MockNetwork()
@@ -163,12 +166,11 @@ class test_NetworkWeights(unittest.TestCase):
         for module in self.net.modules():
             if isinstance(module, nn.BatchNorm2d):
                 # Check weights
-                self.assertTrue(self.is_normal_tensor(module.weight.data, 1.0, 0.02),
+                self.assertTrue(self.is_normal_distribution(module.weight.data, 1.0, 0.02),
                                 "Weights of BatchNorm layer are not properly initialized")
                 # Check biases
                 self.assertTrue(torch.all(module.bias.data == 0).item(), 
                                 "Biases of BatchNorm layer are not initialized to 0")
-
 
 class test_same_seeds(unittest.TestCase):
 
@@ -244,14 +246,14 @@ class test_LoadModel(unittest.TestCase):
         self.model = MockModel()
         self.optimizer = optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
 
-    def save_checkpoint(model, optimizer, path):
+    def save_checkpoint(self, model, optimizer, path):
         check_point = {'params': model.state_dict(), 'optimizer': optimizer.state_dict()}
         torch.save(check_point, path)
 
     def test_load_model(self):
         with TemporaryDirectory() as tmp_dir:
             filepath = os.path.join(tmp_dir, "model_checkpoint.pth")
-            self.save_checkpoint(self.model, self.optimizer, filepath)
+            self.save_checkpoint(self.model, self.optimizer, filepath)  # Use self here
 
             # Create new model and optimizer for loading
             loaded_model = MockModel()
