@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch, mock_open
+from tempfile import TemporaryFile
 
 import os
 import glob
@@ -117,8 +118,8 @@ class test_CreateDataLoader(unittest.TestCase):
                         'Mineral2', 'Mineral1', 'Mineral2', 'Mineral1', 'Mineral2']
         })
 
-    @patch('your_module.load_minclass_nn')
-    @patch('your_module.norm_data')
+    @patch('mm.load_minclass_nn')
+    @patch('mm.norm_data')
     def test_create_dataloader(self, mock_norm_data, mock_load_minclass_nn):
         # Mock return values for dependencies
         mock_norm_data.return_value = self.df
