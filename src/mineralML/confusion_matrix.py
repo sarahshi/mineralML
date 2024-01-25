@@ -8,7 +8,6 @@ import seaborn as sns
 import matplotlib
 from matplotlib import pyplot as plt
 
-
 # %% 
 
 def pp_matrix(df_cm, annot=True, cmap="BuGn", fmt=".2f",
@@ -176,7 +175,7 @@ def config_cell_text_and_colors(array_df, lin, col, oText, facecolors, posi, fz,
 
             """
 
-    # import matplotlib.font_manager as fm
+    import matplotlib.font_manager as fm
 
     text_add = []
     text_del = []
@@ -213,8 +212,8 @@ def config_cell_text_and_colors(array_df, lin, col, oText, facecolors, posi, fz,
         warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
         # text to ADD
-        # font_prop = fm.FontProperties(weight="bold", size=fz)
-        text_kwargs = dict(color="k", ha="center",va="center", gid="sum") #, fontproperties=font_prop,)
+        font_prop = fm.FontProperties(weight="bold", size=fz)
+        text_kwargs = dict(color="k", ha="center",va="center", gid="sum", fontproperties=font_prop,)
         lis_txt = ["%d" % (cell_val), per_ok_s, "%.1f%%" % (per_err)]
         lis_kwa = [text_kwargs]
         dic = text_kwargs.copy()

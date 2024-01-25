@@ -76,8 +76,17 @@ def prep_df_nn(df):
                         'Plagioclase', 'Spinel']
     exclude_minerals = ['Tourmaline', 'Quartz', 'Rutile', 'Apatite', 'Zircon']
     df.dropna(subset=oxidesandmin, thresh=6, inplace=True)
-    df_in = df[df['Mineral'].isin(include_minerals)]
-    df_ex = df[df['Mineral'].isin(exclude_minerals)]
+
+    if 'Mineral' in df.columns:
+        include_minerals = ['Amphibole', 'Biotite', 'Clinopyroxene', 'Garnet', 'Ilmenite', 
+                            'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
+                            'Plagioclase', 'Spinel']
+        exclude_minerals = ['Tourmaline', 'Quartz', 'Rutile', 'Apatite', 'Zircon']
+        df_in = df[df['Mineral'].isin(include_minerals)]
+        df_ex = df[df['Mineral'].isin(exclude_minerals)]
+    else:
+        df_in = df.copy()
+        df_ex = pd.DataFrame(columns=df.columns)  
 
     df_in = df_in[oxidesandmin].fillna(0)
     df_ex = df_ex[oxidesandmin].fillna(0)
@@ -512,9 +521,31 @@ def confusion_matrix_df(given_min, pred_min):
 
     """
 
-    cm_matrix = confusion_matrix(given_min, pred_min)
-    min_cat, _ = load_minclass_nn()
-    cm_df = pd.DataFrame(cm_matrix, index=min_cat, columns=min_cat)
+    minerals = ['Amphibole', 'Biotite', 'Clinopyroxene', 'Garnet', 'Ilmenite', 
+                'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
+                'Plagioclase', 'Spinel']
+
+    # Create a confusion matrix with labels as all possible minerals
+    cm_matrix = confusion_matrix(given_min, pred_min, labels=minerals)
+
+    # Create a DataFrame from the confusion matrix
+    cm_df = pd.DataFrame(cm_matrix, index=minerals, columns=minerals)
+
+    # Adjust DataFrame to handle missing minerals
+    # Ensure all minerals are included as rows and columns, filling missing ones with zeros
+    for mineral in minerals:
+        if mineral not in cm_df:
+            cm_df[mineral] = 0
+        if mineral not in cm_df.index:
+            cm_df.loc[mineral] = 0
+
+    # Reorder rows and columns based on the predefined minerals list
+    cm_df = cm_df.reindex(index=minerals, columns=minerals)
+
+    # cm_matrix = confusion_matrix(given_min, pred_min, labels=minerals)
+
+    # min_cat, _ = load_minclass_nn()
+    # cm_df = pd.DataFrame(cm_matrix, index=min_cat, columns=min_cat)
 
     return cm_df
 

@@ -20,3 +20,4 @@ Train_CovMatch.py
 Train_LinearModels.py
 Validate_AE.py
 .ipynb_checkpoints
+/ignore/

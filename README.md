@@ -28,4 +28,4 @@ Make sure that you keep up with the latest version of mineralML. To upgrade to t
 pip install mineralML --upgrade
 ```
 
-Mac/Linux installation will be straightforward. Windows installations will require the additional setup of WSL
+Mac/Linux installation will be straightforward. Windows installations will require the additional setup of WSL.

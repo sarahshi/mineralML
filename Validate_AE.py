@@ -710,18 +710,18 @@ plt.tight_layout()
 # %%
 
 
-df=pd.read_csv('mineralML_Cluster/Cascades_CpxAmp_NN.csv')
+df=pd.read_csv('Validation_Data/Cascades_CpxAmp_NN.csv')
 df_Cpx=df.loc[df['Mineral']=='Clinopyroxene']
-S_Cpx=df_Cpx['NN_Labels']=='Clinopyroxene'
-S_Amp=df_Cpx['NN_Labels']=='Amphibole'
-S_Opx=df_Cpx['NN_Labels']=='Orthopyroxene'
-S_Gt=df_Cpx['NN_Labels']=='Garnet'
-S_Zr=df_Cpx['NN_Labels']=='Zircon'
-S_Plg=df_Cpx['NN_Labels']=='Plagioclase'
+S_Cpx=df_Cpx['Predict_Mineral']=='Clinopyroxene'
+S_Amp=df_Cpx['Predict_Mineral']=='Amphibole'
+S_Opx=df_Cpx['Predict_Mineral']=='Orthopyroxene'
+S_Gt=df_Cpx['Predict_Mineral']=='Garnet'
+S_Zr=df_Cpx['Predict_Mineral']=='Zircon'
+S_Plg=df_Cpx['Predict_Mineral']=='Plagioclase'
 df_Amp=df.loc[df['Mineral']=='Amphibole']
-SA_Cpx=df_Amp['NN_Labels']=='Clinopyroxene'
-SA_Amp=df_Amp['NN_Labels']=='Amphibole'
-SA_Opx=df_Amp['NN_Labels']=='Orthopyroxene'
+SA_Cpx=df_Amp['Predict_Mineral']=='Clinopyroxene'
+SA_Amp=df_Amp['Predict_Mineral']=='Amphibole'
+SA_Opx=df_Amp['Predict_Mineral']=='Orthopyroxene'
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7), sharex=True, sharey=True)
 x='SiO2'
@@ -752,6 +752,113 @@ ax2.tick_params(axis="x", direction='in', length=5, pad = 6.5)
 ax2.tick_params(axis="y", direction='in', length=5, pad = 6.5)
 plt.tight_layout()
 # plt.savefig('nnvspub.pdf', bbox_inches='tight', pad_inches = 0.025)
+
+# %% 
+
+
+df=pd.read_csv('Validation_Data/Cascades_CpxAmp_NN.csv')
+df_Cpx=df.loc[df['Mineral']=='Clinopyroxene']
+S_Cpx=df_Cpx['Predict_Mineral']=='Clinopyroxene'
+S_Amp=df_Cpx['Predict_Mineral']=='Amphibole'
+S_Opx=df_Cpx['Predict_Mineral']=='Orthopyroxene'
+S_Gt=df_Cpx['Predict_Mineral']=='Garnet'
+S_Zr=df_Cpx['Predict_Mineral']=='Zircon'
+S_Plg=df_Cpx['Predict_Mineral']=='Plagioclase'
+df_Amp=df.loc[df['Mineral']=='Amphibole']
+SA_Cpx=df_Amp['Predict_Mineral']=='Clinopyroxene'
+SA_Amp=df_Amp['Predict_Mineral']=='Amphibole'
+SA_Opx=df_Amp['Predict_Mineral']=='Orthopyroxene'
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7), sharex=True, sharey=True)
+x='SiO2'
+y='Na2O'
+ax1.set_title('Published Classifications')
+ax1.plot(df_Cpx[x], df_Cpx[y], 'ok', mfc='tab:red', label='Published Cpx', rasterized=True)
+ax1.plot(df_Amp[x], df_Amp[y], 'ok', mfc='tab:blue', label='Published Amp', rasterized=True)
+ax1.legend(prop={'size': 12}, labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0)
+ax1.tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax1.tick_params(axis="y", direction='in', length=5, pad = 6.5)
+
+ax2.set_title('Neural Network Classifications')
+ax2.plot(df_Cpx[x].loc[S_Cpx], df_Cpx[y].loc[S_Cpx], 'ok', mfc='tab:red', label='Pub Cpx=NN Cpx', alpha=0.3, rasterized=True)
+ax2.plot(df_Amp[x].loc[SA_Amp], df_Amp[y].loc[SA_Amp], 'ok', mfc='tab:blue', label='Pub Amp=NN Amp', alpha=0.3, rasterized=True)
+
+ax2.plot(df_Amp[x].loc[SA_Cpx], df_Amp[y].loc[SA_Cpx], 'dk', mfc='cyan', lw=1, mec='black', label='Pub Amp; NN Cpx', ms=8, rasterized=True)
+ax2.plot(df_Cpx[x].loc[S_Amp], df_Cpx[y].loc[S_Amp], 'dk',  mfc='yellow', lw=1, mec='black', label='Pub Cpx; NN Amp', ms=8, rasterized=True)
+
+ax1.set_xlim([35, 60])
+ax1.set_ylim([-0.1, 4.1])
+ax2.legend(prop={'size': 12}, labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0)
+ax2.yaxis.set_tick_params(which='both', labelbottom=True)
+ax1.set_xlabel('SiO$_\mathrm{2}$ (wt.%)')
+ax1.set_ylabel('Na$_\mathrm{2}$O (wt.%)')
+ax2.set_xlabel('SiO$_\mathrm{2}$ (wt.%)')
+ax2.set_ylabel('Na$_\mathrm{2}$O (wt.%)')
+ax2.tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax2.tick_params(axis="y", direction='in', length=5, pad = 6.5)
+plt.tight_layout()
+# plt.savefig('nnvspub.pdf', bbox_inches='tight', pad_inches = 0.025)
+
+# %% 
+
+import sys
+sys.path.append('src')
+import mineralML as mm
+df_ae, _ = mm.prep_df_ae(df)
+df_pred_ae = mm.predict_class_prob_ae(df_ae)
+
+mm.plot_latent_space(df_pred_ae)
+
+
+
+clusterer, z_df = mm.load_clusterer()
+
+phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene', 'Garnet', 
+    'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
+    'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline', 'Zircon'])    
+cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=plt.get_cmap('tab20'))
+
+fig, ax = plt.subplots(1, 1, figsize = (8, 8))
+ax = ax.flatten()
+for i in range(len(phase)):
+    indx_z = z_df['Predict_Mineral'] == phase[i]
+    if not z_df[indx_z].empty:
+        ax[0].scatter(z_df.LV1[indx_z], z_df.LV2[indx_z], marker='o', s=15, color=scalarMap.to_rgba(i), lw=0.1, ec='k', alpha=z_df.Predict_Probability[indx_z], label=phase[i], rasterized = True)
+    indx_pred = df_pred_ae['Predict_Mineral'] == phase[i]
+    if not df_pred_ae[indx_pred].empty:
+        ax[1].scatter(df_pred_ae.LV1[indx_pred], df_pred_ae.LV2[indx_pred], marker='o', s=15, color=scalarMap.to_rgba(i), lw=0.1, ec='k', alpha=df_pred.Predict_Probability[indx_pred], label=phase[i], rasterized = True)
+leg = ax[0].legend(prop={'size': 8}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
+for handle in leg.legendHandles: 
+    colors = handle.get_facecolor()
+    # Set alpha value for face color
+    colors[:, 3] = 1  # Set the alpha value of the RGBA color to 1
+    handle.set_facecolor(colors)
+
+    # If the handles also have edge colors, set their alpha values as well
+    edge_colors = handle.get_edgecolor()
+    edge_colors[:, 3] = 1
+    handle.set_edgecolor(edge_colors)
+ax[0].set_xlabel('Latent Variable 1')
+ax[0].set_ylabel('Latent Variable 2')
+ax[0].set_xlim([-1.5, 2.0])
+ax[0].set_ylim([-2.5, 2.5])
+ax[0].annotate("Training Latent Space", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[0].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[0].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+ax[1].set_xlabel('Latent Variable 1')
+ax[1].set_xlabel('Latent Variable 2')
+ax[1].set_xlim([-1.5, 2.0])
+ax[1].set_ylim([-2.5, 2.5])
+ax[1].annotate("Validation Latent Space", xy=(0.03, 0.94), xycoords="axes fraction", fontsize=20, weight='medium')
+ax[1].tick_params(axis="x", direction='in', length=5, pad = 6.5) 
+ax[1].tick_params(axis="y", direction='in', length=5, pad = 6.5)
+plt.tight_layout()
+plt.show()
+
+
+
+
 
 
 # %% 
@@ -836,7 +943,6 @@ for i in range(len(phase)):
         ax[1].scatter(z_georoc_lim[indx, 0], z_georoc_lim[indx, 1], s=15, color=scalarMap.to_rgba(i), linewidth=0.1, edgecolor='k', alpha=0.2, rasterized = True)
 ax[1].scatter(z_cpx[:, 0][S_Cpx], z_cpx[:, 1][S_Cpx], color='tab:red', edgecolor ='k', linewidth=0.2, label='Pub Cpx=NN Cpx')
 ax[1].scatter(z_amp[:, 0][SA_Amp], z_amp[:,1][SA_Amp], color='tab:blue', edgecolor ='k', linewidth=0.2, label='Pub Amp=NN Amp')
-
 ax[1].scatter(z_amp[:,0][SA_Cpx], z_amp[:,1][SA_Cpx], color='cyan', marker = 'd', lw=1, edgecolor='black', label='Pub Amp; NN Cpx', s=80, rasterized=True)
 ax[1].scatter(z_cpx[:,0][S_Amp], z_cpx[:,1][S_Amp],  color='yellow', marker = 'd', lw=1, edgecolor='black', label='Pub Cpx; NN Amp', s=80, rasterized=True)
 
@@ -1056,265 +1162,6 @@ plt.tight_layout()
 
 
 # %% 
-
-
-# %% 
-
-
-
-
-
-# %%
-
-
-
-
-
-# %%
-
-# %%
-
-# # %% visualize LEPR and GEOROC cpx
-
-# cpx_tern_mine = pt.tern_points_px(px_comps=min_df[min_df.Mineral=='Clinopyroxene'].rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-
-# cpx_tern_alllepr = pt.tern_points_px(px_comps=lepr_df[lepr_df.Mineral=='Clinopyroxene'].rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-
-# cpx_tern_allgeoroc = pt.tern_points_px(px_comps=georoc_df[georoc_df.Mineral=='Clinopyroxene'].rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_tern_mine, edgecolor="k", marker="^", facecolor="tab:green", label='Train/Validate All Cpx', s=75, alpha = 0.25)
-# plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_tern_alllepr, edgecolor="k", marker="^", facecolor="tab:blue", label='LEPR All Cpx', s=75, alpha = 0.25)
-# plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_tern_allgeoroc, edgecolor="k", marker="^", facecolor="tab:orange", label='GEOROC All Cpx', s=75, alpha = 0.25)
-# plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# # %% visualize LEPR and GEOROC amph
-
-# # Now calculate the amphibole components
-# cat_23ox_mine = pt.calculate_Leake_Diagram_Class(amp_comps=min_df[min_df.Mineral=='Amphibole'].add_suffix('_Amp'))
-# cat_23ox_alllepr = pt.calculate_Leake_Diagram_Class(amp_comps=lepr_df[lepr_df.Mineral=='Amphibole'].add_suffix('_Amp'))
-# cat_23ox_allgeoroc = pt.calculate_Leake_Diagram_Class(amp_comps=georoc_df[georoc_df.Mineral=='Amphibole'].add_suffix('_Amp'))
-
-# fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
-# pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
-# ax1.scatter(cat_23ox_mine['Si_Amp_cat_23ox'], cat_23ox_mine['Mgno_Amp'], c='tab:green', edgecolor="k", alpha=0.25, label ='Train/Validate All Amphibole')
-# ax1.set_ylabel('Mg# Amphibole')
-# ax1.set_xlabel('Si (apfu)')
-# ax1.invert_xaxis()
-# ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
-# pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
-# ax1.scatter(cat_23ox_alllepr['Si_Amp_cat_23ox'], cat_23ox_alllepr['Mgno_Amp'], c='tab:blue', edgecolor="k", alpha=0.25, label ='LEPR All Amphibole')
-# ax1.set_ylabel('Mg# Amphibole')
-# ax1.set_xlabel('Si (apfu)')
-# ax1.invert_xaxis()
-# ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
-# pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
-# ax1.scatter(cat_23ox_allgeoroc['Si_Amp_cat_23ox'], cat_23ox_allgeoroc['Mgno_Amp'], c='tab:orange', edgecolor="k", alpha=0.25, label ='GEOROC All Amphibole')
-# ax1.set_ylabel('Mg# Amphibole')
-# ax1.set_xlabel('Si (apfu)')
-# ax1.invert_xaxis()
-# ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
-# pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
-
-# # Now add these components to the axis, you can change symbol size, plot multiple amphioble populations in different colors.
-# ax1.scatter(cat_23ox_allgeoroc['Si_Amp_cat_23ox'], cat_23ox_allgeoroc['Mgno_Amp'], c='tab:orange', edgecolor="k", alpha=0.25, label ='GEOROC All Amphibole')
-# ax1.set_ylabel('Mg# Amphibole')
-# ax1.set_xlabel('Si (apfu)')
-# ax1.set_xlim([4.5, 8.5])
-# ax1.invert_xaxis()
-# ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# # %% 
-
-
-# # %% error analysis 
-
-# amp_min_df = min_df[min_df.Mineral=='Amphibole']
-# cpx_min_df = min_df[min_df.Mineral=='Clinopyroxene']
-# opx_min_df = min_df[min_df.Mineral=='Orthopyroxene']
-
-# oxides_sum = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'P2O5']
-# df_lepr_err['Total'] = df_lepr_err[oxides_sum].sum(axis=1)
-# amp_lepr_err = df_lepr_err[df_lepr_err.Mineral=='Amphibole']
-# cpx_lepr_err = df_lepr_err[df_lepr_err.Mineral=='Clinopyroxene']
-# opx_lepr_err = df_lepr_err[df_lepr_err.Mineral=='Orthopyroxene']
-
-# df_georoc_err['Total'] = df_georoc_err[oxides_sum].sum(axis=1)
-# amp_georoc_err = df_georoc_err[df_georoc_err.Mineral=='Amphibole']
-# cpx_georoc_err = df_georoc_err[df_georoc_err.Mineral=='Clinopyroxene']
-# opx_georoc_err = df_georoc_err[df_georoc_err.Mineral=='Orthopyroxene']
-
-
-# cpx_min_tern=pt.tern_points_px(px_comps=cpx_min_df.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-# cpx_lepr_err_tern=pt.tern_points_px(px_comps=cpx_lepr_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-# cpx_georoc_err_tern=pt.tern_points_px(px_comps=cpx_georoc_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-
-
-# opx_min_tern=pt.tern_points_px(px_comps=opx_min_df.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-# opx_lepr_err_tern=pt.tern_points_px(px_comps=opx_lepr_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-# opx_georoc_err_tern=pt.tern_points_px(px_comps=opx_georoc_err.rename(columns={'MgO':'MgO_Cpx', 'FeOt':'FeOt_Cpx', 'CaO':'CaO_Cpx'}))
-
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Cpx', s=75)
-# tax.scatter(cpx_lepr_err_tern, edgecolor="k", marker="^", facecolor="red", label='LEPR Cpx Errors', s=75, alpha=0.5)
-# plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Opx', s=75)
-# tax.scatter(opx_lepr_err_tern, edgecolor="k", marker="^", facecolor="red", label='LEPR Opx Errors', s=75, alpha=0.5)
-# plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Cpx', s=75)
-# tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", facecolor="red", label='GEOROC Cpx Errors', s=75, alpha=0.5)
-# plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="green", label='Train/Validate Opx', s=75)
-# tax.scatter(opx_georoc_err_tern, edgecolor="k", marker="^", facecolor="red", label='GEOROC Opx Errors', s=75, alpha=0.5)
-# plt.legend(prop={'size': 10}, loc = 'upper right', labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# # %% 
-
-# sorttotals = cpx_lepr_err['Total'].argsort()
-# cpx_lepr_err_sort = cpx_lepr_err.sort_values(by=['Total'], ascending=False)
-# cpx_lepr_tern_sort = cpx_lepr_err_tern[sorttotals[::-1]]
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.7)
-# tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['Total'],vmin=np.min(cpx_lepr_err_sort['Total']), vmax=np.max(cpx_lepr_err_sort['Total']), label='LEPR Cpx Errors', s=75, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Total"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Cr2O3'],vmin=np.min(cpx_min_df['Cr2O3']), vmax=np.max(cpx_min_df['Cr2O3']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['Cr2O3'],vmin=np.min(cpx_lepr_err_sort['Cr2O3']), vmax=np.max(cpx_lepr_err_sort['Cr2O3']), label='LEPR Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Na2O'],vmin=np.min(cpx_min_df['Na2O']), vmax=np.max(cpx_min_df['Na2O']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['Na2O'],vmin=np.min(cpx_lepr_err_sort['Na2O']), vmax=np.max(cpx_lepr_err_sort['Na2O']), label='LEPR Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['K2O'],vmin=np.min(cpx_min_df['K2O']), vmax=np.max(cpx_min_df['K2O']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "K2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['K2O'],vmin=np.min(cpx_lepr_err_sort['K2O']), vmax=np.max(cpx_lepr_err_sort['K2O']), label='LEPR Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "K2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Na2O'],vmin=np.min(cpx_min_df['Na2O']), vmax=np.max(cpx_min_df['Na2O']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_lepr_tern_sort, edgecolor="k", marker="^", c=cpx_lepr_err_sort['Na2O'],vmin=np.min(cpx_lepr_err_sort['Na2O']), vmax=np.max(cpx_lepr_err_sort['Na2O']), label='LEPR Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# # %%
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Opx', s=75)
-# tax.scatter(opx_lepr_err_tern, edgecolor="k", marker="^", facecolor="red", label='LEPR Opx Errors', s=75)
-# plt.legend(prop={'size': 10}, loc = (0.90, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# # %% 
-
-# sorttotals = cpx_georoc_err['Total'].argsort()
-# cpx_georoc_err_sort = cpx_georoc_err.sort_values(by=['Total'], ascending=False)
-# cpx_georoc_tern_sort = cpx_georoc_err_tern[sorttotals[::-1]]
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.7)
-# tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", c=cpx_georoc_err_sort['Total'],vmin=np.min(cpx_georoc_err_sort['Total']), vmax=np.max(cpx_georoc_err_sort['Total']), label='GEOROC Cpx Errors', s=75, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Total"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Cr2O3'],vmin=np.min(cpx_min_df['Cr2O3']), vmax=np.max(cpx_min_df['Cr2O3']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", c=cpx_georoc_err_sort['Cr2O3'],vmin=np.min(cpx_georoc_err_sort['Cr2O3']), vmax=np.max(cpx_georoc_err_sort['Cr2O3']), label='GEOROC Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Cr2O3"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_min_tern, edgecolor="k", marker="^", c=cpx_min_df['Na2O'],vmin=np.min(cpx_min_df['Na2O']), vmax=np.max(cpx_min_df['Na2O']), facecolor="#A9A9A9", label='Train/Validate Cpx', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(cpx_georoc_err_tern, edgecolor="k", marker="^", c=cpx_georoc_err_sort['Na2O'],vmin=np.min(cpx_georoc_err_sort['Na2O']), vmax=np.max(cpx_georoc_err_sort['Na2O']), label='GEOROC Cpx Errors', s=75, alpha=0.5, cmap='hot', colormap='hot', colorbar=True, cb_kwargs={"shrink": 0.5, "label": "Na2O"})
-# plt.legend(prop={'size': 10}, loc = (0.95, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-
-# # %% 
-
-# fig, tax = pt.plot_px_classification(figsize=(10, 5), labels=True, fontsize_component_labels=16, fontsize_axes_labels=20)
-# tax.scatter(opx_min_tern, edgecolor="k", marker="^", facecolor="#A9A9A9", label='Train/Validate Opx', s=75)
-# tax.scatter(opx_georoc_err_tern, edgecolor="k", marker="^", facecolor="red", label='GEOROC Opx Errors', s=75, alpha=0.5)
-# plt.legend(prop={'size': 10}, loc = (0.90, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# # %% 
-
-
-# fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
-# pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
-
-# # Now calculate the amphibole components
-# cat_23ox = pt.calculate_Leake_Diagram_Class(amp_comps=amp_min_df.add_suffix('_Amp'))
-# cat_23ox_lepr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_lepr_err.add_suffix('_Amp'))
-# cat_23ox_georoc = pt.calculate_Leake_Diagram_Class(amp_comps=amp_georoc_err.add_suffix('_Amp'))
-
-# # Now add these components to the axis, you can change symbol size, plot multiple amphioble populations in different colors.
-# ax1.scatter(cat_23ox['Si_Amp_cat_23ox'], cat_23ox['Mgno_Amp'], c='green', edgecolor="k", label ='Train/Validate Amp')
-# ax1.scatter(cat_23ox_lepr['Si_Amp_cat_23ox'], cat_23ox_lepr['Mgno_Amp'], c='red', edgecolor="k", label ='LEPR Amp Errors')
-# ax1.set_ylabel('Mg# Amphibole')
-# ax1.set_xlabel('Si (apfu)')
-# ax1.invert_xaxis()
-# ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
-# # %% 
-
-# fig, (ax1) = plt.subplots(1, figsize=(10, 8), sharey=True)
-# pt.add_Leake_Amp_Fields_Fig3bot(ax1, fontsize=12, color=[0.3, 0.3, 0.3], linewidth=0.5, lower_text=0.3, upper_text=0.8, text_labels=True)
-
-# # Now calculate the amphibole components
-# cat_23ox = pt.calculate_Leake_Diagram_Class(amp_comps=amp_min_df.add_suffix('_Amp'))
-# cat_23ox_lepr = pt.calculate_Leake_Diagram_Class(amp_comps=amp_lepr_err.add_suffix('_Amp'))
-# cat_23ox_georoc = pt.calculate_Leake_Diagram_Class(amp_comps=amp_georoc_err.add_suffix('_Amp'))
-
-# # Now add these components to the axis, you can change symbol size, plot multiple amphioble populations in different colors.
-# ax1.scatter(cat_23ox['Si_Amp_cat_23ox'], cat_23ox['Mgno_Amp'], c='green', edgecolor="k", label ='Train/Validate Amp')
-# ax1.scatter(cat_23ox_georoc['Si_Amp_cat_23ox'], cat_23ox_georoc['Mgno_Amp'], c='red', edgecolor="k", label ='GEOROC Amp Errors')
-# ax1.set_ylabel('Mg# Amphibole')
-# ax1.set_xlabel('Si (apfu)')
-# ax1.invert_xaxis()
-# ax1.legend(prop={'size': 10}, loc=(1.0, 0.95), labelspacing = 0.4, handletextpad = 0.8, handlelength = 1.0, frameon=False)
-
 # %%
 
 
@@ -1453,7 +1300,7 @@ end = time.time()
 print(str(round(end-start, 2)) + ' seconds elapsed')
 
 cNorm  = mcolors.Normalize(vmin=0, vmax=len(phase))
-scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab)
+scalarMap = mcm.ScalarMappable(norm=cNorm, cmap=tab20)
 
 fig, ax = plt.subplots(1, 2, figsize = (16, 8))
 ax = ax.flatten()
@@ -1532,6 +1379,7 @@ lg.set_title('Cluster\nConfidence',prop={'size':12})
 plt.tight_layout()
 plt.savefig('egu3.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
 
+# %% 
 
 
 # %%
@@ -1606,6 +1454,6 @@ lg.set_title('Cluster\nConfidence',prop={'size':12})
 
 
 plt.tight_layout()
-plt.savefig('egu_extra.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
+# plt.savefig('egu_extra.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
 
 # %%
