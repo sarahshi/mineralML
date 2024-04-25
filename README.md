@@ -10,7 +10,7 @@
 We present mineralML (mineral classification using Machine Learning) for classifying common igneous minerals based on oxide data collected by EPMA, with functions for calculating stoichiometries and crystallographic sites based on this classification. Utilizing this package allows for the identification of misclassified mineral phases and poor-quality data. We streamline data processing and cleaning to allow for the rapid transition to usable data, improving the utility of data curated in these databases and furthering computing and modeling capabilities. 
 
 ## Documentation
-Read the [documentation](https:/mineralML.readthedocs.io/en/latest/) for a run-through of the mineralML code. 
+Read the [documentation](https://mineralml.readthedocs.io/en/latest/?badge=latest) for a run-through of the mineralML code. 
 
 ## Run on the Cloud 
 If you do not have Python installed locally, run mineralML on [Google Colab](https://colab.research.google.com/github/SarahShi/mineralML/blob/main/mineralML_colab.ipynb). The Cloud-based version runs rapidly, with test cases of >10,000 microanalyses classified within 4 seconds. 
