@@ -87,11 +87,14 @@ def prep_df_nn(df):
     ]
 
     # Ensure all required columns are present in the DataFrame
-    for col in oxides + ['Mineral', 'SampleID']:
+    for col in oxides + ["Mineral", "SampleID"]:
         if col not in df.columns:
             df[col] = np.nan
-            warnings.warn(f"The column '{col}' was missing and has been filled with NaN.", 
-                          UserWarning, stacklevel=2)
+            warnings.warn(
+                f"The column '{col}' was missing and has been filled with NaN.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     # Drop rows with fewer than 6 non-NaN values in the oxides columns
     df.dropna(subset=oxides, thresh=6, inplace=True)
@@ -100,12 +103,13 @@ def prep_df_nn(df):
     df[oxides] = df[oxides].fillna(0)
 
     # Ensure only oxides, 'Mineral', and 'SampleID' columns are kept
-    df = df[oxides + ['Mineral', 'SampleID']]
+    df = df[oxides + ["Mineral", "SampleID"]]
 
     # Ensure SampleID is the index
-    df.set_index('SampleID', inplace=True)
+    df.set_index("SampleID", inplace=True)
 
     return df
+
 
 def norm_data_nn(df):
     """
@@ -178,7 +182,8 @@ def balance(train_x, train_y, n=1000):
         from imblearn.over_sampling import RandomOverSampler
     except ImportError:
         raise RuntimeError(
-            "You have not installed imblearn, which is required to balance the datasets used for training the neural networks. If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn."
+            "You have not installed imblearn, which is required to balance the datasets used for training the neural networks. "
+            "If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn."
         )
 
     oversample = RandomOverSampler(sampling_strategy="minority", random_state=42)
