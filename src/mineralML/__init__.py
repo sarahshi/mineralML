@@ -1,6 +1,6 @@
-# %% 
+# %%
 
-__author__ = 'Sarah Shi'
+__author__ = "Sarah Shi"
 
 import os
 import copy

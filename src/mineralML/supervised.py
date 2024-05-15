@@ -4,12 +4,13 @@ import os
 import math
 import time
 import copy
+import warnings
 
 import numpy as np
 import pandas as pd
 
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split 
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 
 import torch
@@ -24,86 +25,94 @@ from mineralML.core import *
 
 
 def load_minclass_nn():
-
     """
-    Loads mineral classes and their corresponding mappings from a .npz file. 
-    The file is expected to contain an array of class names under the 'classes' key. 
+    Loads mineral classes and their corresponding mappings from a .npz file.
+    The file is expected to contain an array of class names under the 'classes' key.
     This function creates a dictionary that maps an integer code to each class name.
 
     Returns:
         min_cat (list): A list of mineral class names.
-        mapping (dict): A dictionary that maps each integer code to its corresponding 
+        mapping (dict): A dictionary that maps each integer code to its corresponding
         class name in the 'min_cat' list.
     """
 
     current_dir = os.path.dirname(__file__)
-    filepath = os.path.join(current_dir, 'mineral_classes_nn.npz')
+    filepath = os.path.join(current_dir, "mineral_classes_nn.npz")
 
     with np.load(filepath, allow_pickle=True) as data:
-        min_cat = data['classes'].tolist()
+        min_cat = data["classes"].tolist()
     mapping = {code: cat for code, cat in enumerate(min_cat)}
 
     return min_cat, mapping
 
 
 def prep_df_nn(df):
-
     """
-
-    Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data. 
-    It filters the DataFrame for selected minerals, handles missing values, and separates the data 
-    into two DataFrames: one that includes specified minerals and another that excludes them.
-    The function defines a list of oxide column names and minerals to include and exclude. It drops 
-    rows where the specified oxides and 'Mineral' column have fewer than six non-NaN values. 
+    Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
+    It handles missing values and ensures the presence of required oxide columns.
+    The function defines a list of oxide column names and drops rows where the specified oxides
+    have fewer than six non-NaN values.
 
     Parameters:
         df (DataFrame): The input DataFrame containing mineral composition data along with 'Mineral' column.
 
     Returns:
-        df_in (DataFrame): A DataFrame with rows including only the specified minerals and 'NaN' filled with zero.
-        df_ex (DataFrame): A DataFrame with rows excluding the specified minerals and 'NaN' filled with zero.
-    
+        df (DataFrame): The cleaned DataFrame with 'NaN' filled with zero for oxides.
     """
 
-    if "FeO" in df.columns and "FeOt" not in df.columns:
-        raise ValueError("No 'FeOt' column found. You have a 'FeO' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt.")
-    if "Fe2O3" in df.columns and "FeOt" not in df.columns:
-        raise ValueError("No 'FeOt' column found. You have a 'Fe2O3' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt.")
+    if "FeO" in df.columns:
+        if "FeOt" not in df.columns:
+            raise ValueError(
+                "No 'FeOt' column found. You have a 'FeO' column. "
+                "mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+            )
+    if "Fe2O3" in df.columns:
+        if "FeOt" not in df.columns:
+            raise ValueError(
+                "No 'FeOt' column found. You have a 'Fe2O3' column. "
+                "mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+            )
 
-    oxidesandmin = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'Mineral']
-    include_minerals = ['Amphibole', 'Biotite', 'Clinopyroxene', 'Garnet', 'Ilmenite', 
-                        'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
-                        'Plagioclase', 'Spinel']
-    exclude_minerals = ['Tourmaline', 'Quartz', 'Rutile', 'Apatite', 'Zircon']
-    df.dropna(subset=oxidesandmin, thresh=6, inplace=True)
+    oxides = [
+        "SiO2",
+        "TiO2",
+        "Al2O3",
+        "FeOt",
+        "MnO",
+        "MgO",
+        "CaO",
+        "Na2O",
+        "K2O",
+        "Cr2O3",
+    ]
 
-    if 'Mineral' in df.columns:
-        include_minerals = ['Amphibole', 'Biotite', 'Clinopyroxene', 'Garnet', 'Ilmenite', 
-                            'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
-                            'Plagioclase', 'Spinel']
-        exclude_minerals = ['Tourmaline', 'Quartz', 'Rutile', 'Apatite', 'Zircon']
-        df_in = df[df['Mineral'].isin(include_minerals)]
-        df_ex = df[df['Mineral'].isin(exclude_minerals)]
-    else:
-        df_in = df.copy()
-        df_ex = pd.DataFrame(columns=df.columns)  
+    # Ensure all required columns are present in the DataFrame
+    for col in oxides + ['Mineral', 'SampleID']:
+        if col not in df.columns:
+            df[col] = np.nan
+            warnings.warn(f"The column '{col}' was missing and has been filled with NaN.", 
+                          UserWarning, stacklevel=2)
 
-    df_in = df_in[oxidesandmin].fillna(0)
-    df_ex = df_ex[oxidesandmin].fillna(0)
+    # Drop rows with fewer than 6 non-NaN values in the oxides columns
+    df.dropna(subset=oxides, thresh=6, inplace=True)
 
-    df_in = df_in.reset_index(drop=True)
-    df_ex = df_ex.reset_index(drop=True)
+    # Fill remaining NaN values with 0 for oxides, keep NaN for 'Mineral'
+    df[oxides] = df[oxides].fillna(0)
 
-    return df_in, df_ex
+    # Ensure only oxides, 'Mineral', and 'SampleID' columns are kept
+    df = df[oxides + ['Mineral', 'SampleID']]
 
+    # Ensure SampleID is the index
+    df.set_index('SampleID', inplace=True)
+
+    return df
 
 def norm_data_nn(df):
-
     """
 
-    Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler. 
-    It ensures that the dataframe has been preprocessed accordingly before applying the transformation. 
-    The function expects that the scaler is already fitted and available for use as defined in the 
+    Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
+    It ensures that the dataframe has been preprocessed accordingly before applying the transformation.
+    The function expects that the scaler is already fitted and available for use as defined in the
     'load_scaler' function.
 
     Parameters:
@@ -114,30 +123,40 @@ def norm_data_nn(df):
 
     """
 
-    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-    mean, std = load_scaler('scaler_nn.npz')
+    oxides = [
+        "SiO2",
+        "TiO2",
+        "Al2O3",
+        "FeOt",
+        "MnO",
+        "MgO",
+        "CaO",
+        "Na2O",
+        "K2O",
+        "Cr2O3",
+    ]
+    mean, std = load_scaler("scaler_nn.npz")
 
     scaled_df = df[oxides].copy()
 
     if df[oxides].isnull().any().any():
         df, _ = prep_df_nn(df)
-    else: 
-        df = df 
+    else:
+        df = df
 
-    for col in df[oxides].columns: 
+    for col in df[oxides].columns:
         scaled_df[col] = (df[col] - mean[col]) / std[col]
 
     array_x = scaled_df.to_numpy()
-    
+
     return array_x
 
 
 def balance(train_x, train_y, n=1000):
-
     """
 
-    Balances the training dataset by oversampling the minority class using the RandomOverSampler method. 
-    It aims to equalize the number of samples for each class in the dataset to prevent the model from 
+    Balances the training dataset by oversampling the minority class using the RandomOverSampler method.
+    It aims to equalize the number of samples for each class in the dataset to prevent the model from
     being biased towards the majority class.
 
     Parameters:
@@ -148,9 +167,9 @@ def balance(train_x, train_y, n=1000):
         train_x (numpy.ndarray): The feature matrix after oversampling the minority class.
         train_y (numpy.ndarray): The label vector after oversampling the minority class.
 
-    The function creates a new balanced DataFrame with an equal number of samples for each class. 
-    Classes are oversampled to reach a count of 1000 samples per class, with the random state set 
-    for reproducibility. The function returns the resampled feature matrix and label vector suitable 
+    The function creates a new balanced DataFrame with an equal number of samples for each class.
+    Classes are oversampled to reach a count of 1000 samples per class, with the random state set
+    for reproducibility. The function returns the resampled feature matrix and label vector suitable
     for training a machine learning model.
 
     """
@@ -158,20 +177,24 @@ def balance(train_x, train_y, n=1000):
     try:
         from imblearn.over_sampling import RandomOverSampler
     except ImportError:
-        raise RuntimeError('You have not installed imblearn, which is required to balance the datasets used for training the neural networks. If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn.')
+        raise RuntimeError(
+            "You have not installed imblearn, which is required to balance the datasets used for training the neural networks. If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn."
+        )
 
-    oversample = RandomOverSampler(sampling_strategy='minority', random_state=42)
+    oversample = RandomOverSampler(sampling_strategy="minority", random_state=42)
 
     # Resample the dataset
     x_balanced, y_balanced = oversample.fit_resample(train_x, train_y)
 
     df_resampled = pd.DataFrame(x_balanced)
-    df_resampled['Mineral'] = y_balanced
+    df_resampled["Mineral"] = y_balanced
 
     df_balanced = pd.DataFrame()
-    for class_label in df_resampled['Mineral'].unique():
-        df_class = df_resampled[df_resampled['Mineral'] == class_label]
-        df_balanced = pd.concat([df_balanced, df_class.sample(n=n, replace = True, random_state=42)])
+    for class_label in df_resampled["Mineral"].unique():
+        df_class = df_resampled[df_resampled["Mineral"] == class_label]
+        df_balanced = pd.concat(
+            [df_balanced, df_class.sample(n=n, replace=True, random_state=42)]
+        )
 
     # Reset the index of the balanced dataframe
     df_balanced = df_balanced.reset_index(drop=True)
@@ -184,11 +207,11 @@ def balance(train_x, train_y, n=1000):
 class VariationalLayer(nn.Module):
 
     """
-    
-    The VariationalLayer class implements a Bayesian approach to linear layers 
-    in neural networks, which allows for the incorporation 
-    of uncertainty in the weights and biases. This is achieved by modeling the 
-    parameters as distributions rather than point estimates. The layer utilizes 
+
+    The VariationalLayer class implements a Bayesian approach to linear layers
+    in neural networks, which allows for the incorporation
+    of uncertainty in the weights and biases. This is achieved by modeling the
+    parameters as distributions rather than point estimates. The layer utilizes
     variational inference to learn the parameters of these distributions.
 
     Parameters:
@@ -197,73 +220,80 @@ class VariationalLayer(nn.Module):
 
     Attributes:
         weight_mu (Parameter): The mean of the Gaussian distributions of the weights.
-        weight_rho (Parameter): The rho parameters (unconstrained) for the standard 
+        weight_rho (Parameter): The rho parameters (unconstrained) for the standard
                                 deviations of the Gaussian distributions of the weights.
         bias_mu (Parameter): The mean of the Gaussian distributions of the biases.
-        bias_rho (Parameter): The rho parameters (unconstrained) for the standard 
+        bias_rho (Parameter): The rho parameters (unconstrained) for the standard
                               deviations of the Gaussian distributions of the biases.
-        softplus (nn.Softplus): A Softplus activation function used for ensuring the 
+        softplus (nn.Softplus): A Softplus activation function used for ensuring the
                                 standard deviation is positive.
 
     Methods:
         reset_parameters(): Initializes the parameters based on the number of input features.
-        forward(input): Performs the forward pass using a sampled weight and bias according 
+        forward(input): Performs the forward pass using a sampled weight and bias according
                         to their respective distributions.
-        kl_divergence(): Computes the Kullback-Leibler divergence of the layer's 
-                         parameters, which can be used as a part of the loss function 
+        kl_divergence(): Computes the Kullback-Leibler divergence of the layer's
+                         parameters, which can be used as a part of the loss function
                          to regulate the learning of the distribution parameters.
 
-    The forward computation of this layer is equivalent to a standard linear layer 
-    with sampled weights and biases. The KL divergence method returns a value that 
-    quantifies the difference between the prior and variational distributions of the 
-    layer's parameters, which encourages the learning of plausible weights and biases 
+    The forward computation of this layer is equivalent to a standard linear layer
+    with sampled weights and biases. The KL divergence method returns a value that
+    quantifies the difference between the prior and variational distributions of the
+    layer's parameters, which encourages the learning of plausible weights and biases
     while controlling complexity.
 
     """
 
     def __init__(self, in_features, out_features):
-
         super(VariationalLayer, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
-        
+
         self.weight_mu = nn.Parameter(torch.Tensor(out_features, in_features))
         self.weight_rho = nn.Parameter(torch.Tensor(out_features, in_features))
         self.bias_mu = nn.Parameter(torch.Tensor(out_features))
         self.bias_rho = nn.Parameter(torch.Tensor(out_features))
-        
+
         self.softplus = nn.Softplus()
         self.reset_parameters()
-        
-    def reset_parameters(self):
 
-        std = 1. / math.sqrt(self.weight_mu.size(1))
+    def reset_parameters(self):
+        std = 1.0 / math.sqrt(self.weight_mu.size(1))
         self.weight_mu.data.uniform_(-std, std)
         self.weight_rho.data.uniform_(-std, std)
         self.bias_mu.data.uniform_(-std, std)
         self.bias_rho.data.uniform_(-std, std)
-        
-    def forward(self, input):
 
+    def forward(self, input):
         weight_sigma = torch.log1p(torch.exp(self.weight_rho))
         bias_sigma = torch.log1p(torch.exp(self.bias_rho))
-        
-        weight_epsilon = torch.normal(mean=0., std=1., size=weight_sigma.size(), device=input.device)
-        bias_epsilon = torch.normal(mean=0., std=1., size=bias_sigma.size(), device=input.device)
-        
+
+        weight_epsilon = torch.normal(
+            mean=0.0, std=1.0, size=weight_sigma.size(), device=input.device
+        )
+        bias_epsilon = torch.normal(
+            mean=0.0, std=1.0, size=bias_sigma.size(), device=input.device
+        )
+
         weight_sample = self.weight_mu + weight_epsilon * weight_sigma
         bias_sample = self.bias_mu + bias_epsilon * bias_sigma
-        
+
         output = F.linear(input, weight_sample, bias_sample)
         return output
 
     def kl_divergence(self):
-
         weight_sigma = torch.log1p(torch.exp(self.weight_rho))
         bias_sigma = torch.log1p(torch.exp(self.bias_rho))
-        
-        kl_div = -0.5 * torch.sum(1 + torch.log(weight_sigma.pow(2)) - self.weight_mu.pow(2) - weight_sigma.pow(2))
-        kl_div += -0.5 * torch.sum(1 + torch.log(bias_sigma.pow(2)) - self.bias_mu.pow(2) - bias_sigma.pow(2))
+
+        kl_div = -0.5 * torch.sum(
+            1
+            + torch.log(weight_sigma.pow(2))
+            - self.weight_mu.pow(2)
+            - weight_sigma.pow(2)
+        )
+        kl_div += -0.5 * torch.sum(
+            1 + torch.log(bias_sigma.pow(2)) - self.bias_mu.pow(2) - bias_sigma.pow(2)
+        )
 
         return kl_div
 
@@ -271,18 +301,18 @@ class VariationalLayer(nn.Module):
 class MultiClassClassifier(nn.Module):
 
     """
-    A neural network module for multi-class classification tasks. It 
-    consists of a sequence of layers defined by the input dimensions, number 
-    of classes, dropout rate, and sizes of hidden layers. It can be 
-    customized with different numbers and sizes of hidden layers, as well as 
-    varying dropout rates to prevent overfitting. The final output layer is 
+    A neural network module for multi-class classification tasks. It
+    consists of a sequence of layers defined by the input dimensions, number
+    of classes, dropout rate, and sizes of hidden layers. It can be
+    customized with different numbers and sizes of hidden layers, as well as
+    varying dropout rates to prevent overfitting. The final output layer is
     designed for classification among a fixed number of classes.
 
     Parameters:
         input_dim (int): Dimensionality of the input features. Defaults to 10.
         classes (int): The number of output classes for classification. Defaults to 12.
         dropout_rate (float): The dropout rate applied after each hidden layer. Defaults to 0.1.
-        hidden_layer_sizes (list of int): The sizes of each hidden layer. Defaults to a single 
+        hidden_layer_sizes (list of int): The sizes of each hidden layer. Defaults to a single
                                           hidden layer with 8 units.
 
     Attributes:
@@ -290,22 +320,28 @@ class MultiClassClassifier(nn.Module):
         classes (int): Internal storage of the number of classes.
         dropout_rate (float): Internal storage of the dropout rate.
         hls (list of int): Internal storage of the hidden layer sizes.
-        encode (nn.Sequential): The sequential container of layers making up the encoder part 
-                                of the classifier, including linear, batch normalization, 
-                                leaky ReLU, and dropout layers. 
+        encode (nn.Sequential): The sequential container of layers making up the encoder part
+                                of the classifier, including linear, batch normalization,
+                                leaky ReLU, and dropout layers.
 
     Methods:
         encoded(x): Encodes input `x` through the sequence of layers defined in `encode`.
         forward(x): Implements the forward pass of the network, returning raw scores for each class.
         predict(x): Provides class predictions for input `x` based on the scores from the forward pass.
 
-    The class utilizes a helper function `element` to create each hidden layer or the variational 
-    layer if it is the last one. The `weights_init` function is applied to initialize weights 
+    The class utilizes a helper function `element` to create each hidden layer or the variational
+    layer if it is the last one. The `weights_init` function is applied to initialize weights
     after the model is constructed.
 
     """
 
-    def __init__(self, input_dim=10, classes=12, dropout_rate=0.1, hidden_layer_sizes=[64, 32, 16]):
+    def __init__(
+        self,
+        input_dim=10,
+        classes=12,
+        dropout_rate=0.1,
+        hidden_layer_sizes=[64, 32, 16],
+    ):
         super(MultiClassClassifier, self).__init__()
         self.input_dim = input_dim
         self.classes = classes
@@ -327,9 +363,13 @@ class MultiClassClassifier(nn.Module):
         encoder = []
         for i, size in enumerate(self.hls):
             if i == 0:
-                encoder += element(self.input_dim, size, is_last=(i==len(self.hls)-1))
+                encoder += element(
+                    self.input_dim, size, is_last=(i == len(self.hls) - 1)
+                )
             else:
-                encoder += element(self.hls[i-1], size, is_last=(i==len(self.hls)-1))
+                encoder += element(
+                    self.hls[i - 1], size, is_last=(i == len(self.hls) - 1)
+                )
 
         encoder += [nn.Linear(size, self.classes)]  # Add this line
 
@@ -352,12 +392,11 @@ class MultiClassClassifier(nn.Module):
 
 
 def predict_class_prob_nn_train(model, input_data, n_iterations=250):
-
     """
-    
-    Computes the predicted class probabilities for the given input data using the model by 
-    performing multiple forward passes. The function operates in evaluation mode and does not 
-    track gradients. It returns the mean and standard deviation of the softmax probabilities 
+
+    Computes the predicted class probabilities for the given input data using the model by
+    performing multiple forward passes. The function operates in evaluation mode and does not
+    track gradients. It returns the mean and standard deviation of the softmax probabilities
     across all iterations, providing a measure of model uncertainty.
 
     Parameters:
@@ -376,10 +415,12 @@ def predict_class_prob_nn_train(model, input_data, n_iterations=250):
     for i in range(n_iterations):
         with torch.no_grad():
             output = model(input_data)
-            output_list.append(torch.nn.functional.softmax(output, dim=1).detach().cpu().numpy())
+            output_list.append(
+                torch.nn.functional.softmax(output, dim=1).detach().cpu().numpy()
+            )
 
     output_list = np.array(output_list)
-    
+
     # Calculate mean and standard deviation
     prediction_mean = output_list.mean(axis=0)
     prediction_std = output_list.std(axis=0)
@@ -387,38 +428,50 @@ def predict_class_prob_nn_train(model, input_data, n_iterations=250):
     return prediction_mean, prediction_std
 
 
-def predict_class_prob_nn(df, n_iterations=250): 
-
+def predict_class_prob_nn(df, n_iterations=250):
     """
 
-    Predicts the class probabilities, corresponding mineral names, and the maximum 
-    probability for each class using a predefined MultiClassClassifier model. This 
-    function loads a pre-trained model and its optimizer state, normalizes input 
+    Predicts the class probabilities, corresponding mineral names, and the maximum
+    probability for each class using a predefined MultiClassClassifier model. This
+    function loads a pre-trained model and its optimizer state, normalizes input
     data, and performs multiple inference iterations to compute the prediction probabilities.
 
     Parameters:
         df (DataFrame): The input DataFrame containing the oxide composition data.
-        n_iterations (int): The number of inference iterations to average over for predictions. 
+        n_iterations (int): The number of inference iterations to average over for predictions.
 
     Returns:
-        df (DataFrame): The input DataFrame with columns predict_mineral (predicted mineral names) 
-        and predict_prob (maximum probability of predicted class). 
+        df (DataFrame): The input DataFrame with columns predict_mineral (predicted mineral names)
+        and predict_prob (maximum probability of predicted class).
         probability_matrix (ndarray): The matrix of class probabilities for each sample.
 
     """
 
-    lr = 5e-3 
-    wd = 1e-3 
+    lr = 5e-3
+    wd = 1e-3
     dr = 0.1
     hls = [64, 32, 16]
 
-    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    oxides = [
+        "SiO2",
+        "TiO2",
+        "Al2O3",
+        "FeOt",
+        "MnO",
+        "MgO",
+        "CaO",
+        "Na2O",
+        "K2O",
+        "Cr2O3",
+    ]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = MultiClassClassifier(input_dim=len(oxides), dropout_rate=dr, hidden_layer_sizes=hls).to(device)
+    model = MultiClassClassifier(
+        input_dim=len(oxides), dropout_rate=dr, hidden_layer_sizes=hls
+    ).to(device)
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=wd)
     current_dir = os.path.dirname(__file__)
-    model_path = os.path.join(current_dir, 'nn_best_model.pt') 
+    model_path = os.path.join(current_dir, "nn_best_model.pt")
 
     load_model(model, optimizer, model_path)
 
@@ -430,7 +483,9 @@ def predict_class_prob_nn(df, n_iterations=250):
     for i in range(n_iterations):
         with torch.no_grad():
             output = model(input_data)
-            output_list.append(torch.nn.functional.softmax(output, dim=1).detach().cpu().numpy())
+            output_list.append(
+                torch.nn.functional.softmax(output, dim=1).detach().cpu().numpy()
+            )
 
     output_list = np.array(output_list)
     probability_matrix = output_list.mean(axis=0)
@@ -439,26 +494,29 @@ def predict_class_prob_nn(df, n_iterations=250):
     # predict_mineral = class2mineral_nn(predict_class)
 
     top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
-    first_predict_prob = probability_matrix[np.arange(probability_matrix.shape[0]), top_two_indices[:, 1]]
-    second_predict_prob = probability_matrix[np.arange(probability_matrix.shape[0]), top_two_indices[:, 0]]
+    first_predict_prob = probability_matrix[
+        np.arange(probability_matrix.shape[0]), top_two_indices[:, 1]
+    ]
+    second_predict_prob = probability_matrix[
+        np.arange(probability_matrix.shape[0]), top_two_indices[:, 0]
+    ]
     first_predict_mineral = class2mineral_nn(top_two_indices[:, 1])
     second_predict_mineral = class2mineral_nn(top_two_indices[:, 0])
 
-    df['Predict_Mineral'] = first_predict_mineral
-    df['Predict_Probability'] = first_predict_prob
-    df['Second_Predict_Mineral'] = second_predict_mineral
-    df['Second_Predict_Probability'] = second_predict_prob
+    df["Predict_Mineral"] = first_predict_mineral
+    df["Predict_Probability"] = first_predict_prob
+    df["Second_Predict_Mineral"] = second_predict_mineral
+    df["Second_Predict_Probability"] = second_predict_prob
 
     return df, probability_matrix
 
 
-def unique_mapping_nn(pred_class): 
-
+def unique_mapping_nn(pred_class):
     """
-    Generates a mapping of unique class codes from given and predicted class labels, 
-    considering only the classes present in both input arrays. It loads a predefined 
-    category list and mapping, encodes the 'given_class' labels into categorical codes, 
-    and creates a subset mapping for the unique classes found. It also handles unknown 
+    Generates a mapping of unique class codes from given and predicted class labels,
+    considering only the classes present in both input arrays. It loads a predefined
+    category list and mapping, encodes the 'given_class' labels into categorical codes,
+    and creates a subset mapping for the unique classes found. It also handles unknown
     classes by assigning them a code of -1 and mapping the 'Unknown' label to them.
 
     Parameters:
@@ -466,7 +524,7 @@ def unique_mapping_nn(pred_class):
 
     Returns:
         unique (ndarray): Array of unique class codes found in both given and predicted classes.
-        valid_mapping (dict): Dictionary mapping class codes to their corresponding labels, 
+        valid_mapping (dict): Dictionary mapping class codes to their corresponding labels,
         including 'Unknown' for any class code of -1.
     """
 
@@ -474,17 +532,16 @@ def unique_mapping_nn(pred_class):
     unique = np.unique(pred_class)
     valid_mapping = {key: mapping[key] for key in unique}
     if -1 in unique:
-        valid_mapping[-1] = "Unknown" 
+        valid_mapping[-1] = "Unknown"
 
     return unique, valid_mapping
 
 
-def class2mineral_nn(pred_class): 
-
+def class2mineral_nn(pred_class):
     """
 
     Translates predicted class codes into mineral names using a mapping obtained from the
-    unique classes present in the 'pred_class' array. It utilizes the 'unique_mapping_nn' 
+    unique classes present in the 'pred_class' array. It utilizes the 'unique_mapping_nn'
     function to establish the relevant class-to-mineral name mapping.
 
     Parameters:
@@ -492,7 +549,7 @@ def class2mineral_nn(pred_class):
 
     Returns:
         pred_mineral (ndarray): An array of mineral names corresponding to the predicted class codes.
-        
+
     """
 
     _, valid_mapping = unique_mapping_nn(pred_class)
@@ -502,12 +559,11 @@ def class2mineral_nn(pred_class):
 
 
 def confusion_matrix_df(given_min, pred_min):
-
     """
 
-    Constructs a confusion matrix as a pandas DataFrame for easy visualization and 
-    analysis. The function first finds the unique classes and maps them to their 
-    corresponding mineral names. Then, it uses these mappings to construct the 
+    Constructs a confusion matrix as a pandas DataFrame for easy visualization and
+    analysis. The function first finds the unique classes and maps them to their
+    corresponding mineral names. Then, it uses these mappings to construct the
     confusion matrix, which compares the given and predicted classes.
 
     Parameters:
@@ -515,15 +571,26 @@ def confusion_matrix_df(given_min, pred_min):
         pred_class (array-like): The predicted class labels.
 
     Returns:
-        cm_df (DataFrame): A DataFrame representing the confusion matrix, with rows 
-                           and columns labeled by the unique mineral names found in 
+        cm_df (DataFrame): A DataFrame representing the confusion matrix, with rows
+                           and columns labeled by the unique mineral names found in
                            the given and predicted class arrays.
 
     """
 
-    minerals = ['Amphibole', 'Biotite', 'Clinopyroxene', 'Garnet', 'Ilmenite', 
-                'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine', 'Orthopyroxene', 
-                'Plagioclase', 'Spinel']
+    minerals = [
+        "Amphibole",
+        "Biotite",
+        "Clinopyroxene",
+        "Garnet",
+        "Ilmenite",
+        "KFeldspar",
+        "Magnetite",
+        "Muscovite",
+        "Olivine",
+        "Orthopyroxene",
+        "Plagioclase",
+        "Spinel",
+    ]
 
     # Create a confusion matrix with labels as all possible minerals
     cm_matrix = confusion_matrix(given_min, pred_min, labels=minerals)
@@ -550,13 +617,22 @@ def confusion_matrix_df(given_min, pred_min):
     return cm_df
 
 
-def train_nn(model, optimizer, train_loader, valid_loader, n_epoch, criterion, kl_weight_decay, kl_decay_epochs=750, patience=50):
-
+def train_nn(
+    model,
+    optimizer,
+    train_loader,
+    valid_loader,
+    n_epoch,
+    criterion,
+    kl_weight_decay,
+    kl_decay_epochs=750,
+    patience=50,
+):
     """
 
-    Trains a neural network model using the provided data loaders, optimizer, and loss criterion. It incorporates KL divergence 
-    into the loss to enable learning in a variational framework, with the KL weight increasing each epoch until a maximum value 
-    is reached. The function includes an early stopping mechanism that terminates training if validation loss does not improve 
+    Trains a neural network model using the provided data loaders, optimizer, and loss criterion. It incorporates KL divergence
+    into the loss to enable learning in a variational framework, with the KL weight increasing each epoch until a maximum value
+    is reached. The function includes an early stopping mechanism that terminates training if validation loss does not improve
     for a specified number of consecutive epochs.
 
     Parameters:
@@ -580,11 +656,11 @@ def train_nn(model, optimizer, train_loader, valid_loader, n_epoch, criterion, k
 
     """
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     avg_train_loss = []
     avg_valid_loss = []
-    best_valid_loss = float('inf')
+    best_valid_loss = float("inf")
     best_model_state = None
     patience_counter = 0
 
@@ -601,7 +677,7 @@ def train_nn(model, optimizer, train_loader, valid_loader, n_epoch, criterion, k
             loss = criterion(train_output, y)
 
             # Add KL divergence with weight decay
-            kl_div = 0.
+            kl_div = 0.0
             # kl_weight = min(kl_weight + (kl_weight_decay * (epoch // kl_decay_epochs)), 1)
             kl_weight_increment = kl_weight_decay / kl_decay_epochs
             kl_weight = min(kl_weight + kl_weight_increment, 1)
@@ -616,7 +692,7 @@ def train_nn(model, optimizer, train_loader, valid_loader, n_epoch, criterion, k
             optimizer.step()
 
             train_loss.append(loss.detach().item())
-        
+
         # Validation
         model.eval()
         valid_loss = []
@@ -633,35 +709,47 @@ def train_nn(model, optimizer, train_loader, valid_loader, n_epoch, criterion, k
         avg_valid = sum(valid_loss) / len(valid_loss)
         avg_train_loss.append(avg_train)
         avg_valid_loss.append(avg_valid)
-        
+
         training_time = time.time() - t
- 
-        print(f'[{epoch+1:03}/{n_epoch:03}] train_loss: {avg_train:.6f}, valid_loss: {avg_valid:.6f}, time: {training_time:.2f} s')
+
+        print(
+            f"[{epoch+1:03}/{n_epoch:03}] train_loss: {avg_train:.6f}, valid_loss: {avg_valid:.6f}, time: {training_time:.2f} s"
+        )
 
         # Early stopping
         if avg_valid < best_valid_loss:
             best_valid_loss = avg_valid
             patience_counter = 0
-            best_model_state = copy.deepcopy(model.state_dict())  # Save the best model weights
+            best_model_state = copy.deepcopy(
+                model.state_dict()
+            )  # Save the best model weights
 
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"Validation loss hasn't improved for {patience} epochs. Stopping early.")
+                print(
+                    f"Validation loss hasn't improved for {patience} epochs. Stopping early."
+                )
                 break
 
-    return train_output, valid_output, avg_train_loss, avg_valid_loss, best_valid_loss, best_model_state
+    return (
+        train_output,
+        valid_output,
+        avg_train_loss,
+        avg_valid_loss,
+        best_valid_loss,
+        best_model_state,
+    )
 
 
 def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balanced):
-
     """
 
-    Trains a neural network with various configurations of hidden layer sizes and KL weight 
-    decay parameters to find the best model for classifying minerals based on their oxide 
-    composition. It normalizes input data, balances the dataset if required, initializes 
-    the model and optimizer, and performs training and validation. The best performing 
-    model's parameters are saved, along with training and validation losses, and prediction 
+    Trains a neural network with various configurations of hidden layer sizes and KL weight
+    decay parameters to find the best model for classifying minerals based on their oxide
+    composition. It normalizes input data, balances the dataset if required, initializes
+    the model and optimizer, and performs training and validation. The best performing
+    model's parameters are saved, along with training and validation losses, and prediction
     reports.
 
     Parameters:
@@ -677,29 +765,33 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
 
     Returns:
         best_model_state (dict): The state dictionary of the best performing model.
-        
+
     """
 
-    path_beg = os.getcwd() + '/'
-    output_dir = ["parametermatrix_neuralnetwork"] 
+    path_beg = os.getcwd() + "/"
+    output_dir = ["parametermatrix_neuralnetwork"]
     for ii in range(len(output_dir)):
         if not os.path.exists(path_beg + output_dir[ii]):
             os.makedirs(path_beg + output_dir[ii], exist_ok=True)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    wt = df[['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']].fillna(0)
+    wt = df[
+        ["SiO2", "TiO2", "Al2O3", "FeOt", "MnO", "MgO", "CaO", "Na2O", "K2O", "Cr2O3"]
+    ].fillna(0)
 
     ss = StandardScaler()
     array_norm = ss.fit_transform(wt)
 
-    code = pd.Categorical(df['Mineral']).codes
-    cat_lab = pd.Categorical(df['Mineral'])
+    code = pd.Categorical(df["Mineral"]).codes
+    cat_lab = pd.Categorical(df["Mineral"])
 
     # Split the dataset into train and test sets
-    train_x, valid_x, train_y, valid_y = train_test_split(array_norm, code, test_size=n, stratify=code, random_state=42)
+    train_x, valid_x, train_y, valid_y = train_test_split(
+        array_norm, code, test_size=n, stratify=code, random_state=42
+    )
 
-    if balanced == True: 
+    if balanced == True:
         train_x, train_y = balance(train_x, train_y)
 
     # Define datasets to be used with PyTorch - see autoencoder file for details
@@ -711,7 +803,7 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
 
     # Autoencoder params:
     lr = lr
-    wd = wd 
+    wd = wd
     dr = dr
     epochs = ep
     batch_size = 256
@@ -720,30 +812,52 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     best_hidden_layer_size = None
     best_kl_weight_decay = None
     best_model_state = None
-    best_valid_loss = float('inf')
+    best_valid_loss = float("inf")
 
     # Define data loaders
     feature_loader = DataLoader(feature_dataset, batch_size=batch_size, shuffle=True)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
-    np.savez('parametermatrix_neuralnetwork/' + 'best_model_nn_features.npz', feature_loader=feature_loader, valid_loader=valid_loader)
+    np.savez(
+        "parametermatrix_neuralnetwork/" + "best_model_nn_features.npz",
+        feature_loader=feature_loader,
+        valid_loader=valid_loader,
+    )
 
     train_losses_dict = {}
     valid_losses_dict = {}
 
     for hls in hls_list:
         for kl_weight_decay in kl_weight_decay_list:
-
-            print(f"Training with KL weight decay: {kl_weight_decay} and hidden layer sizes: {hls}")
+            print(
+                f"Training with KL weight decay: {kl_weight_decay} and hidden layer sizes: {hls}"
+            )
 
             # Initialize model
-            model = MultiClassClassifier(input_dim=input_size, dropout_rate=dr, hidden_layer_sizes=hls).to(device)
+            model = MultiClassClassifier(
+                input_dim=input_size, dropout_rate=dr, hidden_layer_sizes=hls
+            ).to(device)
 
             # Define loss function and optimizer
             criterion = nn.CrossEntropyLoss()
             optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=wd)
 
             # Train model and get the best test loss and model state
-            train_output, valid_output, avg_train_loss, avg_valid_loss, current_best_valid_loss, current_best_model_state = train_nn(model, optimizer, feature_loader, valid_loader, epochs, criterion, kl_weight_decay=kl_weight_decay)
+            (
+                train_output,
+                valid_output,
+                avg_train_loss,
+                avg_valid_loss,
+                current_best_valid_loss,
+                current_best_model_state,
+            ) = train_nn(
+                model,
+                optimizer,
+                feature_loader,
+                valid_loader,
+                epochs,
+                criterion,
+                kl_weight_decay=kl_weight_decay,
+            )
 
             if current_best_valid_loss < best_valid_loss:
                 best_valid_loss = current_best_valid_loss
@@ -755,7 +869,9 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
             valid_losses_dict[(kl_weight_decay, tuple(hls))] = avg_valid_loss
 
     # Create a new model with the best model state
-    best_model = MultiClassClassifier(input_dim=input_size, dropout_rate=dr, hidden_layer_sizes=best_hidden_layer_size)
+    best_model = MultiClassClassifier(
+        input_dim=input_size, dropout_rate=dr, hidden_layer_sizes=best_hidden_layer_size
+    )
     best_model.load_state_dict(best_model_state)
     best_model.eval()
 
@@ -767,31 +883,61 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
         train_pred_y = train_predictions.argmax(dim=1).cpu().numpy()
 
     # Calculate classification metrics for the test dataset
-    valid_report = classification_report(valid_y, valid_pred_y, target_names=list(sort_mapping.values()), zero_division=0, output_dict=True)
-    train_report = classification_report(train_y, train_pred_y, target_names=list(sort_mapping.values()), zero_division=0, output_dict=True) # output_dict=True
+    valid_report = classification_report(
+        valid_y,
+        valid_pred_y,
+        target_names=list(sort_mapping.values()),
+        zero_division=0,
+        output_dict=True,
+    )
+    train_report = classification_report(
+        train_y,
+        train_pred_y,
+        target_names=list(sort_mapping.values()),
+        zero_division=0,
+        output_dict=True,
+    )  # output_dict=True
 
     # Print the best kl_weight_decay value and test report
     print("Best kl_weight_decay:", best_kl_weight_decay)
     print("Best best_hidden_layer_size:", best_hidden_layer_size)
 
     # Save the best model and other relevant information
-    model_path = 'parametermatrix_neuralnetwork/best_model.pt'
+    model_path = "parametermatrix_neuralnetwork/best_model.pt"
     save_model_nn(optimizer, best_model_state, model_path)
 
-    train_pred_mean, train_pred_std = predict_class_prob_nn_train(model, feature_dataset.x)
-    valid_pred_mean, valid_pred_std = predict_class_prob_nn_train(model, valid_dataset.x)
+    train_pred_mean, train_pred_std = predict_class_prob_nn_train(
+        model, feature_dataset.x
+    )
+    valid_pred_mean, valid_pred_std = predict_class_prob_nn_train(
+        model, valid_dataset.x
+    )
 
     # Get the most probable classes
     train_pred_y = np.argmax(train_pred_mean, axis=1)
     valid_pred_y = np.argmax(valid_pred_mean, axis=1)
 
-    np.savez('parametermatrix_neuralnetwork/best_model_data.npz', best_hidden_layer_size=best_hidden_layer_size, best_kl_weight_decay=best_kl_weight_decay, 
-             valid_report=valid_report, train_report=train_report,
-             train_y=train_y, valid_y=valid_y, train_pred_y=train_pred_y, valid_pred_y=valid_pred_y, 
-             train_pred_mean=train_pred_mean, train_pred_std=train_pred_std, valid_pred_mean=valid_pred_mean, valid_pred_std=valid_pred_std)
+    np.savez(
+        "parametermatrix_neuralnetwork/best_model_data.npz",
+        best_hidden_layer_size=best_hidden_layer_size,
+        best_kl_weight_decay=best_kl_weight_decay,
+        valid_report=valid_report,
+        train_report=train_report,
+        train_y=train_y,
+        valid_y=valid_y,
+        train_pred_y=train_pred_y,
+        valid_pred_y=valid_pred_y,
+        train_pred_mean=train_pred_mean,
+        train_pred_std=train_pred_std,
+        valid_pred_mean=valid_pred_mean,
+        valid_pred_std=valid_pred_std,
+    )
 
     # Save the train and test losses
-    np.savez('parametermatrix_neuralnetwork/best_model_losses.npz', train_losses=train_losses_dict, valid_losses=valid_losses_dict)
+    np.savez(
+        "parametermatrix_neuralnetwork/best_model_losses.npz",
+        train_losses=train_losses_dict,
+        valid_losses=valid_losses_dict,
+    )
 
     return best_model_state
-
