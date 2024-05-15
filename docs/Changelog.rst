@@ -2,6 +2,16 @@
 Change Log
 ==========
 
+Version 0.0.0.6
+===============
+Update prep_nn_df function to remove mineral filter, create missing columns (whilst returning UserWarning).
+
+
+Version 0.0.0.5
+===============
+Fix confusion_matrix_df and prep_nn_df functions.
+
+
 Version 0.0.0.4
 ===============
 Remove plt.show(). 

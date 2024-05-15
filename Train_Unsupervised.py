@@ -49,7 +49,11 @@ plt.rcParams['pdf.fonttype'] = 42
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# min_df = pd.read_csv('Training_Data/mindf_filt_new.csv')
+
 min_df = pd.read_csv('Training_Data/mindf_filt_new.csv')
+min_df_lim = min_df[~min_df['Mineral'].isin(['Tourmaline', 'Quartz', 'Rutile', 'Apatite', 'Zircon'])]
+
 
 oxideslab = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'Mineral']
 oxides = oxideslab[:-1]
@@ -71,14 +75,14 @@ mins = np.unique(df['Mineral'])
 
 # min_df = pd.read_csv('Training_Data/mindf_filt_new.csv')
 
-# names = ["ae_256_64_16", "ae_64_16_4", "ae_128_32_8", 'ae_256_32_8']
-# nodes_list = [(256, 64, 16), (64, 16, 4), (128, 32, 8), (256, 32, 8)]
+names = ["ae_256_64_16_test", "ae_64_16_4_test", "ae_128_32_8_test", 'ae_256_32_8_test']
+nodes_list = [(256, 64, 16), (64, 16, 4), (128, 32, 8), (256, 32, 8)]
 
-# for i in range(len(names)): 
-#     start_time = time.time()
-#     print("starting " + str(names[i]))
-#     z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 50) # (512, 128, 32, 8)
-#     print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
+for i in range(len(names)): 
+    start_time = time.time()
+    print("starting " + str(names[i]))
+    z = mm.autoencode(min_df, names[i], mm.Tanh_Autoencoder, nodes_list[i], 50) # (512, 128, 32, 8)
+    print(names[i] + " done! Time: " + str(time.time() - start_time) + "s")
 
 # %% 
 
