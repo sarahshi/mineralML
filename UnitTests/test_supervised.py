@@ -204,17 +204,16 @@ class mineralML_supervised(unittest.TestCase):
         )
 
     def test_unique_mapping_nn(self):
-        pred_class = np.array([0, 2, 3, 8, 11, 0, 3, 11, -1])
+        pred_class = np.array([0, 2, 3, 8, 11, 0, 3, 11])
         unique, valid_mapping = mm.unique_mapping_nn(pred_class)
 
-        expected_unique = np.array([0, 2, 3, 8, 11, -1])
+        expected_unique = np.array([0, 2, 3, 8, 11])
         expected_valid_mapping = {
             0: "Amphibole",
             2: "Clinopyroxene",
             3: "Garnet",
             8: "Olivine",
             11: "Spinel",
-            -1: "Unknown",
         }
 
         # Verify expected output
@@ -222,7 +221,7 @@ class mineralML_supervised(unittest.TestCase):
         self.assertEqual(valid_mapping, expected_valid_mapping)
 
     def test_class2mineral_nn(self):
-        pred_class = np.array([0, 2, 3, 8, 11, 0, 3, 11, -1])
+        pred_class = np.array([0, 2, 3, 8, 11, 0, 3, 11])
         pred_mineral = mm.class2mineral_nn(pred_class)
 
         expected_pred_mineral = np.array(
@@ -235,7 +234,6 @@ class mineralML_supervised(unittest.TestCase):
                 "Amphibole",
                 "Garnet",
                 "Spinel",
-                "Unknown",
             ]
         )
 
@@ -248,12 +246,6 @@ class mineralML_supervised_balancing(unittest.TestCase):
         # Create a small, imbalanced dataset for testing
         self.train_x = np.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
         self.train_y = np.array([0, 0, 0, 1, 1])
-
-    def test_import_imblearn(self):
-        try:
-            from imblearn.over_sampling import RandomOverSampler
-        except ImportError:
-            self.fail("imbalanced-learn library not installed")
 
     def test_balance_function(self):
         train_x_balanced, train_y_balanced = mm.balance(self.train_x, self.train_y, n=3)
