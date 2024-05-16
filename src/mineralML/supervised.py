@@ -494,9 +494,6 @@ def predict_class_prob_nn(df, n_iterations=250):
 
     output_list = np.array(output_list)
     probability_matrix = output_list.mean(axis=0)
-    # predict_class = np.argmax(probability_matrix, axis=1)
-    # predict_prob = np.max(probability_matrix, axis=1)
-    # predict_mineral = class2mineral_nn(predict_class)
 
     top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
     first_predict_prob = probability_matrix[
