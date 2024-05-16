@@ -241,23 +241,6 @@ class mineralML_supervised(unittest.TestCase):
         np.testing.assert_array_equal(pred_mineral, expected_pred_mineral)
 
 
-# class mineralML_supervised_balancing(unittest.TestCase):
-#     def setUp(self):
-#         # Create a small, imbalanced dataset for testing
-#         self.train_x = np.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
-#         self.train_y = np.array([0, 0, 0, 1, 1])
-
-#     def test_balance_function(self):
-#         train_x_balanced, train_y_balanced = mm.balance(self.train_x, self.train_y, n=3)
-#         # Check the shape of the output
-#         self.assertEqual(train_x_balanced.shape[0], train_y_balanced.shape[0])
-#         self.assertEqual(train_x_balanced.shape[1], self.train_x.shape[1])
-
-#         # Check that each class has the correct number of samples
-#         unique, counts = np.unique(train_y_balanced, return_counts=True)
-#         self.assertTrue((counts == 3).all())
-
-
 class test_variational_layer(unittest.TestCase):
     def setUp(self):
         self.input_features = 5
