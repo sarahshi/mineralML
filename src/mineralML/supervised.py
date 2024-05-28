@@ -167,7 +167,7 @@ def norm_data_nn(df):
     # scaled_df = df[oxides].reset_index(drop=True).copy()
 
     if df[oxides].isnull().any().any():
-        df, _ = prep_df_nn(df)
+        df = prep_df_nn(df)
     else:
         df = df
 
@@ -528,10 +528,10 @@ def predict_class_prob_nn(df, n_iterations=250):
     first_predict_mineral = class2mineral_nn(top_two_indices[:, 1])
     second_predict_mineral = class2mineral_nn(top_two_indices[:, 0])
 
-    df["Predict_Mineral"] = first_predict_mineral
-    df["Predict_Probability"] = first_predict_prob
-    df["Second_Predict_Mineral"] = second_predict_mineral
-    df["Second_Predict_Probability"] = second_predict_prob
+    df.loc[:, "Predict_Mineral"] = first_predict_mineral
+    df.loc[:, "Predict_Probability"] = first_predict_prob
+    df.loc[:, "Second_Predict_Mineral"] = second_predict_mineral
+    df.loc[:, "Second_Predict_Probability"] = second_predict_prob
 
     return df, probability_matrix
 
