@@ -96,14 +96,25 @@ def prep_df_nn(df):
                 stacklevel=2,
             )
 
+    # Convert columns to numeric, coercing errors to NaN
+    df[oxides] = df[oxides].apply(pd.to_numeric, errors='coerce')
+    
+    # Warn if any non-numeric values were coerced to NaN
+    if df[oxides].isnull().any().any():
+        warnings.warn(
+            "Some non-numeric values were found in the oxides columns and have been coerced to NaN.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     # Drop rows with fewer than 6 non-NaN values in the oxides columns
     df.dropna(subset=oxides, thresh=6, inplace=True)
 
     # Fill remaining NaN values with 0 for oxides, keep NaN for 'Mineral'
-    df[oxides] = df[oxides].fillna(0)
+    df.loc[:, oxides] = df.loc[:, oxides].fillna(0)
 
     # Ensure only oxides, 'Mineral', and 'SampleID' columns are kept
-    df = df[oxides + ["Mineral", "SampleID"]]
+    df = df.loc[:, oxides + ["Mineral", "SampleID"]]
 
     # Ensure SampleID is the index
     df.set_index("SampleID", inplace=True)
@@ -139,9 +150,21 @@ def norm_data_nn(df):
         "K2O",
         "Cr2O3",
     ]
+    
     mean, std = load_scaler("scaler_nn.npz")
 
+    # Ensure that mean and std are Series objects with indices matching the columns
+    if not isinstance(mean, pd.Series) or not isinstance(std, pd.Series):
+        raise ValueError("mean and std should be Series")
+
+    for col in oxides:
+        if col not in mean.index or col not in std.index:
+            raise ValueError(f"Missing mean or std for column: {col}")
+
+    df = df.reset_index(drop=False)
     scaled_df = df[oxides].copy()
+
+    # scaled_df = df[oxides].reset_index(drop=True).copy()
 
     if df[oxides].isnull().any().any():
         df, _ = prep_df_nn(df)

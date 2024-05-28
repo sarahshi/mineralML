@@ -2,6 +2,12 @@
 Change Log
 ==========
 
+
+Version 0.0.0.7
+===============
+Update prep_nn_df function to coerce strings in data and to return warnings. 
+
+
 Version 0.0.0.6
 ===============
 Update prep_nn_df function to remove mineral filter, create missing columns (whilst returning UserWarning).
