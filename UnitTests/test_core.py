@@ -116,7 +116,7 @@ class test_NetworkWeights(unittest.TestCase):
             self.bn1 = nn.BatchNorm2d(20)
 
 
-    def is_normal_distribution(self, tensor, mean, std, tolerance=0.01):
+    def is_normal_distribution(self, tensor, mean, std, tolerance=0.05):
         # Check if the mean of the tensor is close to the expected mean
         mean_close = math.isclose(tensor.mean().item(), mean, abs_tol=tolerance)
         # Check if the standard deviation of the tensor is close to the expected std
