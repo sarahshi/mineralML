@@ -1,15 +1,8 @@
 import unittest
-from unittest.mock import patch, mock_open
-from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-import os
-import glob
-import random
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
-import torch.optim as optim
 import mineralML as mm
 
 
