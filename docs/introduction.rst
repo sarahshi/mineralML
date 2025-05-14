@@ -2,11 +2,11 @@
 Introduction and Citation
 =========================
 
-Welcome to ``mineralML``: An Open-Source Machine Learning Package for Probabilistically Classifying Minerals.
+Welcome to ``mineralML``: An Open-Source Machine Learning Package for Probabilistically Classifying Minerals.˘
 
 The development of this tool is currently in progress, with submission planned in the near future. Please make sure you cite this tool if you use it. Software development takes time and and academia does not always recognize the effort taken, but it does recognize citations. 
 
-The open-source nature of the tool allows for continuous development. We welcome the submission of high quality mineral analyses that can be added to the training dataset. You can email `sarah.shi@columbia.edu <mailto:sarah.shi@columbia.edu>`_ or post an enhancement request or report of a bug on the issue page of the `mineralML GitHub repository <https://github.com/SarahShi/mineralML>`_. 
+The open-source nature of the tool allows for continuous development. We welcome the submission of high quality mineral analyses that can be added to the training dataset. You can email `sarahshi@berkeley.edu <mailto:sarahshi@berkeley.edu>`_ or post an enhancement request or report of a bug on the issue page of the `mineralML GitHub repository <https://github.com/SarahShi/mineralML>`_. 
 
 
 =============
@@ -15,7 +15,7 @@ Collaborators
 
 These folks have been fundamental to the development of ``mineralML``: 
 
-- `Sarah Shi <https://github.com/sarahshi>`_ (LDEO) 
+- `Sarah Shi <https://github.com/sarahshi>`_ (University of California, Berkeley) 
 - `Penny Wieser <https://github.com/pennywieser>`_ (University of California, Berkeley)
 - `Norbert Toth <https://github.com/norberttoth398>`_ (University of Cambridge)
 - `Paula Antoshechkina <https://github.com/magmasource>`_ (California Institute of Technology)
@@ -53,16 +53,16 @@ Chemistry
 
 ``mineralML`` requires inputs of mineral chemistry, in the form of oxides. The machine learning models are trained on 10 oxides: 
 
-*  SiO\ :sub:`2`
-*  TiO\ :sub:`2`
-*  Al\ :sub:`2` O\ :sub:`3`
-*  FeO\ :sub:`t`
+*  SiO₂
+*  TiO₂
+*  Al₂O₃
+*  FeOₜ
 *  MnO
 *  MgO 
 *  CaO 
-*  Na\ :sub:`2` O
-*  K\ :sub:`2` O
-*  Cr\ :sub:`2` O\ :sub:`3`
+*  Na₂O
+*  K₂O
+*  Cr₂O₃
 
 
 =====
