@@ -4,21 +4,23 @@ channels:
     - pytorch
     - defaults
 dependencies:
-    - python=3.9
+    - python
     - pandoc
     - pip
     - pip:
         - sphinx_rtd_theme>=0.5.0
         - ipython
         - sphinxcontrib-bibtex>=2.3.0
-        - nbsphinx==0.8.12
+        - sphinx<=8.1.0
+        - nbsphinx==0.9.6
         - ipykernel
-        - matplotlib
-        - numpy
+        - openpyxl
         - pandas
+        - numpy
+        - matplotlib
+        - scikit-learn
         - scipy
         - seaborn
-        - scikit-learn
         - torch
         - hdbscan
         - mineralML
