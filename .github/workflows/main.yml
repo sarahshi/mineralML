@@ -2,13 +2,16 @@ name: Test and publish to PyPI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - development
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - development
   release:
     types: [ created ]
-
 
 jobs:
   test:
@@ -39,7 +42,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        coverage run -m pytest
+        coverage run -m pytest --cache-clear
 
     - name: Clean up coverage data
       run: |
@@ -67,8 +70,9 @@ jobs:
         python -m pip install --upgrade pip;
         python -m pip install build
         pip install setuptools wheel twine
-        python setup.py sdist bdist_wheel
-    - uses: actions/upload-artifact@v2
+        python -m build
+        # python setup.py sdist bdist_wheel
+    - uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist

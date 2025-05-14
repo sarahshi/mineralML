@@ -22,7 +22,7 @@ def pp_matrix(
     figsize=[10.5, 10.5],
     show_null_values=0,
     pred_val_axis="x",
-):  # , savefig = None,):
+):
     """
 
     Creates and displays a confusion matrix visualization using Seaborn's heatmap function.

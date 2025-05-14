@@ -22,3 +22,5 @@ Validate_AE.py
 .ipynb_checkpoints
 /ignore/
 /parametermatrix_autoencoder/
+/parametermatrix_neuralnetwork/
+/T8_quant/
