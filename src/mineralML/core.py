@@ -139,38 +139,6 @@ def load_scaler(scaler_path):
     return mean, std
 
 
-# def create_dataloader(df, batch_size=128, shuffle=False):
-
-#     """
-
-#     Creates a DataLoader for the given DataFrame. It normalizes the input features and converts 
-#     the 'Mineral' column to categorical codes based on predefined mineral classes. The resulting 
-#     DataLoader can be used to iterate over the dataset in batches during model training or evaluation.
-#     The function relies on the 'load_minclass_nn' function to obtain the list of category names 
-#     for the 'Mineral' column and the 'norm_data' function to normalize the feature columns 
-#     before creating the DataLoader.
-
-#     Parameters:
-#         df (DataFrame): The DataFrame containing features and mineral labels to load into the DataLoader.
-#         batch_size (int): The number of samples to load per batch. Defaults to 128.
-#         shuffle (bool): Whether to shuffle the data before loading it. Defaults to False.
-
-#     Returns:
-#         dataloader (DataLoader): A PyTorch DataLoader object ready for model consumption.
-    
-#     """
-
-#     min_cat, _ = load_minclass_nn()
-#     data_x = norm_data_nn(df)
-#     df['Mineral'] = pd.Categorical(df['Mineral'], categories=min_cat)
-#     data_y = df['Mineral'].cat.codes.values
-
-#     label_dataset = LabelDataset(data_x, data_y)
-#     dataloader = DataLoader(label_dataset, batch_size, shuffle)
-
-#     return dataloader
-
-
 def weights_init(m):
 
     """

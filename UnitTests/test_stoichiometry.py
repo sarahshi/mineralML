@@ -10,9 +10,9 @@ class TestBaseMineralCalculator(unittest.TestCase):
     def setUp(self):
         # Minimal olivine-like test composition
         self.df = pd.DataFrame({
-            'SiO2': [40.0],
-            'MgO': [50.0],
-            'FeOt': [10.0]
+            'SiO2': [39.84],
+            'MgO': [43.12],
+            'FeOt': [17.39]
         })
 
     def test_invalid_base_instantiation(self):
@@ -35,7 +35,7 @@ class TestBaseMineralCalculator(unittest.TestCase):
         self.assertIn("SiO2_mols", moles.columns)
         self.assertAlmostEqual(
             moles["SiO2_mols"].iloc[0],
-            40.0 / mm.OlivineCalculator.OXIDE_MASSES["SiO2"],
+            39.84 / mm.OlivineCalculator.OXIDE_MASSES["SiO2"],
             places=4
         )
 
@@ -49,7 +49,7 @@ class TestBaseMineralCalculator(unittest.TestCase):
         calc = mm.OlivineCalculator(self.df)
         cats = calc.calculate_cations()
         self.assertIn("Mg_cat_4ox", cats.columns)
-        self.assertAlmostEqual(cats.sum(axis=1).iloc[0], 4.0, places=1)
+        self.assertAlmostEqual(cats.sum(axis=1).iloc[0], 3.0, places=1)
 
     def test_calculate_all(self):
         calc = mm.OlivineCalculator(self.df)
@@ -62,9 +62,9 @@ class TestOlivineCalculator(unittest.TestCase):
 
     def setUp(self):
         self.df = pd.DataFrame({
-            'SiO2': [41.0],
-            'MgO': [48.0],
-            'FeOt': [11.0]
+            'SiO2': [39.84],
+            'MgO': [43.12],
+            'FeOt': [17.39]
         })
 
     def test_calculate_components(self):

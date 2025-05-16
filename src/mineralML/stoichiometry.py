@@ -54,19 +54,21 @@ class BaseMineralCalculator:
     
     def __init__(self, comps):
         """Initialize with mineral compositions."""
-        self.comps = comps.clip(lower=0).copy()
-        self._validate_subclass()
-
         # Determine oxide columns with suffix
         self.oxide_cols = [
             oxide for oxide in self.OXIDE_MASSES if oxide in comps.columns
         ]
+        oxide_cols = self.oxide_cols
+        # Keep non-numeric or non-oxide metadata
+        self.metadata = comps.drop(columns=self.oxide_cols, errors="ignore")
+
+        self.comps = comps[oxide_cols].clip(lower=0).copy()
+        self._validate_subclass()
 
         _FeOt = 'FeOt' in self.oxide_cols and self.comps['FeOt'].notna().any()
         _Fe2O3t = 'Fe2O3t' in self.oxide_cols and self.comps['Fe2O3t'].notna().any()
         _FeO = 'FeO' in self.oxide_cols and self.comps['FeO'].notna().any()
         _Fe2O3 = 'Fe2O3' in self.oxide_cols and self.comps['Fe2O3'].notna().any()
-
 
         if _FeOt and (_FeO or _Fe2O3):
             raise ValueError("Mixing 'FeOt' with 'FeO' and 'Fe2O3'. Provide only 'FeOt', 'Fe2O3t', or both 'FeO' and 'Fe2O3'.")
@@ -74,9 +76,6 @@ class BaseMineralCalculator:
             raise ValueError("Mixing 'Fe2O3t' with 'FeO' and 'Fe2O3'. Provide only 'Fe2O3t', 'FeOt', or both 'FeO' and 'Fe2O3'.")
         if (_FeO != _Fe2O3):
             raise ValueError("If using 'FeO' and 'Fe2O3', both must be provided.")
-
-        # Keep non-numeric or non-oxide metadata
-        self.metadata = comps.drop(columns=self.oxide_cols, errors="ignore")
 
     def _validate_subclass(self):
         """Check if subclass defined required constants."""
@@ -164,11 +163,44 @@ class BaseMineralCalculator:
 
     def calculate_all(self):
         """Calculate and combine all properties in one DataFrame."""
+        idx = self.metadata.index
+        first = self.metadata.reindex(
+            index=idx,
+            columns=['Sample Name'],
+            fill_value=np.nan
+        )
+        last = self.metadata.reindex(
+            index=idx,
+            columns=['Mineral','Source'],
+            fill_value=np.nan
+        )
+
         moles = self.calculate_moles()
         oxygens = self.calculate_oxygens()
         cations = self.calculate_cations()
 
-        return pd.concat([self.comps, moles, oxygens, cations], axis=1)
+        # return columns in order of self.OXIDE_MASSES
+        oxide_cols = [ox for ox in self.OXIDE_MASSES.keys() if ox in self.comps.columns]
+
+        # corresponding mol‐ and ox‐ columns
+        mole_cols   = [f"{ox}_mols"       for ox in oxide_cols]
+        oxygen_cols = [f"{ox}_ox"         for ox in oxide_cols]
+        # map each oxide → its cation column name and suffix
+        cation_cols = [
+            f"{self.OXIDE_TO_CATION_MAP[ox]}_cat_{self.OXYGEN_BASIS}ox"
+            for ox in oxide_cols
+            if f"{self.OXIDE_TO_CATION_MAP[ox]}_cat_{self.OXYGEN_BASIS}ox" in cations.columns
+        ]
+
+        df = pd.concat([first, 
+                        self.comps[oxide_cols], 
+                        moles[mole_cols], 
+                        oxygens[oxygen_cols], 
+                        cations[cation_cols], 
+                        last],
+                       axis=1)
+
+        return df
 
 
 # %%
@@ -180,7 +212,6 @@ class AmphiboleCalculator(BaseMineralCalculator):
     CATION_BASIS = 13
     MINERAL_SUFFIX = "_Amp"
 
-    # Extend the parent's dictionaries by merging them with F, Cl data
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"F": 18.998403, "Cl": 35.453})
     OXYGEN_NUMBERS = dict(BaseMineralCalculator.OXYGEN_NUMBERS, **{"F": 0, "Cl": 0})
     CATION_NUMBERS = dict(BaseMineralCalculator.CATION_NUMBERS, **{"F": 1, "Cl": 1})
@@ -188,11 +219,10 @@ class AmphiboleCalculator(BaseMineralCalculator):
 
     def calculate_components(self):
         """Return complete amphibole composition with site assignments."""
-        base = self.calculate_all() # includes self.comps, moles, oxygens, and cations
+        base = self.calculate_all()
         cat_suffix = f"_cat_{self.OXYGEN_BASIS}ox"
         cat_norm_13_suffix = f"_{self.CATION_BASIS}cat"
 
-        # Grab just the cation columns from `base`
         cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
 
         Si = base[f"Si{cat_suffix}"]
@@ -206,78 +236,188 @@ class AmphiboleCalculator(BaseMineralCalculator):
         K = base.get(f"K{cat_suffix}", 0)
         Cr = base.get(f"Cr{cat_suffix}", 0)
 
-        # Compute site assignments in sites dataframe
         sites = pd.DataFrame(index=base.index)
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["Cation_Sum_Si_Mg"] = Si + Ti + Al + Cr + Fe + Mn + Mg
         sites["Cation_Sum_Si_Ca"] = Si + Ca
         sites["Cation_Sum_Amp"] = Si + Ca + Na + K
         sites["XMg"] = Mg / (Mg + Fe)
+    
+        cat_norm_13, ridolfi_sites = self.calculate_ridolfi_sites(
+            base=base,
+            sites=sites,
+            cat_suffix=cat_suffix,
+            cat_norm_13_suffix=cat_norm_13_suffix,
+            cation_basis=self.CATION_BASIS
+        )
 
-        # cat_norm_13, sites = self.calculate_ridolfi_components(
-        #     base=base,
-        #     sites=sites,
-        #     cat_suffix=cat_suffix,
-        #     cat_norm_13_suffix=cat_norm_13_suffix,
-        #     cation_basis=self.CATION_BASIS
-        # )
+        leake_sites = self.calculate_leake_sites(
+            base=base,
+            sites=sites,
+            cat_suffix=cat_suffix,
+            cat_norm_13_suffix=cat_norm_13_suffix,
+            cation_basis=self.CATION_BASIS
+        )
 
-        return pd.concat([base, sites], axis=1)
+        return pd.concat([
+            base,
+            sites,
+            ridolfi_sites.add_suffix("_ridolfi"),
+            cat_norm_13.add_suffix("_ridolfi_norm"),
+            leake_sites.add_suffix("_leake")
+        ], axis=1)
 
-    # def calculate_ridolfi_sites(base, sites, cat_suffix, cat_norm_13_suffix, cation_basis):
-    #     """Compute Ridolfi 13-cation normalized site assignments."""
-    #     cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
-    #     cat_norm_13 = cation_basis * base[cation_cols].div(sites["Cation_Sum_Si_Mg"], axis=0)
-    #     cat_norm_13.columns = [col.replace(cat_suffix, cat_norm_13_suffix) for col in cat_norm_13.columns]
+    def calculate_ridolfi_sites(self, base, sites, cat_suffix, cat_norm_13_suffix, cation_basis):
+        """Compute Ridolfi 13-cation normalized site assignments and perform Ridolfi-style recalc checks."""
+        cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
+        cat_norm_13 = cation_basis * base[cation_cols].div(sites["Cation_Sum_Si_Mg"], axis=0)
+        cat_norm_13.columns = [col.replace(cat_suffix, cat_norm_13_suffix) for col in cat_norm_13.columns]
 
-    #     # Ridolfi site assignments
-    #     sites['Si_T_Amp'] = cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)
-    #     sites['Al_IV_T_Amp'] = 8 - sites['Si_T_Amp']
-    #     Si_Al_less8 = cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) + cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) < 8
-    #     sites.loc[Si_Al_less8, 'Al_IV_T_Amp'] = cat_norm_13.loc[Si_Al_less8, f"Al{cat_norm_13_suffix}"]
+        # H2O and O=F,Cl corrections
+        sites['H2O_calc'] = (
+            (2 - base.get("F", 0) - base.get("Cl", 0)) *
+            sites["Cation_Sum_Si_Mg"] * 17 / self.CATION_BASIS / 2
+        )
+        sites['O=F,Cl'] = -(
+            base.get("F", 0) * 0.421070639014633 +
+            base.get("Cl", 0) * 0.225636758525372
+        )
 
-    #     # Ti, If Si + Al (IV)<8, 8-Si-AlIV
-    #     Si_Al_sites_less8 = (cat_norm_13["Si_T_Amp"] + cat_norm_13["Al_IV_T_Amp"]) < 8
-    #     cat_norm_13.loc[(Si_Al_sites_less8), "Ti_T_Amp"] = (
-    #         8 - cat_norm_13["Si_T_Amp"] - cat_norm_13["Al_IV_T_Amp"]
-    #     )
-        
-    #     sites['Ti_T_Amp'] = 0
-    #     space_in_T = (sites['Si_T_Amp'] + sites['Al_IV_T_Amp']) < 8
-    #     sites.loc[space_in_T, 'Ti_T_Amp'] = 8 - sites.loc[space_in_T, 'Si_T_Amp'] - sites.loc[space_in_T, 'Al_IV_T_Amp']
+        # Fe3+ and Fe2+ recalculated amounts
+        charge = (
+            cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) * 4 +
+            cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0) * 4 +
+            cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) * 3 +
+            cat_norm_13.get(f"Cr{cat_norm_13_suffix}", 0) * 3 +
+            cat_norm_13.get(f"Fe2t{cat_norm_13_suffix}", 0) * 2 +
+            cat_norm_13.get(f"Mn{cat_norm_13_suffix}", 0) * 2 +
+            cat_norm_13.get(f"Mg{cat_norm_13_suffix}", 0) * 2 +
+            cat_norm_13.get(f"Ca{cat_norm_13_suffix}", 0) * 2 +
+            cat_norm_13.get(f"Na{cat_norm_13_suffix}", 0) +
+            cat_norm_13.get(f"K{cat_norm_13_suffix}", 0)
+        )
+        sites['Charge'] = charge
+        fe3 = (46 - charge).clip(lower=0)
+        fe2 = (cat_norm_13.get(f"Fe2t{cat_norm_13_suffix}", 0) - fe3).clip(lower=0)
+        sites['Fe3_calc'] = fe3
+        sites['Fe2_calc'] = fe2
+        sites['Fe2O3_calc'] = fe3 * sites["Cation_Sum_Si_Mg"] * 159.691 / self.CATION_BASIS / 2
+        sites['FeO_calc'] = fe2 * sites["Cation_Sum_Si_Mg"] * 71.846 / self.CATION_BASIS
 
-    #     sites['Al_VI_C_Amp'] = cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) - sites['Al_IV_T_Amp']
-    #     sites['Ti_C_Amp'] = cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0) - sites['Ti_T_Amp']
-    #     sites['Cr_C_Amp'] = cat_norm_13.get(f"Cr{cat_norm_13_suffix}", 0)
+        # Recalculated total
+        oxide_cols = [col for col in base.columns if col.endswith("_Amp") and not col.endswith(cat_suffix)]
+        sites["Sum_input"] = base[oxide_cols].sum(axis=1)
+        sites["Total_recalc"] = (
+            sites["Sum_input"]
+            - base.get("FeOt_Amp", 0)
+            + sites["H2O_calc"]
+            + sites['Fe2O3_calc']
+            + sites['FeO_calc']
+            + sites["O=F,Cl"]
+        )
 
-    #     sites['Charge_Amp'] = (
-    #         cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) * 4 +
-    #         cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0) * 4 +
-    #         cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) * 3 +
-    #         cat_norm_13.get(f"Cr{cat_norm_13_suffix}", 0) * 3 +
-    #         cat_norm_13.get(f"Fe2t{cat_norm_13_suffix}", 0) * 2 +
-    #         cat_norm_13.get(f"Mn{cat_norm_13_suffix}", 0) * 2 +
-    #         cat_norm_13.get(f"Mg{cat_norm_13_suffix}", 0) * 2 +
-    #         cat_norm_13.get(f"Ca{cat_norm_13_suffix}", 0) * 2 +
-    #         cat_norm_13.get(f"Na{cat_norm_13_suffix}", 0) +
-    #         cat_norm_13.get(f"K{cat_norm_13_suffix}", 0)
-    #     )
+        # Input checks
+        sites["Fail Msg"] = ""
+        sites["Input_Check"] = True
+        sites.loc[sites["Sum_input"] < 90, ["Input_Check", "Fail Msg"]] = [False, "Cation oxide Total<90"]
+        sites.loc[sites["Total_recalc"] < 98.5, ["Input_Check", "Fail Msg"]] = [False, "Recalc Total<98.5"]
+        sites.loc[sites["Total_recalc"] > 102, ["Input_Check", "Fail Msg"]] = [False, "Recalc Total>102"]
+        sites.loc[sites["Charge"] > 46.5, ["Input_Check", "Fail Msg"]] = [False, "unbalanced charge (>46.5)"]
+        sites["Fe2_C"] = fe2
+        sites.loc[sites["Fe2_C"] < 0, ["Input_Check", "Fail Msg"]] = [False, "unbalanced charge (Fe2<0)"]
+        sites["Mgno_Fe2"] = cat_norm_13.get(f"Mg{cat_norm_13_suffix}", 0) / (
+            cat_norm_13.get(f"Mg{cat_norm_13_suffix}", 0) + fe2
+        )
+        sites["Mgno_FeT"] = cat_norm_13.get(f"Mg{cat_norm_13_suffix}", 0) / (
+            cat_norm_13.get(f"Mg{cat_norm_13_suffix}", 0) + cat_norm_13.get(f"Fe2t{cat_norm_13_suffix}", 0)
+        )
+        sites.loc[100 * sites["Mgno_Fe2"] < 54, ["Input_Check", "Fail Msg"]] = [False, "Low Mg# (<54)"]
+        sites["Ca_B"] = cat_norm_13.get(f"Ca{cat_norm_13_suffix}", 0)
+        sites.loc[sites["Ca_B"] < 1.5, ["Input_Check", "Fail Msg"]] = [False, "Low Ca (<1.5)"]
+        sites.loc[sites["Ca_B"] > 2.05, ["Input_Check", "Fail Msg"]] = [False, "High Ca (>2.05)"]
+        sites["Na_calc"] = 2 - sites["Ca_B"]
+        sites.loc[cat_norm_13.get(f"Na{cat_norm_13_suffix}", 0) < sites["Na_calc"], "Na_calc"] = cat_norm_13.get(f"Na{cat_norm_13_suffix}", 0)
+        sites["B_Sum"] = sites["Na_calc"] + sites["Ca_B"]
+        sites.loc[sites["B_Sum"] < 1.99, ["Input_Check", "Fail Msg"]] = [False, "Low B Cations"]
 
-    #     sites['Fe3_C_Amp'] = (46 - sites['Charge_Amp']).clip(lower=0)
-    #     sites['Fe2_C_Amp'] = cat_norm_13.get(f"Fe2t{cat_norm_13_suffix}", 0) - sites['Fe3_C_Amp']
+        sites["Na_A"] = (cat_norm_13.get(f"Na{cat_norm_13_suffix}", 0) - (2 - sites["Ca_B"]).clip(lower=0))
+        sites["K_A"] = cat_norm_13.get(f"K{cat_norm_13_suffix}", 0)
+        sites["A_Sum"] = sites["Na_A"] + sites["K_A"]
 
-    #     sites['Mg_C_Amp'] = cat_norm_13.get(f"Mg{cat_norm_13_suffix}", 0)
-    #     sites['Mn_C_Amp'] = cat_norm_13.get(f"Mn{cat_norm_13_suffix}", 0)
-    #     sites['Ca_B_Amp'] = cat_norm_13.get(f"Ca{cat_norm_13_suffix}", 0)
-    #     sites['Na_B_Amp'] = 2 - sites['Ca_B_Amp']
+        # Classification logic
+        sites["Classification"] = "N/A"
+        lowCa = sites["Ca_B"] < 1.5
+        LowMgno = sites["Mgno_Fe2"] < 0.5
+        MgHbl = cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) >= 6.5
+        Kaer = (cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)))).clip(lower=0) > 0.5
+        Tsh = sites["A_Sum"] < 0.5
+        MgHast = sites["Fe3_calc"] > (cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)))
 
-    #     ca_gt_na = cat_norm_13.get(f"Na{cat_norm_13_suffix}", 0) < sites['Na_B_Amp']
-    #     sites.loc[ca_gt_na, 'Na_B_Amp'] = cat_norm_13.loc[ca_gt_na, f"Na{cat_norm_13_suffix}"]
+        sites.loc[lowCa, "Classification"] = "low-Ca"
+        sites.loc[(~lowCa) & LowMgno, "Classification"] = "low-Mg"
+        sites.loc[(~lowCa) & (~LowMgno) & MgHbl, "Classification"] = "Mg-Hornblende"
+        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & Kaer, "Classification"] = "kaersutite"
+        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & (~Kaer) & Tsh, "Classification"] = "Tschermakitic pargasite"
+        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & (~Kaer) & (~Tsh) & MgHast, "Classification"] = "Mg-hastingsite"
+        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & (~Kaer) & (~Tsh) & (~MgHast), "Classification"] = "Pargasite"
 
-    #     sites['Na_A_Amp'] = cat_norm_13.get(f"Na{cat_norm_13_suffix}", 0) - sites['Na_B_Amp']
-    #     sites['K_A_Amp'] = cat_norm_13.get(f"K{cat_norm_13_suffix}", 0)
+        return cat_norm_13, sites
 
-    #     return cat_norm_13, sites
+    def calculate_leake_sites(self, base, sites, cat_suffix, cat_norm_13_suffix, cation_basis):
+
+        sites = pd.DataFrame(index=base.index, dtype=float)
+        columns = ["Si_T", "Al_T", "Al_C", "Ti_C", "Mg_C", "Fe2t_C", 
+                   "Mn_C", "Cr_C", "Mg_B", "Fe2t_B", "Mn_B", "Na_B", 
+                   "Ca_B", "Na_A", "K_A", "Ca_A"]
+        for col in columns:
+            sites[col] = 0.0
+
+        sites["Si_T"] = base.get(f"Si{cat_suffix}", 0)
+        sites["Ti_C"] = base.get(f"Ti{cat_suffix}", 0)
+        sites["Cr_C"] = base.get(f"Cr{cat_suffix}", 0)
+        sites["Ca_B"] = base.get(f"Ca{cat_suffix}", 0)
+        sites["K_A"] = base.get(f"K{cat_suffix}", 0)
+
+        total_T = sites["Si_T"] + base.get(f"Al{cat_suffix}", 0)
+        mask_excess_T = total_T > 8
+        sites.loc[mask_excess_T, "Al_T"] = (8 - sites["Si_T"]).clip(lower=0)
+        sites.loc[mask_excess_T, "Al_C"] = base.get(f"Al{cat_suffix}", 0) - sites["Al_T"]
+        mask_deficient_T = total_T <= 8
+        sites.loc[mask_deficient_T, "Al_T"] = base.get(f"Al{cat_suffix}", 0)
+        sites.loc[mask_deficient_T, "Al_C"] = 0
+
+        prefilled_C = sites["Al_C"] + sites["Ti_C"] + sites["Cr_C"]
+        room_left = 5 - prefilled_C
+
+        for ion in ["Mg", "Fe2t", "Mn"]:
+            amt = base.get(f"{ion}_cat_23ox", 0)
+            col = f"{ion}_C"
+            alloc = room_left.where(amt >= room_left, amt)
+            sites[col] = alloc.clip(lower=0)
+            room_left -= sites[col]
+
+        for ion in ["Mg", "Fe2t", "Mn"]:
+            residual = base.get(f"{ion}_cat_23ox", 0) - sites.get(f"{ion}_C", 0)
+            sites[f"{ion}_B"] = residual.clip(lower=0)
+
+        sum_B = sites["Mg_B"] + sites["Fe2t_B"] + sites["Mn_B"] + sites["Ca_B"]
+        fill_B = 2 - sum_B
+        enough_Na = base.get(f"Na{cat_suffix}", 0) >= fill_B
+        sites["Na_B"] = fill_B.where(enough_Na, base.get(f"Na{cat_suffix}", 0))
+        sites["Na_A"] = (base.get(f"Na{cat_suffix}", 0) - sites["Na_B"]).clip(lower=0)
+
+        sites["Sum_T"] = sites["Al_T"] + sites["Si_T"]
+        sites["Sum_C"] = sites["Al_C"] + sites["Cr_C"] + sites["Mg_C"] + sites["Fe2t_C"] + sites["Mn_C"]
+        sites["Sum_B"] = sites["Mg_B"] + sites["Fe2t_B"] + sites["Mn_B"] + sites["Ca_B"] + sites["Na_B"]
+        sites["Sum_A"] = sites["K_A"] + sites["Na_A"]
+
+        sites["Cation_Sum"] = sites["Sum_T"] + sites["Sum_C"] + sites["Sum_B"] + sites["Sum_A"]
+        mg = base[f"Mg{cat_suffix}"]
+        fet = base[f"Fe2t{cat_suffix}"]
+        denom = mg + fet
+        sites["Mgno"] = mg / denom.replace(0, np.nan)
+
+        return sites
 
 
 class ApatiteCalculator(BaseMineralCalculator):
@@ -349,7 +489,7 @@ class BiotiteCalculator(BaseMineralCalculator):
 class CalciteCalculator(BaseMineralCalculator):
     """Calcite-specific calculations. CaCO3."""
     OXYGEN_BASIS = 3
-    MINERAL_SUFFIX = "_Ca"
+    MINERAL_SUFFIX = "_Cal"
 
     # Extend the parent's dictionaries by merging them with CO2 data
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"CO2": 44.009})
@@ -574,7 +714,7 @@ class EpidoteCalculator(BaseMineralCalculator):
 class FeldsparCalculator(BaseMineralCalculator):
     """Feldspar-specific calculations."""
     OXYGEN_BASIS = 8
-    MINERAL_SUFFIX = "_Plag"
+    MINERAL_SUFFIX = "_Feld"
 
     def calculate_components(self):
         """Return complete feldspar composition with site assignments and anorthite, albite, orthoclase."""
@@ -636,7 +776,11 @@ class GarnetCalculator(BaseMineralCalculator):
 
         update_cation_cols = [ox for ox in self.OXIDE_MASSES if ox in update_base.columns]
         update_comps = update_base[update_cation_cols].copy()
-        update_calc = type(self)(update_comps)
+        update_df = pd.concat([
+            self.metadata,
+            update_comps
+            ], axis=1)
+        update_calc = type(self)(update_df)
         base_update = update_calc.calculate_all()
 
         # Grab just the cation columns from `base`
@@ -658,11 +802,18 @@ class GarnetCalculator(BaseMineralCalculator):
         Cr = base_update.get(f"Cr{cat_suffix}", 0)
 
         sites = pd.DataFrame(index=base.index)
-        sites["Cation_Sum"] = base_update[update_cation_cols].sum(axis=1)
+        sites["Cation_Sum"] = base_update[cation_cols].sum(axis=1)
 
         sites["X_site"] = Mg + Fe2 + Ca + Mn
         sites["Y_site"] = Al + Cr + Mn
         sites["T_site"] = Si + Al 
+
+        sites['Mg_MgFeCa'] = Mg / (Mg + Fe + Ca)
+        sites['Fe_MgFeCa'] = Fe / (Mg + Fe + Ca)
+        sites['Ca_MgFeCa'] = Ca / (Mg + Fe + Ca)
+
+        sites['Al_AlCr'] = Al / (Al + Cr)
+        sites['Cr_AlCr'] = Cr / (Al + Cr)
 
         sites['Fe3_prop'] = Fe3 / (Fe2 + Fe3)
         sites["And"] = (Fe3 / (Fe + Al)).clip(lower=0)
@@ -685,7 +836,7 @@ class GarnetCalculator(BaseMineralCalculator):
 class KalsiliteCalculator(BaseMineralCalculator):
     """Kalsilite-specific calculations. K[AlSiO4]."""
     OXYGEN_BASIS = 4
-    MINERAL_SUFFIX = "_Ks"
+    MINERAL_SUFFIX = "_Kal"
 
     def calculate_components(self):
         """Return complete kalsilite composition with site assignments."""
@@ -997,7 +1148,11 @@ class OxideCalculator(BaseMineralCalculator):
 
         update_cation_cols = [ox for ox in self.OXIDE_MASSES if ox in update_base.columns]
         update_comps = update_base[update_cation_cols].copy()
-        update_calc = type(self)(update_comps)
+        update_df = pd.concat([
+            self.metadata,
+            update_comps
+            ], axis=1)
+        update_calc = type(self)(update_df)
         base_update = update_calc.calculate_all()
 
         # Grab just the cation columns from `base`
@@ -1085,7 +1240,7 @@ class RutileCalculator(BaseMineralCalculator):
         sites = pd.DataFrame(index=base.index)
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["M_site"] = Ti
-        sites["M_site_expanded"] = Ti + Nb + Ta
+        # sites["M_site_expanded"] = Ti + Nb + Ta
 
         return pd.concat([base, sites], axis=1)
 
@@ -1154,9 +1309,13 @@ class SpinelCalculator(BaseMineralCalculator):
 
         update_cation_cols = [ox for ox in self.OXIDE_MASSES if ox in update_base.columns]
         update_comps = update_base[update_cation_cols].copy()
-        update_calc = type(self)(update_comps)
+        update_df = pd.concat([
+            self.metadata,
+            update_comps
+            ], axis=1)
+        update_calc = type(self)(update_df)
         base_update = update_calc.calculate_all()
-
+        
         sites = pd.DataFrame(index=base.index)
         sites["Cation_Sum"] = base_update[update_cation_cols].sum(axis=1)
         
@@ -1184,7 +1343,7 @@ class SpinelCalculator(BaseMineralCalculator):
 class TitaniteCalculator(BaseMineralCalculator):
     """Titanite-specific calculations. CaTiSiO5."""
     OXYGEN_BASIS = 5
-    MINERAL_SUFFIX = "_Ti"
+    MINERAL_SUFFIX = "_Tit"
 
     def calculate_components(self):
         """Return complete titanite composition with site assignments."""
@@ -1293,3 +1452,5 @@ class ZirconCalculator(BaseMineralCalculator):
 
         return pd.concat([base, sites], axis=1)
 
+
+# %%

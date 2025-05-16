@@ -24,17 +24,17 @@ We walk through an implementation of ``mineralML`` here. Create this following f
 
 The following columns are required for this Chemistry file:
 
-*  Sample
-*  SiO\ :sub:`2`
-*  TiO\ :sub:`2`
-*  Al\ :sub:`2` O\ :sub:`3`
-*  FeO\ :sub:`t`
-*  MnO
-*  MgO 
-*  CaO 
-*  Na\ :sub:`2` O
-*  K\ :sub:`2` O
-*  Cr\ :sub:`2` O\ :sub:`3`
+*  :math:`\text{Sample}`
+*  :math:`\text{SiO}_{2}`
+*  :math:`\text{TiO}_{2}`
+*  :math:`\text{Al}_{2}\text{O}_{3}`
+*  :math:`\text{FeO}_{t}`
+*  :math:`\text{MnO}`
+*  :math:`\text{MgO}`
+*  :math:`\text{CaO}`
+*  :math:`\text{Na}_{2}\text{O}`
+*  :math:`\text{K}_{2}\text{O}`
+*  :math:`\text{Cr}_{2}\text{O}_{3}`
 
 For example, here a screenshot of a CSV spreadsheet containing the mineral composition data. You can use the ChemistryTemplate.csv from the GitHub repository to create your own. For oxides that were not analyzed or not detected, enter 0 into the cell. 
 
