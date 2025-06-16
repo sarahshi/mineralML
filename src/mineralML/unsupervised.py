@@ -74,6 +74,7 @@ def prep_df_ae(df):
         "Biotite",
         "Clinopyroxene",
         "Garnet",
+        "Glass",
         "Ilmenite",
         "KFeldspar",
         "Magnetite",
@@ -347,8 +348,8 @@ def train(
     valid_loader,
     n_epoch,
     criterion,
-    patience=10,
-    min_delta=0.0005,
+    patience=20,
+    min_delta=0.00005,
 ):
     """
 
@@ -553,9 +554,11 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
     phase = np.array(
         [
             "Amphibole",
+            "Apatite",
             "Biotite",
             "Clinopyroxene",
             "Garnet",
+            "Glass",
             "Ilmenite",
             "KFeldspar",
             "Magnetite",
@@ -563,7 +566,25 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
             "Olivine",
             "Orthopyroxene",
             "Plagioclase",
+            "Quartz",
+            "Rutile",
             "Spinel",
+            "Tourmaline",
+            "Zircon",
+            # "Amphibole",
+            # "Apatite",
+            # "Biotite",
+            # "Clinopyroxene",
+            # "Garnet",
+            # "Glass",
+            # "Ilmenite",
+            # "KFeldspar",
+            # "Magnetite",
+            # "Muscovite",
+            # "Olivine",
+            # "Orthopyroxene",
+            # "Plagioclase",
+            # "Spinel",
         ]
     )
 

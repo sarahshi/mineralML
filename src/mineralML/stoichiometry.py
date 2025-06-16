@@ -3,6 +3,8 @@
 import numpy as np
 import pandas as pd
 
+from .constants import OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP
+
 # %%
 
 
@@ -13,40 +15,10 @@ class BaseMineralCalculator:
     """
     
     # Constants for all minerals
-    OXIDE_MASSES = {
-        "SiO2": 60.0843,
-        "TiO2": 79.7877,
-        "Al2O3": 101.961,
-        "FeOt": 71.8464,
-        "Fe2O3t": 159.688,
-        "FeO": 71.8464,
-        "Fe2O3": 159.688,
-        "MnO": 70.9375,
-        "MgO": 40.3044,
-        "CaO": 56.0774,
-        "Na2O": 61.9789,
-        "K2O": 94.196,
-        "P2O5": 141.9445,
-        "Cr2O3": 151.9902,
-    }
-
-    OXYGEN_NUMBERS = {
-        "SiO2": 2, "TiO2": 2, "Al2O3": 3, "FeOt": 1, "Fe2O3t": 3, "FeO": 1, "Fe2O3": 3,
-        "MnO": 1, "MgO": 1, "CaO": 1, "Na2O": 1, "K2O": 1, "P2O5": 5, "Cr2O3": 3
-    }
-    
-    CATION_NUMBERS = {
-        "SiO2": 1, "TiO2": 1, "Al2O3": 2, "FeOt": 1, "Fe2O3t": 2, "FeO": 1, "Fe2O3": 2,
-        "MnO": 1, "MgO": 1, "CaO": 1, "Na2O": 2, "K2O": 2, "P2O5": 2, "Cr2O3": 2
-    }
-    
-    OXIDE_TO_CATION_MAP = {
-        "SiO2": "Si", "TiO2": "Ti", "Al2O3": "Al", 
-        "FeOt": "Fe2t", "Fe2O3t": "Fe3t", 
-        "FeO": "Fe2", "Fe2O3": "Fe3", 
-        "MnO": "Mn", "MgO": "Mg", "CaO": "Ca", "Na2O": "Na",
-        "K2O": "K", "P2O5": "P", "Cr2O3": "Cr"
-    }
+    OXIDE_MASSES = OXIDE_MASSES
+    OXYGEN_NUMBERS = OXYGEN_NUMBERS
+    CATION_NUMBERS = CATION_NUMBERS
+    OXIDE_TO_CATION_MAP = OXIDE_TO_CATION_MAP
 
     # Required subclass definitions
     OXYGEN_BASIS = None  # Oxygen normalization basis
@@ -854,7 +826,9 @@ class KalsiliteCalculator(BaseMineralCalculator):
         # Compute site assignments in sites dataframe
         sites = pd.DataFrame(index=base.index)
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
-        sites["A_site"] = K + Na
+        sites["A_B_site"] = K + Na
+        sites["A_site"] = K # mostly K
+        sites["B_site"] = Na # mostly Na
         sites["T_site"] = Si + Al # tetrahedral
 
         return pd.concat([base, sites], axis=1)
@@ -942,8 +916,8 @@ class MeliliteCalculator(BaseMineralCalculator):
         sites = pd.DataFrame(index=base.index)
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["A_site"] = Ca + Na
-        sites["B_site"] = Mg + Fe
-        sites["T_site"] = Si + Al # tetrahedral
+        sites["B_site"] = Mg + Fe + Al
+        sites["T_site"] = Si # tetrahedral
 
         return pd.concat([base, sites], axis=1)
 
@@ -1147,6 +1121,7 @@ class OxideCalculator(BaseMineralCalculator):
         update_base = base.drop(columns=["FeOt"])
 
         update_cation_cols = [ox for ox in self.OXIDE_MASSES if ox in update_base.columns]
+        print(update_cation_cols)
         update_comps = update_base[update_cation_cols].copy()
         update_df = pd.concat([
             self.metadata,
@@ -1154,22 +1129,19 @@ class OxideCalculator(BaseMineralCalculator):
             ], axis=1)
         update_calc = type(self)(update_df)
         base_update = update_calc.calculate_all()
-
-        # Grab just the cation columns from `base`
-        sites = pd.DataFrame(index=base.index)
-        sites["Cation_Sum"] = base_update[update_cation_cols].sum(axis=1)
+        cation_cols_update = [col for col in base_update.columns if col.endswith(cat_suffix)]
 
         Ti = base_update.get(f"Ti{cat_suffix}", 0)
-        Al = base_update[f"Al{cat_suffix}"]
+        Al = base_update.get(f"Al{cat_suffix}", 0)
         Fe2 = base_update[f"Fe2{cat_suffix}"]
         Fe3 = base_update[f"Fe3{cat_suffix}"]
-        Mn = base_update[f"Mn{cat_suffix}"]
-        Mg = base_update[f"Mg{cat_suffix}"]
+        Mn = base_update.get(f"Mn{cat_suffix}", 0)
+        Mg = base_update.get(f"Mg{cat_suffix}", 0)
         Cr = base_update.get(f"Cr{cat_suffix}", 0)
 
         # Compute site assignments in sites dataframe
         sites = pd.DataFrame(index=base_update.index)
-        sites["Cation_Sum"] = base_update[cation_cols].sum(axis=1)
+        sites["Cation_Sum"] = base_update[cation_cols_update].sum(axis=1)
         sites["A_site"] = Mg + Fe2 # Mn, Zn, Ni, Co, Ni, Cu, Ge
         sites["A_site_expanded"] = Mg + Fe2 + Mn # Zn, Ni, Co, Ni, Cu, Ge
         sites["B_site"] = Al + Ti + Cr + Fe3 # V
@@ -1218,7 +1190,7 @@ class RutileCalculator(BaseMineralCalculator):
     OXYGEN_BASIS = 2
     MINERAL_SUFFIX = "_Rt"
 
-    # Extend the parent's dictionaries by merging them with ZrO2 and Ta2O5 data
+    # Extend the parent's dictionaries by merging them with Nb2O5 and Ta2O5 data
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"Nb2O5": 265.8098, "Ta2O5": 441.8928})
     OXYGEN_NUMBERS = dict(BaseMineralCalculator.OXYGEN_NUMBERS, **{"Nb2O5": 5, "Ta2O5": 5})
     CATION_NUMBERS = dict(BaseMineralCalculator.CATION_NUMBERS, **{"Nb2O5": 2, "Ta2O5": 2})
@@ -1315,9 +1287,10 @@ class SpinelCalculator(BaseMineralCalculator):
             ], axis=1)
         update_calc = type(self)(update_df)
         base_update = update_calc.calculate_all()
-        
+        cation_cols_update = [col for col in base_update.columns if col.endswith(cat_suffix)]
+
         sites = pd.DataFrame(index=base.index)
-        sites["Cation_Sum"] = base_update[update_cation_cols].sum(axis=1)
+        sites["Cation_Sum"] = base_update[cation_cols_update].sum(axis=1)
         
         Ti = base_update.get(f"Ti{cat_suffix}", 0)
         Al = base_update[f"Al{cat_suffix}"]
@@ -1425,7 +1398,7 @@ class ZirconCalculator(BaseMineralCalculator):
     OXYGEN_BASIS = 4
     MINERAL_SUFFIX = "_Zr"
 
-    # Extend the parent's dictionaries by merging them with ZrO2 data
+    # Extend the parent's dictionaries by merging them with ZrO2 and HfO2 nodata
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"ZrO2": 123.222, "HfO2": 210.484})
     OXYGEN_NUMBERS = dict(BaseMineralCalculator.OXYGEN_NUMBERS, **{"ZrO2": 2, "HfO2": 2})
     CATION_NUMBERS = dict(BaseMineralCalculator.CATION_NUMBERS, **{"ZrO2": 1, "HfO2": 1})
@@ -1452,5 +1425,3 @@ class ZirconCalculator(BaseMineralCalculator):
 
         return pd.concat([base, sites], axis=1)
 
-
-# %%
