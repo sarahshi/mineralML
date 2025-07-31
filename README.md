@@ -12,6 +12,24 @@ We present mineralML (mineral classification using Machine Learning) for classif
 ## Documentation
 Read the [documentation](https://mineralml.readthedocs.io/en/latest/?badge=latest) for a run-through of the mineralML code. 
 
+## Citation
+If you use mineralML in your work, please cite this abstract. This package represents a significant time investment. Proper citation helps support continued development and academic recognition.
+
+```console
+Shi, S., Wieser, P., Toth, N., Antoshechkina, P.M., Lehnert, K., (2023) “MIN-ML: Leveraging Machine Learning for Probabilistic Mineral Classification in Geochemical Databases”. In AGU Fall Meeting Abstracts (Vol. 2023, pp. V54A-07).
+```
+
+```
+@inproceedings{Shietal2023,
+  title     = {MIN-ML: Leveraging Machine Learning for Probabilistic Mineral Classification in Geochemical Databases},
+  author    = {Shi, Sarah C and Wieser, Penny E and Toth, Norbert and Antoshechkina, Paula M and Lehnert, Kerstin},
+  booktitle = {AGU Fall Meeting Abstracts},
+  volume.   = {2023},
+  pages.    = {V54A--07},
+  year.     = {2023}
+}
+```
+
 ## Run on the Cloud 
 If you do not have Python installed locally, run mineralML on [Google Colab](https://colab.research.google.com/github/SarahShi/mineralML/blob/main/mineralML_colab.ipynb). The Cloud-based version runs rapidly, with test cases of >10,000 microanalyses classified within 4 seconds. 
 
