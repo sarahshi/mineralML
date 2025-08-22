@@ -91,14 +91,14 @@ class test_load_functions(unittest.TestCase):
         mock_np_load.return_value = {'mean': mean_array, 'scale': std_array}
 
         # Update the function call to include scaler_path
-        mean, std = mm.load_scaler('scaler_ae.npz')
+        mean, std = mm.load_scaler('scaler_nn_v001.npz')
 
-        expected_index = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+        expected_index = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'P2O5']
         self.assertTrue((mean == pd.Series(mean_array, index=expected_index)).all())
         self.assertTrue((std == pd.Series(std_array, index=expected_index)).all())
 
         # Assert numpy.load was called with the correct full file path
-        full_scaler_path = '/path/to/current/dir/scaler_ae.npz'
+        full_scaler_path = '/path/to/current/dir/scaler_nn_v001.npz'
         mock_np_load.assert_called_with(full_scaler_path)
 
         # Test for FileNotFoundError

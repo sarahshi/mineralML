@@ -129,7 +129,7 @@ class test_variational_layer(unittest.TestCase):
         self.input_features = 11
         self.output_features = 3
         self.layer = mm.VariationalLayer(self.input_features, self.output_features)
-        self.input = torch.randn(self.batch_size, self.input_features)
+        self.input = torch.randn(11, self.input_features)
 
     def test_initialization(self):
         self.assertEqual(
