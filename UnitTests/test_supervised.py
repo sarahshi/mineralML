@@ -36,6 +36,7 @@ class mineralML_supervised(unittest.TestCase):
             "CaO":   [10,   10.7, 19.42,21.36,10.7, 7.9,  0.08,  0.26],
             "Na2O":  [3.1,  2.9,  0.25, 0.32, np.nan, np.nan, np.nan, np.nan],
             "K2O":   [1.9,  1.7,  np.nan,np.nan, np.nan, np.nan, np.nan, np.nan],
+            "P2O5":  [np.nan, np.nan, np.nan,np.nan, np.nan, np.nan, np.nan, np.nan],
         }
         self.df = pd.DataFrame(self.data)
 
@@ -86,7 +87,7 @@ class mineralML_supervised(unittest.TestCase):
         self.assertEqual(normalized_data.shape, (len(df_cleaned), len(oxides)))
 
         # Compute expected normalization directly from the scaler
-        mean, std = mm.load_scaler("scaler_nn_v008.npz")
+        mean, std = mm.load_scaler("scaler_nn_v001.npz")
         # Ensure Series aligned to oxides
         mean = mean.reindex(oxides)
         std = std.reindex(oxides)
