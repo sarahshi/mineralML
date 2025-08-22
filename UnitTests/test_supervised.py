@@ -128,7 +128,6 @@ class test_variational_layer(unittest.TestCase):
     def setUp(self):
         self.input_features = 11
         self.output_features = 3
-        self.batch_size = 10
         self.layer = mm.VariationalLayer(self.input_features, self.output_features)
         self.input = torch.randn(self.batch_size, self.input_features)
 
@@ -154,7 +153,7 @@ class test_variational_layer(unittest.TestCase):
 
     def test_forward_pass(self):
         output = self.layer(self.input)
-        self.assertEqual(output.size(), (self.batch_size, self.output_features))
+        self.assertEqual(output.size(), (self.input_features, self.output_features))
 
     def test_kl_divergence(self):
         kl_div = self.layer.kl_divergence()
