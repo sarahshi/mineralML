@@ -17,22 +17,22 @@ class test_FeatureDataset(unittest.TestCase):
 
     def test_initialization(self):
         # Test with 1D array
-        x1d = np.random.rand(10)
+        x1d = np.random.rand(11)
         dataset1d = mm.FeatureDataset(x1d)
         self.assertEqual(dataset1d.x.ndim, 2)
 
         # Test with 2D array
-        x2d = np.random.rand(10, 5)
+        x2d = np.random.rand(11, 5)
         dataset2d = mm.FeatureDataset(x2d)
         self.assertTrue(np.array_equal(dataset2d.x, x2d))
 
     def test_len(self):
-        x = np.random.rand(10, 5)
+        x = np.random.rand(11, 5)
         dataset = mm.FeatureDataset(x)
-        self.assertEqual(len(dataset), 10)
+        self.assertEqual(len(dataset), 11)
 
     def test_getitem(self):
-        x = np.random.rand(10, 5)
+        x = np.random.rand(11, 5)
         dataset = mm.FeatureDataset(x)
         self.assertTrue(torch.equal(dataset[0], torch.Tensor(x[0])))
 
@@ -40,22 +40,22 @@ class test_FeatureDataset(unittest.TestCase):
 class test_LabelDataset(unittest.TestCase):
 
     def test_initialization(self):
-        x = np.random.rand(10, 5)
-        labels = np.random.randint(0, 2, 10)
+        x = np.random.rand(11, 5)
+        labels = np.random.randint(0, 2, 11)
         dataset = mm.LabelDataset(x, labels)
 
         self.assertTrue(torch.equal(dataset.x, torch.from_numpy(x).type(torch.FloatTensor)))
         self.assertTrue(torch.equal(dataset.labels, torch.from_numpy(labels).type(torch.LongTensor)))
 
     def test_len(self):
-        x = np.random.rand(10, 5)
-        labels = np.random.randint(0, 2, 10)
+        x = np.random.rand(11, 5)
+        labels = np.random.randint(0, 2, 11)
         dataset = mm.LabelDataset(x, labels)
-        self.assertEqual(len(dataset), 10)
+        self.assertEqual(len(dataset), 11)
 
     def test_getitem(self):
-        x = np.random.rand(10, 5)
-        labels = np.random.randint(0, 2, 10)
+        x = np.random.rand(11, 5)
+        labels = np.random.randint(0, 2, 11)
         dataset = mm.LabelDataset(x, labels)
         sample, label = dataset[0]
         self.assertTrue(torch.equal(sample, torch.FloatTensor(x[0])))
@@ -86,8 +86,8 @@ class test_load_functions(unittest.TestCase):
         mock_dirname.return_value = '/path/to/current/dir'
 
         # Set up the mock return values for numpy.load
-        mean_array = np.random.rand(10)  # Create an array with 10 elements
-        std_array = np.random.rand(10)   # Create an array with 10 elements
+        mean_array = np.random.rand(11)  # Create an array with 11 elements
+        std_array = np.random.rand(11)   # Create an array with 11 elements
         mock_np_load.return_value = {'mean': mean_array, 'scale': std_array}
 
         # Update the function call to include scaler_path

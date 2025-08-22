@@ -1377,7 +1377,7 @@ lg = ax[1].legend(h, error, prop={'size': 12}, loc = 'lower right', labelspacing
 lg.set_title('Cluster\nConfidence',prop={'size':12})
 
 plt.tight_layout()
-plt.savefig('egu3.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
+# plt.savefig('egu3.pdf', dpi = 300, transparent = True, bbox_inches='tight', pad_inches = 0.025)
 
 # %% 
 

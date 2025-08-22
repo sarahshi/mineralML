@@ -15,6 +15,7 @@ __pycache__
 /TrainingData/min_df_v2_clean_synth.csv
 /TrainingData/min_df_v2_merge_natural.csv
 /TrainingData/min_df_v2_merge_synth.csv
+/Validation_Data/
 /Hematite_Data/
 /mineralML_Cluster/
 /src/mineralML/old/
