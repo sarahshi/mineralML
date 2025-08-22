@@ -1821,9 +1821,9 @@ class OxideClassifier:
         fs = 14
         fig.set_size_inches(figsize)
         tax.boundary(linewidth=1.5, zorder=0)
-        tax.right_corner_label("R$\mathregular{^{3+}}$\n$\mathregular{Fe^{3+}+Cr+Mn}$\nHematite, $\\mathregular{Fe_2O_3}$", fontsize=fs, offset=-0.075)
+        tax.right_corner_label("R$\\mathregular{^{3+}}$\n$\\mathregular{Fe^{3+}+Cr+Mn}$\nHematite, $\\mathregular{Fe_2O_3}$", fontsize=fs, offset=-0.075)
         tax.top_corner_label("Rutile, anatase, brookite\n$\\mathregular{TiO_2}$", fontsize=fs, offset=0.175)
-        tax.left_corner_label("R$\mathregular{^{2+}}$\n$\mathregular{Fe^{2+}+Mg+Mn}$\n FeO ", fontsize=fs, offset=-0.075)
+        tax.left_corner_label("R$\\mathregular{^{2+}}$\n$\\mathregular{Fe^{2+}+Mg+Mn}$\n FeO ", fontsize=fs, offset=-0.075)
         tax.bottom_axis_label("Magnetite\n$\\mathregular{Fe_3O_4}$", fontsize=fs, offset=0)
 
         ax = tax.get_axes()
@@ -1926,8 +1926,8 @@ class OxideClassifier:
         ax.set_ylim(-0.02, 1.02)
         # ax.margins(x=0.02, y=0.02) # small outer margins to separate tick labels from the frame
         ax.tick_params(axis='both', which='both', direction='in', top=True, right=True, length=5)
-        ax.set_xlabel("$\mathregular{Fe^{2+}/(Fe^{2+}+Mg^{2+})}$")
-        ax.set_ylabel("$\mathregular{Fe^{3+}/(Fe^{3+}+Al^{3+})}$")
+        ax.set_xlabel("$\\mathregular{Fe^{2+}/(Fe^{2+}+Mg^{2+})}$")
+        ax.set_ylabel("$\\mathregular{Fe^{3+}/(Fe^{3+}+Al^{3+})}$")
         fig.tight_layout()
 
         return fig, ax
