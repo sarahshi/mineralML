@@ -1,44 +1,3 @@
-=================
-Importing Package
-=================
-
-We import the package mineralML in Python. 
-
-.. code-block:: python
-
-   import mineralML as mm
-   
-==============
-Importing Data
-==============
-
-We walk through an implementation of ``mineralML`` here. Create this following file structure locally: 
-
-::
-
-    mineralML/
-    ├── Chemistry.csv
-    ├── BNN_Run.csv
-    └── AE_Run.py
-
-
-The following columns are required for this Chemistry file:
-
-*  Sample or Sample Name
-*  SiO₂
-*  TiO₂
-*  Al₂O₃
-*  FeOₜ
-*  MnO
-*  MgO 
-*  CaO 
-*  Na₂O
-*  K₂O
-*  Cr₂O₃
-*  P₂O₅
-
-For example, here a screenshot of a CSV spreadsheet containing the mineral composition data. You can use the ChemistryTemplate.csv from the Training_Data bit of the GitHub repository to create your own. For oxides that were not analyzed or not detected, enter 0 into the cell or alternatively ``mineralML`` will fill in these empty cells with not a number (nan) values.
-
 +--------+----------------------+---------+----------+-----------+----------+------------+----------+-----------+-----------+------------+------------+-----------+---------------+
 |        | Sample Name          |    SiO2 |     TiO2 |     Al2O3 |     FeOt |        MnO |      MgO |       CaO |      Na2O |        K2O |       P2O5 |     Cr2O3 | Mineral       |
 +========+======================+=========+==========+===========+==========+============+==========+===========+===========+============+============+===========+===============+
@@ -98,21 +57,3 @@ For example, here a screenshot of a CSV spreadsheet containing the mineral compo
 +--------+----------------------+---------+----------+-----------+----------+------------+----------+-----------+-----------+------------+------------+-----------+---------------+
 | 106329 | 20B-04               | 49.96   |   1.59   |  13.73    | 11.8     |   0.21     |   7.27   |  11.88    |   2.27    |   0.25     |   0.18     | nan       | Glass         |
 +--------+----------------------+---------+----------+-----------+----------+------------+----------+-----------+-----------+------------+------------+-----------+---------------+
-
-For the mineral composition, ``mineralML`` asks that users provide Fe as FeO\ :sub:`t`. To avoid ambiguity, the Chemistry file handles this by providing only one column for FeO\ :sub:`t`.
-
-We use the os package in Python to facilitate navigation to various files. To load the Chemistry file, you must provide the path to the CSV. 
-
-.. code-block:: python
-
-    path = os.getcwd() + '/Chemistry.csv'
-    df_load = mm.load_df(path)
-    df, _ = mm.prep_df(df_load)
-
-`mm.load_df` returns df_load, an initial dataframe of all of all samples and their chemistry. `mm.prep_df` then prepares the loaded dataframe, filling in any nan values, and selecting only the minerals covered within the Bayesian neural network or the autoencoder.
-
-====================
-Data Import Complete 
-====================
-
-That is all for loading your mineral chemical compositions! You are ready to get rolling with ``mineralML``. See the example notebook BNN_Colab.ipynb, under the big examples heading, to see how to run ``mineralML`` and export files. 

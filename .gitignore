@@ -10,7 +10,14 @@ __pycache__
 /Validation_Data/GEOROC_validationdata.csv
 /Training_Data/Mineral/
 /Training_Data/mindf_old/
+/TrainingData/min_df_v2.csv
+/TrainingData/min_df_v2_clean_natural.csv
+/TrainingData/min_df_v2_clean_synth.csv
+/TrainingData/min_df_v2_merge_natural.csv
+/TrainingData/min_df_v2_merge_synth.csv
+/Hematite_Data/
 /mineralML_Cluster/
+/src/mineralML/old/
 Cascades_in_prep.ipynb
 Train_CovMatch.ipynb
 Validate_AE.ipynb

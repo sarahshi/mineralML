@@ -49,30 +49,31 @@ def Fe_Conversion(df):
     """
 
     fe_conv = 159.688 / (2 * 71.8464)
-    conditions = [~np.isnan(df['FeO']) & np.isnan(df['FeOt']) & np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3t']]),
-    ~np.isnan(df['FeOt']) & np.isnan(df['FeO']) & np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3t']]), 
+    conditions = [~np.isnan(df['FeO']) & np.isnan(df['FeOt']) & np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3t']]), # 0
+    ~np.isnan(df['FeOt']) & np.isnan(df['FeO']) & np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3t']]), # 1
     ~np.isnan(df['Fe2O3']) & np.isnan(df['Fe2O3t']) & np.isnan(df['FeO']) & np.isnan([df['FeOt']]), # 2
-    ~np.isnan(df['Fe2O3t']) & np.isnan(df['Fe2O3']) & np.isnan(df['FeO']) & np.isnan([df['FeOt']]), # 2
-    ~np.isnan(df['FeO']) & ~np.isnan(df['Fe2O3']) & np.isnan(df['FeOt']) & np.isnan([df['Fe2O3t']]), # 3
-    ~np.isnan(df['FeO']) & ~np.isnan(df['FeOt']) & ~np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3t']]), # 4
-    ~np.isnan(df['FeO']) & ~np.isnan(df['Fe2O3']) & ~np.isnan(df['Fe2O3t']) & np.isnan([df['FeOt']]), # 5
-    ~np.isnan(df['FeOt']) & ~np.isnan(df['Fe2O3']) & np.isnan(df['Fe2O3t']) & np.isnan([df['FeO']]), # 6
-    ~np.isnan(df['Fe2O3']) & ~np.isnan(df['Fe2O3t']) & np.isnan(df['FeO']) & np.isnan([df['FeOt']]) ] # 7
+    ~np.isnan(df['Fe2O3t']) & np.isnan(df['Fe2O3']) & np.isnan(df['FeO']) & np.isnan([df['FeOt']]), # 3
+    ~np.isnan(df['FeO']) & ~np.isnan(df['Fe2O3']) & np.isnan(df['FeOt']) & np.isnan([df['Fe2O3t']]), # 4
+    ~np.isnan(df['FeO']) & ~np.isnan(df['FeOt']) & ~np.isnan(df['Fe2O3']) & np.isnan([df['Fe2O3t']]), # 5
+    ~np.isnan(df['FeO']) & ~np.isnan(df['Fe2O3']) & ~np.isnan(df['Fe2O3t']) & np.isnan([df['FeOt']]), # 6
+    ~np.isnan(df['FeOt']) & ~np.isnan(df['Fe2O3']) & np.isnan(df['Fe2O3t']) & np.isnan([df['FeO']]), # 7
+    ~np.isnan(df['Fe2O3']) & ~np.isnan(df['Fe2O3t']) & np.isnan(df['FeO']) & np.isnan([df['FeOt']]) ] # 8
 
-    choices = [ (df['FeO']), (df['FeOt']),
-    (df['Fe2O3']),(df['Fe2O3t']),
-    (df['FeO'] + (df['Fe2O3'] / fe_conv)), # 3
-    (df['FeOt']), # 4 of interest
-    (df['Fe2O3t'] / fe_conv), # 5
-    (df['FeOt']), # 6
-    (df['Fe2O3t'] / fe_conv) ] # 7
+    choices = [ (df['FeO']), # 0
+    (df['FeOt']), # 1
+    (df['Fe2O3'] / fe_conv), # 2
+    (df['Fe2O3t'] / fe_conv), # 3
+    (df['FeO'] + (df['Fe2O3'] / fe_conv)), # 4
+    (df['FeOt']), # 5T
+    (df['Fe2O3t'] / fe_conv), # 6
+    (df['FeOt']), # 7
+    (df['Fe2O3t'] / fe_conv) ] # 8
 
     df.insert(4, 'FeOt_F', np.select(conditions, choices))
     df.drop(['FeOt'], axis=1, inplace=True)
     df.rename(columns={"FeOt_F": "FeOt"}, inplace=True)
     
     return df 
-
 
 dtypes = {'SiO2': float, 'TiO2': float, 'Al2O3': float, 'FeOt': float, 'Fe2O3t': float, 'FeO': float, 'Fe2O3': float, 
           'MnO': float, 'MgO': float, 'CaO': float, 'Na2O': float, 'K2O': float, 'P2O5': float, 'Cr2O3': float, 'NiO': float, 
@@ -256,7 +257,9 @@ ep_calc = mm.EpidoteCalculator(min_df[min_df.Mineral=='Epidote'])
 ep_comp = ep_calc.calculate_components()
 display(ep_comp)
 
+fe_conversion = 159.688 / (2 * 71.8464)
 ep_comp_filt = ep_comp.loc[((ep_comp.Cation_Sum.between(7.9, 8.1)) & (ep_comp.M_site.between(2.8, 3.3)) & (ep_comp.Z_site.between(2.85, 3.15)))]
+ep_comp_filt["FeOt"] = (ep_comp_filt["Fe2O3t"] / fe_conversion)
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -277,6 +280,8 @@ gt_comp = gt_calc.calculate_components()
 display(gt_comp)
 
 gt_comp_filt = gt_comp.loc[((gt_comp.Cation_Sum.between(7.96, 8.04)) & (gt_comp.X_site.between(2.9, 3.05)) & (gt_comp.T_site.between(4.3, 5.1)))]
+fe_conversion = 159.688 / (2 * 71.8464)
+gt_comp_filt["FeOt"] = (gt_comp_filt["FeO"] + gt_comp_filt["Fe2O3"] / fe_conversion)
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -319,7 +324,9 @@ ilm_calc = mm.OxideCalculator(min_df[min_df.Mineral=='Ilmenite'])
 ilm_comp = ilm_calc.calculate_components()
 display(ilm_comp)
 
+fe_conversion = 159.688 / (2 * 71.8464)
 ilm_comp_filt = ilm_comp.loc[((ilm_comp.Cation_Sum.between(1.99, 2.01)) & (ilm_comp.Fe_Ti.between(1.85, 1.95)))]
+ilm_comp_filt["FeOt"] = (ilm_comp_filt["FeO"] + ilm_comp_filt["Fe2O3"] / fe_conversion)
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -589,7 +596,9 @@ sp_calc = mm.SpinelCalculator(min_df[min_df.Mineral=='Spinel'])
 sp_comp = sp_calc.calculate_components()
 display(sp_comp)
 
+fe_conversion = 159.688 / (2 * 71.8464)
 sp_comp_filt = sp_comp.loc[((sp_comp.Cation_Sum.between(2.95, 3.45)) & (sp_comp.B_site.between(0.75, 2.05)))]
+sp_comp_filt["FeOt"] = (sp_comp_filt["FeO"] + sp_comp_filt["Fe2O3"] / fe_conversion)
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -609,7 +618,9 @@ tit_calc = mm.TitaniteCalculator(min_df[min_df.Mineral=='Titanite'])
 tit_comp = tit_calc.calculate_components()
 display(tit_comp)
 
+fe_conversion = 159.688 / (2 * 71.8464)
 tit_comp_filt = tit_comp.loc[((tit_comp.Cation_Sum.between(2.95, 3.1)) & (tit_comp.T_site.between(0.9, 1.1)))]
+tit_comp_filt["FeOt"] = (tit_comp_filt["Fe2O3t"] / fe_conversion)
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -1025,7 +1036,7 @@ hematite_endmembers = {
 
 # define Al as minor element
 hematite_minors = {
-    "Al": {"distribution": "exponential", "scale": 0.01, "max_fraction": 0.02}
+    "Al": {"distribution": "exponential", "scale": 0.01, "max_fraction": 0.005}
 }
 
 # run SolidSolutionGenerator with oxygen_basis = 3
@@ -1037,7 +1048,7 @@ gen_hem = mm.SolidSolutionGenerator(
     element_noise_scale = 0.05,
     min_site_fraction = 0.95,
     mixing_dist = "beta",
-    mixing_params = {"a": 8, "b": 92}, # mean Fe2‐fraction ≈ 2/(100)=0.02
+    mixing_params = {"a": 1, "b": 150}, # mean Fe2‐fraction ≈ 2/(100)=0.02
     validate_fn = (lambda ox: True) # keep all oxide‐wt variants
 )
 

@@ -1,7 +1,7 @@
 # %%
 
 # Oxides
-OXIDES = ["SiO2", "TiO2", "Al2O3", "FeOt", "MnO", "MgO", "CaO", "Na2O", "K2O", "Cr2O3"]
+OXIDES = ["SiO2", "TiO2", "Al2O3", "FeOt", "MnO", "MgO", "CaO", "Na2O", "K2O", "Cr2O3", "P2O5"]
 
 # Molar masses (g/mol)
 OXIDE_MASSES = {
@@ -56,3 +56,4 @@ VALENCES = {
     "Fe2": 2, "Fe3": 3, "Mn": 2, "Mg": 2, "Ca": 2,
     "Na": 1, "K": 1, "P": 5, "Cr": 3, "Zr": 4, "Hf": 4,
 }
+

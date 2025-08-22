@@ -24,9 +24,30 @@ Welcome to mineralML's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Applying Trained ML Models
+   :caption: Prepare and Clean Data
 
-   examples/ml_models/mineralML_docs
+   examples/mineralML_helpers
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Applying Supervised ML Model
+
+   examples/mineralML_supervised
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Stoichiometry
+
+   examples/mineralML_stoichiometry
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Synthetic Data by Solid Solution Generator
+
+   examples/mineralML_synthetic_data
 
 
 .. toctree::

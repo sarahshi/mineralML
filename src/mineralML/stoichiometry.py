@@ -2,8 +2,9 @@
 
 import numpy as np
 import pandas as pd
+from scipy import interpolate
 
-from .constants import OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP
+from .constants import OXIDES, OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP
 
 # %%
 
@@ -174,6 +175,95 @@ class BaseMineralCalculator:
 
         return df
 
+
+# %%
+
+
+def oxide_to_element(df):
+    """
+    Convert between oxide wt% and elemental wt%.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame with oxide or elemental wt% columns.
+        direction (str): 'oxide_to_element' or 'element_to_oxide'.
+
+    Returns:
+        Tuple[pd.DataFrame, pd.Series]: 
+            - DataFrame with elemental wt% columns.
+            - Series mapping each element to its conversion factor from oxide wt%.
+    """
+    # Oxide molar masses and corresponding element info
+    oxide_data = {
+        'SiO2': {'element': 'Si', 'oxide_mass': 60.0843, 'element_mass': 28.0855, 'stoich': 1},
+        'TiO2': {'element': 'Ti', 'oxide_mass': 79.866, 'element_mass': 47.867, 'stoich': 1},
+        'Al2O3': {'element': 'Al', 'oxide_mass': 101.961, 'element_mass': 26.9815, 'stoich': 2},
+        'FeOt': {'element': 'Fe', 'oxide_mass': 71.844, 'element_mass': 55.845, 'stoich': 1},
+        'MnO': {'element': 'Mn', 'oxide_mass': 70.9374, 'element_mass': 54.938, 'stoich': 1},
+        'MgO': {'element': 'Mg', 'oxide_mass': 40.3044, 'element_mass': 24.305, 'stoich': 1},
+        'CaO': {'element': 'Ca', 'oxide_mass': 56.0774, 'element_mass': 40.078, 'stoich': 1},
+        'Na2O': {'element': 'Na', 'oxide_mass': 61.9789, 'element_mass': 22.989, 'stoich': 2},
+        'K2O': {'element': 'K', 'oxide_mass': 94.196, 'element_mass': 39.0983, 'stoich': 2},
+        'P2O5': {'element': 'P', 'oxide_mass': 141.944, 'element_mass': 30.974, 'stoich': 2},
+        'Cr2O3': {'element': 'Cr', 'oxide_mass': 151.99, 'element_mass': 51.996, 'stoich': 2},
+        'NiO': {'element': 'Ni', 'oxide_mass': 74.6928, 'element_mass': 58.693, 'stoich': 1},
+        'SO2': {'element': 'S', 'oxide_mass': 64.066, 'element_mass': 32.065, 'stoich': 1},
+        'ZrO2':  {'element': 'Zr',  'oxide_mass': 123.218,   'element_mass': 91.224,  'stoich': 1},
+    }
+
+    result = {}
+    factors = {}
+
+    for oxide, info in oxide_data.items():
+        if oxide in df.columns:
+            element = info['element']
+            conversion_factor = (info['stoich'] * info['element_mass']) / info['oxide_mass']
+            result[element] = df[oxide] * conversion_factor + result.get(element, 0)
+            factors[oxide] = conversion_factor
+
+    result_df = pd.DataFrame(result, index=df.index)
+
+    return result_df, pd.Series(factors)
+
+def element_to_oxide(df):
+    """
+    Convert elemental wt% to oxide wt%, and return the conversion factors used.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame with elemental wt% columns.
+
+    Returns:
+        Tuple[pd.DataFrame, pd.Series]: 
+            - DataFrame with oxide wt% columns.
+            - Series mapping each oxide to its conversion factor from element wt%.
+    """
+    oxide_data = {
+        'SiO2': {'element': 'Si', 'oxide_mass': 60.0843, 'element_mass': 28.0855, 'stoich': 1},
+        'TiO2': {'element': 'Ti', 'oxide_mass': 79.866,  'element_mass': 47.867,  'stoich': 1},
+        'Al2O3': {'element': 'Al', 'oxide_mass': 101.961, 'element_mass': 26.9815, 'stoich': 2},
+        'FeOt': {'element': 'Fe', 'oxide_mass': 71.844,   'element_mass': 55.845,  'stoich': 1},
+        'MnO':  {'element': 'Mn', 'oxide_mass': 70.9374,  'element_mass': 54.938,  'stoich': 1},
+        'MgO':  {'element': 'Mg', 'oxide_mass': 40.3044,  'element_mass': 24.305,  'stoich': 1},
+        'CaO':  {'element': 'Ca', 'oxide_mass': 56.0774,  'element_mass': 40.078,  'stoich': 1},
+        'Na2O': {'element': 'Na', 'oxide_mass': 61.9789,  'element_mass': 22.989,  'stoich': 2},
+        'K2O':  {'element': 'K',  'oxide_mass': 94.196,   'element_mass': 39.0983, 'stoich': 2},
+        'P2O5': {'element': 'P',  'oxide_mass': 141.944,  'element_mass': 30.974,  'stoich': 2},
+        'Cr2O3':{'element': 'Cr', 'oxide_mass': 151.99,   'element_mass': 51.996,  'stoich': 2},
+        'NiO':  {'element': 'Ni', 'oxide_mass': 74.6928,  'element_mass': 58.693,  'stoich': 1},
+        'SO2':  {'element': 'S',  'oxide_mass': 64.066,   'element_mass': 32.065,  'stoich': 1},
+        'ZrO2':  {'element': 'Zr',  'oxide_mass': 123.218,   'element_mass': 91.224,  'stoich': 1},
+    }
+
+    result = {}
+    factors = {}
+
+    for oxide, info in oxide_data.items():
+        element = info['element']
+        if element in df.columns:
+            conversion_factor = info['oxide_mass'] / (info['stoich'] * info['element_mass'])
+            result[oxide] = df[element] * conversion_factor + result.get(oxide, 0)
+            factors[oxide] = conversion_factor
+
+    return pd.DataFrame(result, index=df.index), pd.Series(factors)
 
 # %%
 
@@ -390,6 +480,142 @@ class AmphiboleCalculator(BaseMineralCalculator):
         sites["Mgno"] = mg / denom.replace(0, np.nan)
 
         return sites
+
+
+class AmphiboleClassifier(AmphiboleCalculator):
+    """General amphibole calculations for classification and plotting."""
+    OXYGEN_BASIS = 23
+    MINERAL_SUFFIX = "_Amp"
+
+    def _classify_subamphibole(self, x, y, eps=1e-9):
+        """
+        x = Si (apfu), y = Mg#  (numpy arrays)
+        returns: np.array of subtype strings
+        """
+        sub = np.full(x.shape, "OOD", dtype=object) # out of domain
+
+        # Valid domain (finite, within ranges with slack)
+        valid = (
+            np.isfinite(x) & np.isfinite(y) &
+            (y >= 0.0 - eps) & (y <= 1.0 + eps) &
+            (x >= 5.5 - eps) & (x <= 8.0 + eps)
+        )
+        if not valid.any():
+            return sub
+
+        xv = x[valid]; yv = y[valid]
+        out = np.full(xv.shape, "Unlabeled", dtype=object)
+
+        # Mg# bands
+        top = (yv >= 0.90 - eps)
+        mid = (yv >= 0.50 - eps) & (yv < 0.90 - eps)
+        bot = (yv < 0.50 - eps)
+
+        # Si bins
+        si_hi  = (xv >= 7.5 - eps) & (xv <= 8.0 + eps)   # [7.5, 8.0]
+        si_mid = (xv >= 6.5 - eps) & (xv <  7.5 - eps)   # [6.5, 7.5)
+        si_lo  = (xv >= 5.5 - eps) & (xv <  6.5 - eps)   # [5.5, 6.5)
+
+        # Assign (order doesn't matter; masks are disjoint)
+        out[top & si_hi]  = "Tremolite"
+        out[top & si_mid] = "Magnesiohornblende"
+        out[top & si_lo]  = "Tschermakite"
+
+        out[mid & si_hi]  = "Actinolite"
+        out[mid & si_mid] = "Magnesiohornblende"
+        out[mid & si_lo]  = "Tschermakite"
+
+        out[bot & si_hi]  = "Ferroactinolite"
+        out[bot & si_mid] = "Ferrohornblende"
+        out[bot & si_lo]  = "Ferrotschermakite"
+
+        # Stitch back into full array
+        sub[valid] = out
+    
+        return sub
+
+    def classify(self, subclass=True, eps=1e-9):
+        """
+        Classify amphibole analyses using Leake-style Si (apfu) and Mg# produced by
+        AmphiboleCalculator.calculate_components().
+
+        Returns a DataFrame with `Mineral` and (optionally) `Submineral`.
+        """
+        comps = super().calculate_components()
+
+        # Require the calculator to have produced these; graceful fallback to NaN if missing
+        si = comps.get("Si_T_leake", np.nan).to_numpy()
+        mgno = comps.get("Mgno_leake", np.nan).to_numpy()
+
+        if subclass:
+            # Any rows with NaN inputs become "Unlabeled"
+            mask_valid = np.isfinite(si) & np.isfinite(mgno)
+            subs = np.full(si.shape, "Unlabeled", dtype=object)
+            if mask_valid.any():
+                subs[mask_valid] = self._classify_subamphibole(si[mask_valid], mgno[mask_valid], eps=eps)
+        else:
+            subs = np.array([None] * len(si), dtype=object)
+
+        df_class = comps.copy()
+        df_class["Mineral"] = "Amphibole"
+        if subclass:
+            df_class["Submineral"] = subs
+
+        return df_class
+
+    def plot(self, df_class=None, subclass=True, figsize=(10, 6), hue=None):
+
+        import matplotlib.pyplot as plt
+
+        if df_class is None:
+            df_class = self.classify(subclass=subclass)
+        x, y = df_class["Si_T_leake"], df_class["Mgno_leake"]
+        # Default hue is Submineral
+        if hue is None:
+            hue = "Submineral"
+
+        # Ratios for plotting
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Spinel grid definition
+        ax.hlines(y=0.5, xmin=5.48, xmax=8.02, color='k', lw=1, zorder=0)
+        ax.hlines(y=0.9, xmin=7.5, xmax=8.02, color='k', lw=1, zorder=0)
+        ax.vlines(x=7.5, ymin=-0.02, ymax=1.02, color='k', lw=1, zorder=0)
+        ax.vlines(x=6.5, ymin=-0.02, ymax=1.02, color='k', lw=1, zorder=0)
+
+        fs = 14
+        ax.text(7.75, 0.950, "Tremolite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(7.75, 0.775, "Actinolite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(7.75, 0.250, "Ferroactinolite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(7.00, 0.75, "Magnesiohornblende", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(7.00, 0.25, "Ferrohornblende", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(6.00, 0.75, "Tschermakite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(6.00, 0.25, "Ferrotschermakite", fontsize=fs, ha="center", va="center", zorder=30)
+
+        # Color by hue using tab10; keep in sorted order
+        cmap = plt.get_cmap("tab10")
+        if hue in df_class.columns:
+            groups = sorted(df_class[hue].astype(str).unique())
+            for i, g in enumerate(groups):
+                m = (df_class[hue].astype(str) == g).to_numpy()
+                ax.scatter(x[m], y[m], label=g, s=30, alpha=0.6,
+                           edgecolors="k", linewidth=0.5, color=cmap(i % 10), zorder=20)
+            # Put legend OUTSIDE 
+            fig.subplots_adjust(right=0.9)  # make room on the right
+            ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=True, fontsize=9)
+        else:
+            ax.scatter(x, y, s=30, alpha=0.6, edgecolors="k", linewidth=0.5,
+                       color=cmap(0), zorder=20)
+
+        ax.set_xlim(5.48, 8.02)
+        ax.set_ylim(-0.02, 1.02)
+        ax.invert_xaxis()
+        ax.tick_params(axis='both', which='both', direction='in', top=True, right=True, length=5)
+        ax.set_xlabel("Si (apfu)")
+        ax.set_ylabel("Mg# Amphibole")
+        fig.tight_layout()
+
+        return fig, ax
 
 
 class ApatiteCalculator(BaseMineralCalculator):
@@ -714,6 +940,184 @@ class FeldsparCalculator(BaseMineralCalculator):
         return pd.concat([base, sites], axis=1)
 
 
+class FeldsparClassifier(FeldsparCalculator):
+    """General feldspar calculations for classification and plotting."""
+
+    def classify(self, subclass=True):
+        comps = super().calculate_components()
+        An = comps["An"].to_numpy()
+        Ab = comps["Ab"].to_numpy()
+        Or = comps["Or"].to_numpy()
+
+        # Build a fast lookup for the miscibility gap boundary:
+        # The compositional regions are from Thermobar. Plotting has been adapted for mineralML
+        An_plag = np.array([1.00, 0.90, 0.70, 0.50, 0.30, 0.20, 0.15, 0.10, 0.00])
+        Or_plag = np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.10, 0.15, 0.10, 0.10])
+        f_plag = interpolate.interp1d(An_plag, Or_plag,
+                                      bounds_error=False,
+                                      fill_value=(Or_plag[0], Or_plag[-1]))
+
+        Or_kfeld = np.array([0.1, 0.15, 0.37, 0.95])
+        An_kfeld = np.array([0.1, 0.15, 0.05, 0.05])
+        f_kfeld = interpolate.interp1d(Or_kfeld, An_kfeld,
+                                       bounds_error=False,
+                                       fill_value=(An_kfeld[0], An_kfeld[-1]))
+
+        def _label(a_n, a_b, o):
+            # Plagioclase check first
+            if o <= f_plag(a_n):
+                main = "Plagioclase"
+                if not subclass:
+                    return main, None
+                # DHZ plagioclase subdivisions are *by* An:
+                if a_n >= 0.90: 
+                    sub = "Anorthite"
+                elif a_n >= 0.70: 
+                    sub = "Bytownite"
+                elif a_n >= 0.50: 
+                    sub = "Labradorite"
+                elif a_n >= 0.30: 
+                    sub = "Andesine"
+                elif a_n >= 0.10: 
+                    sub = "Oligoclase"
+                else:
+                    sub = "Albite"
+
+            # Then K-Feldspar with the interpolated curve
+            elif a_n <= f_kfeld(o):
+                main = "KFeldspar"
+                sub = "Sanidine" if o >= 0.37 else "Anorthoclase"
+
+            # Area in between is miscibility gap
+            else:
+                return "Unclassified", "Unclassified"
+
+            return main, sub
+
+        labels = np.array([_label(a,b,o) for a,b,o in zip(An,Ab,Or)])
+        df = comps.copy()
+        df["Mineral"] = labels[:,0]
+        if subclass:
+            df["Submineral"] = labels[:,1]
+        return df
+
+    def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 8), 
+             ticks=True, **kwargs):
+
+        import ternary
+        import matplotlib.pyplot as plt
+
+        if df_class is None:
+            df_class = self.classify(subclass=subclass)
+
+        label_dict = {
+            "Sanidine": "San", "Anorthoclase": "AnC", "Albite": "Ab",
+            "Oligoclase": "Ol", "Andesine": "Ad", "Labradorite": "La",
+            "Bytownite": "By", "Anorthite": "An",
+        }
+
+        if labels == "long":
+            label_set = {k: k for k in label_dict}
+        elif labels == "short" or labels is True:
+            label_set = label_dict
+        else:
+            label_set = None
+
+        # Plot setup
+        fig, tax = ternary.figure()
+        fig.set_size_inches(figsize)
+        tax.boundary(linewidth=1.5, zorder=0)
+        tax.right_corner_label("An", fontsize=14)
+        tax.top_corner_label("Or", fontsize=14)
+        tax.left_corner_label("Ab", fontsize=14)
+
+        tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
+        tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
+
+        # Interpolated curves
+        An = np.array([1.0, 0.9, 0.7, 0.5, 0.3, 0.20, 0.15])
+        Or = np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.1, 0.15])
+        f_plag = interpolate.interp1d(An, Or)
+        An_new = np.linspace(0.15, 1, 1000)
+        Or_new = f_plag(An_new)
+        Ab_new = 1 - An_new
+        plag_curve = np.column_stack([An_new, Or_new, Ab_new])
+
+        An_kp = np.array([0, 0.15])
+        Or_kp = np.array([0, 0.15])
+        Ab_kp = np.array([1, 0.85])
+        f_kp = interpolate.interp1d(An_kp, Ab_kp)
+        An_kp_new = np.linspace(0, 0.15, 1000)
+        Or_kp_new = An_kp_new
+        Ab_kp_new = f_kp(An_kp_new)
+        plag_kspar_line = np.column_stack([An_kp_new, Or_kp_new, Ab_kp_new])
+
+        Or_k = np.array([1.0, 0.37, 0.15])
+        An_k = np.array([0.05, 0.05, 0.15])
+        f_kspar = interpolate.interp1d(Or_k, An_k)
+        Or_k_new = np.linspace(0.15, 1, 1000)
+        An_k_new = f_kspar(Or_k_new)
+        Ab_k_new = 1 - Or_k_new
+        kspar_curve = np.column_stack([An_k_new, Or_k_new, Ab_k_new])
+
+        # Dividers
+        tax.line([0.9, 0, 0], plag_curve[plag_curve[:, 0] >= 0.9][0], color="k", zorder=0)
+        tax.line([0.7, 0, 0], plag_curve[plag_curve[:, 0] >= 0.7][0], color="k", zorder=0)
+        tax.line([0.5, 0, 0], plag_curve[plag_curve[:, 0] >= 0.5][0], color="k", zorder=0)
+        tax.line([0.3, 0, 0], plag_curve[plag_curve[:, 0] >= 0.3][0], color="k", zorder=0)
+        tax.line([0.1, 0, 0], plag_kspar_line[plag_kspar_line[:, 0] >= 0.1][0], color="k", zorder=0)
+        tax.line([0, 0.37, 0.63], kspar_curve[kspar_curve[:, 1] >= 0.37][0], color="k", zorder=0)
+        tax.line([0, 0.1, 0.9], plag_kspar_line[plag_kspar_line[:, 0] >= 0.1][0], color="k", zorder=0)
+
+        # Plot boundaries
+        tax.plot(plag_kspar_line[plag_kspar_line[:, 1] > 0.1], color="k", zorder=0)
+        tax.plot(plag_curve[:-60], color="k", zorder=0)
+        tax.plot(kspar_curve[:-60], color="k", zorder=0)
+
+        if ticks:
+            tax.ticks(axis="lbr", linewidth=0.5, multiple=0.2, offset=0.02, tick_formats="%.1f")
+
+        tax.clear_matplotlib_ticks()
+        tax.get_axes().axis("off")
+        tax._redraw_labels()
+
+        # Labels
+        if label_set:
+            fs = 12
+            lab_z = 120
+            ax = tax.get_axes()
+            ax.text(0.3, 0.5, label_set["Sanidine"], fontsize=fs, rotation=60, zorder=lab_z)
+            ax.text(0.15, 0.2, label_set["Anorthoclase"], fontsize=fs, zorder=lab_z)
+            ax.text(0.075, 0.03, label_set["Albite"], fontsize=fs, ha='center', zorder=lab_z)
+            ax.text(0.2, 0.03, label_set["Oligoclase"], fontsize=fs, ha='center', zorder=lab_z)
+            ax.text(0.4, 0.015, label_set["Andesine"], fontsize=fs, ha='center', zorder=lab_z)
+            ax.text(0.6, 0.015, label_set["Labradorite"], fontsize=fs, ha='center', zorder=lab_z)
+            ax.text(0.8, 0.015, label_set["Bytownite"], fontsize=fs, ha='center', zorder=lab_z)
+            ax.text(0.95, 0.015, label_set["Anorthite"], fontsize=fs, ha='center', zorder=lab_z)
+
+        pts = list(zip(df_class["An"], df_class["Or"], df_class["Ab"]))
+        cmap = plt.get_cmap("tab10")
+        for i, g in enumerate(df_class["Submineral"].unique()):
+            if g == "Unclassified":
+                continue
+            mask = df_class["Submineral"] == g
+            pts_sub = [pts[j] for j in np.where(mask)[0]]
+            tax.scatter(pts_sub, marker='o', label=g, color=cmap(i),
+                        edgecolor='k', s=20, alpha=0.8, vmin=None, vmax=None)
+        # legend for the classified fields
+        tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
+
+        # Plot “Unclassified” as hollow xs:
+        mask_unc = df_class["Submineral"] == "Unclassified"
+        if mask_unc.any():
+            pts_unc = [pts[j] for j in np.where(mask_unc)[0]]
+            tax.scatter(pts_unc, marker='x', label="Unclassified", color='0.35',
+                        s=15, alpha=0.9, zorder=30)
+            tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
+
+        return fig, tax
+
+
 class GarnetCalculator(BaseMineralCalculator):
     """Garnet-specific calculations."""
     OXYGEN_BASIS = 12
@@ -861,35 +1265,35 @@ class LeuciteCalculator(BaseMineralCalculator):
         return pd.concat([base, sites], axis=1)
 
 
-class MagnetiteCalculator(BaseMineralCalculator):
-    """Magnetite-specific calculations. Fe3O4."""
-    OXYGEN_BASIS = 4
-    MINERAL_SUFFIX = "_Mt"
+# class MagnetiteCalculator(BaseMineralCalculator):
+#     """Magnetite-specific calculations. Fe3O4."""
+#     OXYGEN_BASIS = 4
+#     MINERAL_SUFFIX = "_Mt"
 
-    def calculate_components(self):
-        """Return complete magnetite composition with site assignments."""
-        base = self.calculate_all()  # includes self.comps, moles, oxygens, and cations
-        cat_suffix = f"_cat_{self.OXYGEN_BASIS}ox"
+#     def calculate_components(self):
+#         """Return complete magnetite composition with site assignments."""
+#         base = self.calculate_all()  # includes self.comps, moles, oxygens, and cations
+#         cat_suffix = f"_cat_{self.OXYGEN_BASIS}ox"
 
-        # Grab just the cation columns from `base`
-        cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
+#         # Grab just the cation columns from `base`
+#         cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
 
-        Ti = base.get(f"Ti{cat_suffix}", 0)
-        Al = base[f"Al{cat_suffix}"]
-        Fe = base[f"Fe2t{cat_suffix}"]
-        Mn = base.get(f"Mn{cat_suffix}", 0)
-        Mg = base[f"Mg{cat_suffix}"]
-        Cr = base.get(f"Cr{cat_suffix}", 0)
+#         Ti = base.get(f"Ti{cat_suffix}", 0)
+#         Al = base[f"Al{cat_suffix}"]
+#         Fe = base[f"Fe2t{cat_suffix}"]
+#         Mn = base.get(f"Mn{cat_suffix}", 0)
+#         Mg = base[f"Mg{cat_suffix}"]
+#         Cr = base.get(f"Cr{cat_suffix}", 0)
 
-        # Compute site assignments in sites dataframe
-        sites = pd.DataFrame(index=base.index)
-        sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
-        sites["A_site"] = Mg + Fe # Mn, Zn, Ni, Co, Ni, Cu, Ge
-        sites["A_site_expanded"] = Mg + Fe + Mn # Zn, Ni, Co, Ni, Cu, Ge
-        sites["B_site"] = Al + Ti + Cr # Fe3, V
-        sites["Fe_Ti"] = Fe + Ti
+#         # Compute site assignments in sites dataframe
+#         sites = pd.DataFrame(index=base.index)
+#         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
+#         sites["A_site"] = Mg + Fe # Mn, Zn, Ni, Co, Ni, Cu, Ge
+#         sites["A_site_expanded"] = Mg + Fe + Mn # Zn, Ni, Co, Ni, Cu, Ge
+#         sites["B_site"] = Al + Ti + Cr # Fe3, V
+#         sites["Fe_Ti"] = Fe + Ti
 
-        return pd.concat([base, sites], axis=1)
+#         return pd.concat([base, sites], axis=1)
 
 
 class MeliliteCalculator(BaseMineralCalculator):
@@ -1088,8 +1492,8 @@ class OrthopyroxeneCalculator(BaseMineralCalculator):
         return pd.concat([base, sites], axis=1)
 
 
-class OxideCalculator(BaseMineralCalculator):
-    """Oxide-specific calculations. Fe-Ti Oxides. Hematite-Ilmenite, Fe2O3-(FeTi)2O3."""
+class RhombohedralOxideCalculator(BaseMineralCalculator):
+    """Rhombohedral oxide-specific calculations. Hematite-Ilmenite, Fe2O3-(FeTi)2O3."""
     OXYGEN_BASIS = 3
     CATION_BASIS = 2
     MINERAL_SUFFIX = "_Ox"
@@ -1101,53 +1505,66 @@ class OxideCalculator(BaseMineralCalculator):
 
         # Grab just the cation columns from `base`
         cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
-        Fe = base[f"Fe2t{cat_suffix}"]
+        total_cat = base[cation_cols].sum(axis=1)
+        T_S = self.CATION_BASIS / total_cat
+        base["S_init"] = total_cat # initial total cations
+        base["T_S"] = T_S
+        Fe_init = base[f"Fe2t{cat_suffix}"]
 
         if Fe_correction == "Droop":
             # Droop (1987) equation
             total_cat = base[cation_cols].sum(axis=1)
             Fe3 = (2 * self.OXYGEN_BASIS * (1 - (self.CATION_BASIS / total_cat))).clip(lower=0)
-            Fe3_prop = (Fe3 / Fe).clip(upper=1)
-            Fe2 = Fe - Fe3
+            Fe3_prop = (Fe3 / Fe_init).clip(upper=1)
+            Fe2 = Fe_init - Fe3
         elif Fe_correction == "All_Fe2":
-            Fe2 = Fe
+            Fe2 = Fe_init
             Fe3 = pd.Series(0, index=base.index)
             Fe3_prop = pd.Series(0, index=base.index)
+        elif Fe_correction == "All_Fe3":
+            Fe2 = Fe_init
+            Fe3 = pd.Series(0, index=base.index)
+            Fe3_prop = pd.Series(1, index=base.index)
+            update_base = self.comps.copy()  # only oxide wt% columns
+            update_base["FeO"] = update_base["FeOt"] * (1 - Fe3_prop)
+            update_base["Fe2O3"] = update_base["FeOt"] * Fe3_prop * (1 / 0.89992485)
+            update_base = update_base.drop(columns=["FeOt"])
+
+            update_calc = type(self)(update_base)
+            base_update = update_calc.calculate_all()
+            cation_cols_update = [col for col in base_update.columns if col.endswith(cat_suffix)]
+            base = base_update.copy()
+            cation_cols = cation_cols_update
         else:
-            raise ValueError("Invalid Fe_correction: choose 'Droop' or 'All_Fe2'")
+            raise ValueError("Invalid Fe_correction: choose 'Droop', 'All_Fe2', or 'All_Fe3'.")
 
-        base["FeO"] = base["FeOt"] * (1 - Fe3_prop)
-        base["Fe2O3"] = base["FeOt"] * Fe3_prop * self.OXIDE_MASSES["Fe2O3t"] / (2 * self.OXIDE_MASSES["FeOt"])
-        update_base = base.drop(columns=["FeOt"])
+        if "FeOt" in base.columns:
+            base["FeO"] = base["FeOt"] * (1 - Fe3_prop)
+            base["Fe2O3"] = base["FeOt"] * Fe3_prop * (1 / 0.89992485)
+            base[f"Fe3{cat_suffix}"] = Fe3
+            base[f"Fe2{cat_suffix}"] = Fe2
 
-        update_cation_cols = [ox for ox in self.OXIDE_MASSES if ox in update_base.columns]
-        print(update_cation_cols)
-        update_comps = update_base[update_cation_cols].copy()
-        update_df = pd.concat([
-            self.metadata,
-            update_comps
-            ], axis=1)
-        update_calc = type(self)(update_df)
-        base_update = update_calc.calculate_all()
-        cation_cols_update = [col for col in base_update.columns if col.endswith(cat_suffix)]
-
-        Ti = base_update.get(f"Ti{cat_suffix}", 0)
-        Al = base_update.get(f"Al{cat_suffix}", 0)
-        Fe2 = base_update[f"Fe2{cat_suffix}"]
-        Fe3 = base_update[f"Fe3{cat_suffix}"]
-        Mn = base_update.get(f"Mn{cat_suffix}", 0)
-        Mg = base_update.get(f"Mg{cat_suffix}", 0)
-        Cr = base_update.get(f"Cr{cat_suffix}", 0)
+        Ti = base.get(f"Ti{cat_suffix}", 0)
+        Al = base.get(f"Al{cat_suffix}", 0) 
+        Fe2 = base[f"Fe2{cat_suffix}"]
+        Fe3 = base[f"Fe3{cat_suffix}"]
+        Mn = base.get(f"Mn{cat_suffix}", 0)
+        Mg = base.get(f"Mg{cat_suffix}", 0)
+        Cr = base.get(f"Cr{cat_suffix}", 0)
 
         # Compute site assignments in sites dataframe
-        sites = pd.DataFrame(index=base_update.index)
-        sites["Cation_Sum"] = base_update[cation_cols_update].sum(axis=1)
+        sites = pd.DataFrame(index=base.index)
+        sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["A_site"] = Mg + Fe2 # Mn, Zn, Ni, Co, Ni, Cu, Ge
         sites["A_site_expanded"] = Mg + Fe2 + Mn # Zn, Ni, Co, Ni, Cu, Ge
         sites["B_site"] = Al + Ti + Cr + Fe3 # V
         sites["A_B_site"] = Mg + Fe2 + Mn + Al + Ti + Cr + Fe3
         sites["Fe_Ti"] = Fe2 + Fe3 + Ti
         sites['Fe3_prop'] = Fe3 / (Fe2 + Fe3)
+        total = (Fe2 + Fe3 + Ti + Al + Cr + Mn + Mg)
+        sites["XR2"] = (Fe2 + Mn + Mg) / total # having as true R2+ (Fe+Mg+Mn) pushes all spinels away
+        sites["XR3"] = (Fe3 + Al + Cr) / total
+        sites["XTi"] = Ti / total
 
         sites["XHem"] = Fe3 / (Fe3 + Ti) # Hematite
         remainder = 1 - sites["XHem"]
@@ -1157,7 +1574,551 @@ class OxideCalculator(BaseMineralCalculator):
         sites["XGk"] = (Mg / denominator) * remainder # Geikielite (MgTiO3)
         sites["XSum"] = sites["XHem"] + sites["XIlm"] + sites["XMnIlm"] + sites["XGk"]
 
-        return pd.concat([base_update, sites], axis=1)
+        return pd.concat([base, sites], axis=1)
+
+
+class OxideClassifier:
+    """
+    General classifier for rhombohedral oxides and spinels. Use either:
+    - RhombohedralOxideCalculator for rhombohedral oxides (e.g., Hematite, Ilmenite)
+    - SpinelCalculator for spinels (e.g., Spinel, Magnetite)
+
+    Returns:
+      Compositions/sites from the specific calculators with XR2, XR3, XTi
+      already populated by those calculators. Non-routed rows are passed through.
+    """
+
+    def __init__(self, df):
+        self.df = df.copy()
+        if "Predict_Mineral" in self.df.columns:
+            self.mineral_col = "Predict_Mineral"
+        elif "Mineral" in self.df.columns:
+            self.mineral_col = "Mineral"
+        else:
+            raise ValueError(
+                "Dataframe must contain a 'Predict_Mineral' column"
+            )
+
+        names = self.df[self.mineral_col].astype(str).str.lower()
+        self.rhomb_oxide_mask = (
+            names.str.contains("rhombohedral_oxides", case=False, regex=False) |
+            names.str.contains("ilmenite", case=False, regex=False) |
+            names.str.contains("hematite", case=False, regex=False)
+        )
+        self.spinel_mask = (
+            names.str.contains("spinel", case=False, regex=False) |
+            names.str.contains("magnetite", case=False, regex=False)
+        )
+
+    def calculate_components(self, Fe_correction="Droop"):
+        """
+        Route rhombohedral oxides and spinels to the appropriate calculator and
+        write results back into a copy of the original df.
+        """
+        out = self.df.copy()
+
+        # Rhombohedral oxides
+        if self.rhomb_oxide_mask.any():
+            idx = self.rhomb_oxide_mask[self.rhomb_oxide_mask].index
+            ox_df = out.loc[idx]
+
+            # Split into hematite-rich (FeOt > 60) and others
+            if "FeOt" in ox_df.columns:
+                hematite_mask = ox_df["FeOt"] > 60
+                hematite_df = ox_df[hematite_mask]
+                other_df = ox_df[~hematite_mask]
+            else:
+                hematite_mask = pd.Series(False, index=ox_df.index)
+                other_df = ox_df
+
+            # Process hematite-rich samples with All_Fe3
+            if hematite_mask.any():
+                hematite_res = RhombohedralOxideCalculator(hematite_df).calculate_components(
+                    Fe_correction="All_Fe3"
+                )
+                for col in hematite_res.columns:
+                    out.loc[idx[hematite_mask], col] = hematite_res[col].values
+
+            # Process others with default Fe_correction
+            if len(other_df) > 0:
+                other_res = RhombohedralOxideCalculator(other_df).calculate_components(
+                    Fe_correction=Fe_correction
+                )
+                for col in other_res.columns:
+                    out.loc[idx[~hematite_mask], col] = other_res[col].values
+
+        # Spinels
+        if self.spinel_mask.any():
+            idx = self.spinel_mask[self.spinel_mask].index
+            sp_df = out.loc[idx]
+            sp_res = SpinelCalculator(sp_df).calculate_components(
+                Fe_correction=Fe_correction
+            )
+            for col in sp_res.columns:
+                out.loc[idx, col] = sp_res[col].values
+
+        return out
+
+    def _spinel_axes(self, df):
+        idx = df.index
+        fe2 = df.get("Fe2_cat_4ox", pd.Series(0.0, index=idx)).astype(float)
+        mg  = df.get("Mg_cat_4ox",  pd.Series(0.0, index=idx)).astype(float)
+        fe3 = df.get("Fe3_cat_4ox", pd.Series(0.0, index=idx)).astype(float)
+        al  = df.get("Al_cat_4ox",  pd.Series(0.0, index=idx)).astype(float)
+        x = np.divide(fe2, fe2+mg, out=np.zeros_like(fe2, float), where=(fe2+mg)>0)
+        y = np.divide(fe3, fe3+al, out=np.zeros_like(fe3, float), where=(fe3+al)>0)
+        return np.clip(x,0,1), np.clip(y,0,1)
+
+    def _classify_subspinel(self, x, y, eps=1e-9):
+        """
+        x = Fe2/(Fe2+Mg), y = Fe3/(Fe3+Al)  (numpy arrays)
+        returns: np.array of subtype strings
+        """
+        sub = np.full(x.shape, "Unlabeled", dtype=object)
+
+        # Top band: y >= 0.75
+        top = y >= 0.75 - eps
+        sub[top & (x < 0.5 - eps)]  = "Magnesioferrite"
+        sub[top & (x >= 0.5 - eps)] = "Magnetite"
+
+        # Middle band: 0.25 <= y < 0.75
+        mid = (y >= 0.25 - eps) & (y < 0.75 - eps)
+        sub[mid & (x < 0.25 - eps)] = "Ferrian-Spinel"
+        mid_mid = mid & (x >= 0.25 - eps) & (x < 0.75 - eps)
+        sub[mid_mid] = "Ferrian-Pleonaste"
+        right_mid = mid & (x >= 0.75 - eps)
+        sub[right_mid & (y >= 0.50 - eps)] = "Al-Magnetite"
+        sub[right_mid & (y <  0.50 - eps)] = "Ferrian-Picotite"
+
+        # Bottom band: y < 0.25
+        bot = y < 0.25 - eps
+        sub[bot & (x < 0.25 - eps)] = "Spinel"
+        sub[bot & (x >= 0.25 - eps) & (x < 0.75 - eps)] = "Pleonaste"
+        sub[bot & (x >= 0.75 - eps)] = "Hercynite"
+        return sub
+
+    def _project_to_line(self, P, A, B, eps=0.1):
+        """Helper: Project points P onto line A-B and check distance."""
+        v = B - A
+        vv = float(v @ v)
+        p = P - A
+        t = (p @ v) / vv
+        t_clip = np.clip(t, 0.0, 1.0)
+        proj = A + t_clip[:, None] * v
+        dist = np.linalg.norm(p - t_clip[:, None] * v, axis=1)
+        on_line = dist <= eps
+        return t_clip, on_line, dist
+
+    def classify(self, eps=0.1):
+        comps = self.calculate_components()
+        df_class = comps.copy()
+        df_class["Submineral"] = None
+
+        required_cols = ["XR3", "XTi", "XR2"]
+        has_required_cols = all(col in df_class.columns for col in required_cols)
+
+        if has_required_cols:
+            # Rhombohedral oxides: Hematite-Ilmenite line
+            if self.rhomb_oxide_mask.any():
+                idx = self.rhomb_oxide_mask[self.rhomb_oxide_mask].index
+                P = df_class.loc[idx, ["XR3", "XTi", "XR2"]].to_numpy()
+                H = np.array([1.0, 0.0, 0.0])  # Hematite
+                I = np.array([0.0, 0.5, 0.5])  # Ilmenite
+                t_hi, on_hi, dist_hi = self._project_to_line(P, H, I, eps)            
+                df_class.loc[idx[on_hi], "Submineral"] = np.where(
+                    t_hi[on_hi] <= 0.5, "Hematite", "Ilmenite"
+                )
+                # df_class.loc[idx[on_hi], "Classification_Confidence"] = 1 - (dist_hi[on_hi]/eps)
+
+            # Spinels: Magnetite-Ulvöspinel line
+            if self.spinel_mask.any():
+                idx = self.spinel_mask[self.spinel_mask].index
+                P = df_class.loc[idx, ["XR3", "XTi", "XR2"]].to_numpy()
+                M = np.array([2/3, 0.0, 1/3]) # Magnetite (Fe3O4)
+                U = np.array([0.0, 1/3, 2/3]) # Ulvöspinel (Fe2TiO4)
+                t_mu, on_mu, dist_mu = self._project_to_line(P, M, U, eps/4)
+                df_class.loc[idx[on_mu], "Submineral"] = np.where(
+                    t_mu[on_mu] <= 0.5, "Spinels", "Ulvöspinel"
+                )
+                # df_class.loc[idx[on_mu], "Classification_Confidence"] = 1 - (dist_mu[on_mu]/eps)
+
+            # This is important if you define Fe2+ rather than R2+ (Fe2+, Mg2+, Mn2+), 
+            # as spinel lies between the U-M and I-H line!!! 
+
+            # unl = df_class["Submineral"].isna()
+            # if unl.any():
+            #     idx = df_class.index[unl]
+            #     P = df_class.loc[idx, ["XR3","XTi","XR2"]].to_numpy(dtype=float)
+            #     x, y, z = P[:,0], P[:,1], P[:,2]
+
+            #     # # exact tie-lines in barycentric coordinates
+            #     z_low  = 0.5 - 0.5 * x
+            #     z_high = 2.0/3.0 - 0.5 * x
+            #     margin = 0.002
+
+            #     # # keep points strictly between lines and away from the FeO=0 edge
+            #     spinel_mask = (z > z_low + margin) & (z < z_high - margin)
+            #     df_class.loc[idx[spinel_mask], "Submineral"] = "Spinel Group"
+
+            # FeO-TiO2-Pseudobrookite System
+            unl = df_class["Submineral"].isna()
+            if unl.any():
+                idx = df_class.index[unl]
+                P = df_class.loc[idx, ["XR3","XTi","XR2"]].to_numpy()
+                A = np.array([0.0, 2/3, 1/3]) # FeO·2TiO2
+                B = np.array([1/2, 1/2, 0.0]) # Pseudobrookite
+                t_fp, on_fp, dist_fp = self._project_to_line(P, A, B, eps)
+                df_class.loc[idx[on_fp], "Submineral"] = "FeO·2TiO2-Pseudobrookite"
+                # df_class.loc[idx[on_fp], "Classification_Confidence"] = 1 - (dist_fp[on_fp]/eps)
+
+            end_tol = 0.05
+            unl = df_class["Submineral"].isna()
+            if unl.any():
+                idx = df_class.index[unl]
+                near_tio2 = df_class.loc[idx, "XTi"] >= (1.0 - end_tol)
+                near_feo = df_class.loc[idx, "XR2"]  >= (1.0 - end_tol)
+                near_fe2o3  = df_class.loc[idx, "XR3"]  >= (1.0 - end_tol)
+                df_class.loc[idx[near_tio2], "Submineral"] = "Rutile"
+                df_class.loc[idx[near_feo], "Submineral"] = "FeO"
+                df_class.loc[idx[near_fe2o3], "Submineral"] = "Hematite"
+        df_class["Submineral"] = df_class["Submineral"].fillna("Unclassified")
+
+        # # Use  appropriate mineral column as fallback
+        # mineral_col = self.mineral_col  # set in __init__ to either "Mineral" or "Predict_Mineral"
+        # # Fill NA values with the original mineral prediction
+        # df_class["Submineral"] = df_class["Submineral"].fillna(df_class[mineral_col])        
+
+        sp_rows = df_class["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        if sp_rows.any():
+            sp_df = df_class.loc[sp_rows].copy()
+            x, y = self._spinel_axes(sp_df)
+            df_class.loc[sp_rows, "Subspinel"] = self._classify_subspinel(x, y)
+        else:
+            df_class["Subspinel"] = np.nan
+
+        return df_class
+
+    def plot(self, figsize=(8, 8), ticks=True, include_unclassified=True, **kw):
+        """
+        Ternary plot of FeO-Fe2O3-TiO2; colors by the existing 'Mineral' labels.
+        """
+        import ternary
+        import matplotlib.pyplot as plt
+
+        df = self.classify()
+        valid = (df[["XR2", "XR3", "XTi"]].sum(axis=1) > 0)
+        df = df[valid].copy()
+
+        if "Submineral" not in df.columns:
+            df["Submineral"] = "Unclassified"
+        if not include_unclassified:
+            df = df[df["Submineral"] != "Unclassified"]
+
+        groups = df["Submineral"].astype(str).fillna("(unknown)").unique()
+        cmap = plt.get_cmap("tab10")
+
+        fig, tax = ternary.figure()
+        fs = 14
+        fig.set_size_inches(figsize)
+        tax.boundary(linewidth=1.5, zorder=0)
+        tax.right_corner_label("R$\mathregular{^{3+}}$\n$\mathregular{Fe^{3+}+Cr+Mn}$\nHematite, $\\mathregular{Fe_2O_3}$", fontsize=fs, offset=-0.075)
+        tax.top_corner_label("Rutile, anatase, brookite\n$\\mathregular{TiO_2}$", fontsize=fs, offset=0.175)
+        tax.left_corner_label("R$\mathregular{^{2+}}$\n$\mathregular{Fe^{2+}+Mg+Mn}$\n FeO ", fontsize=fs, offset=-0.075)
+        tax.bottom_axis_label("Magnetite\n$\\mathregular{Fe_3O_4}$", fontsize=fs, offset=0)
+
+        ax = tax.get_axes()
+        ax.text(0.86, 0.45, "Pseudobrookite\n$\\mathregular{FeTi_2O_5}$", fontsize=fs, ha="center", va="center")
+        ax.text(0.24, 0.59, "FeO$\\cdot$${\\mathregular{2TiO_2}}$", fontsize=fs, ha="center", va="center")
+        ax.text(0.17, 0.44, "Ilmenite\n$\\mathregular{FeTiO_3}$", fontsize=fs, ha="center", va="center")
+        ax.text(0.06, 0.30, "Ulvöspinel\n2FeO$\\cdot$${\\mathregular{TiO_2}}$", fontsize=fs, ha="center", va="center")
+
+        tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
+        tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
+
+        # Ilmenite-hematite/maghemite
+        tax.line((0, 1/2, 1/2), (1, 0, 0), color="k", **kw)
+        # Ulvospinel-magnetite
+        tax.line((0, 1/3, 2/3), (2/3, 0, 1/3), color="k", **kw)
+        # FeO 2TiO2-pseudobrookite
+        tax.line((0, 2/3, 1/3), (1/2, 1/2, 0), color="k", **kw)
+
+        for i, phase in enumerate([g for g in groups if g != "Unclassified"]):
+            pts = df[df["Submineral"] == phase][["XR3","XTi","XR2"]].values.tolist()
+            if not pts:
+                continue
+            tax.scatter(pts, marker='o', label=phase, color=cmap(i % 10), edgecolor='k',
+                        s=30, alpha=0.85, zorder=50)
+
+        # unclassified last 
+        if "Unclassified" in groups:
+            pts = df[df["Submineral"] == "Unclassified"][["XR3","XTi","XR2"]].values.tolist()
+            if pts:
+                tax.scatter(pts, marker='x', label="Unclassified", color='0.35',
+                            s=30, alpha=0.9, zorder=30)
+
+        if ticks:
+            tax.ticks(axis="lbr", linewidth=0.5, multiple=0.2, offset=0.01, tick_formats="%.1f")
+
+        tax.legend(fontsize=10, bbox_to_anchor=(1.02, 1))
+        tax.get_axes().axis("off")
+
+        sp_mask = df["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        if sp_mask.any():
+            self._last_spinel_figax = self.plot_spinel(df=df, figsize=(9, 6), hue="Subspinel")
+
+        return fig, tax
+    
+    def plot_spinel(self, df=None, figsize=(9, 6), hue=None):
+
+        import matplotlib.pyplot as plt
+
+        if df is None:
+            df = self.classify().copy()
+
+        sp_mask = df["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        sp = df.loc[sp_mask].copy()
+        if sp.empty:
+            return (None, None)
+
+        # Default hue is Subspinel
+        if hue is None:
+            hue = "Subspinel"
+
+        # Ratios for plotting
+        x, y = self._spinel_axes(sp)
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Spinel grid definition
+        ax.hlines(y=0.75, xmin=-0.02, xmax=1.02, color='k', lw=1, zorder=0)
+        ax.hlines(y=0.25, xmin=-0.02, xmax=1.02, color='k', lw=1, zorder=0)
+        ax.hlines(y=0.50, xmin=0.75, xmax=1.02, color='k', lw=1, zorder=0)
+        ax.vlines(x=0.25, ymin=-0.02, ymax=0.75, color='k', lw=1, zorder=0)
+        ax.vlines(x=0.75, ymin=-0.02, ymax=0.75, color='k', lw=1, zorder=0)
+        ax.vlines(x=0.50, ymin=0.75, ymax=1.02, color='k', lw=1, zorder=0)
+
+        fs = 14
+        ax.text(0.225, 0.875, "Magnesioferrite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.775, 0.875, "Magnetite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.125, 0.500, "Ferrian-Spinel", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.500, 0.500, "Ferrian-Pleonaste", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.875, 0.625, "Al-Magnetite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.875, 0.375, "Ferrian-Picotite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.125, 0.130, "Spinel", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.500, 0.130, "Pleonaste", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.875, 0.130, "Hercynite", fontsize=fs, ha="center", va="center", zorder=30)
+
+        # Color by hue using tab10; keep in sorted order
+        cmap = plt.get_cmap("tab10")
+        if hue in sp.columns:
+            groups = sorted(sp[hue].astype(str).unique())
+            for i, g in enumerate(groups):
+                m = (sp[hue].astype(str) == g).to_numpy()
+                ax.scatter(x[m], y[m], label=g, s=30, alpha=0.6,
+                        edgecolors="k", linewidth=0.5, color=cmap(i % 10), zorder=20)
+            # Put legend OUTSIDE 
+            fig.subplots_adjust(right=0.9)  # make room on the right
+            ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=True, fontsize=9)
+        else:
+            ax.scatter(x, y, s=30, alpha=0.6, edgecolors="k", linewidth=0.5,
+                    color=cmap(0), zorder=20)
+
+        ax.set_xlim(-0.02, 1.02)
+        ax.set_ylim(-0.02, 1.02)
+        # ax.margins(x=0.02, y=0.02) # small outer margins to separate tick labels from the frame
+        ax.tick_params(axis='both', which='both', direction='in', top=True, right=True, length=5)
+        ax.set_xlabel("$\mathregular{Fe^{2+}/(Fe^{2+}+Mg^{2+})}$")
+        ax.set_ylabel("$\mathregular{Fe^{3+}/(Fe^{3+}+Al^{3+})}$")
+        fig.tight_layout()
+
+        return fig, ax
+
+
+class PyroxeneClassifier(BaseMineralCalculator):
+    """General pyroxene calculations for classification."""
+    OXYGEN_BASIS = 6
+    MINERAL_SUFFIX = "_Px"
+
+    def calculate_components(self):
+        """Return complete pyroxene composition with site assignments and enstatite, ferrosilite, wollastonite."""
+        base = self.calculate_all()  # includes self.comps, moles, oxygens, and cations
+        cat_suffix = f"_cat_{self.OXYGEN_BASIS}ox"
+
+        # Grab just the cation columns from `base`
+        cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
+
+        Si = base[f"Si{cat_suffix}"]
+        Ti = base.get(f"Ti{cat_suffix}", 0)
+        Al = base[f"Al{cat_suffix}"]
+        Fe = base[f"Fe2t{cat_suffix}"]
+        Mg = base[f"Mg{cat_suffix}"]
+        Ca = base[f"Ca{cat_suffix}"]
+        Na = base.get(f"Na{cat_suffix}", 0)
+        Cr = base.get(f"Cr{cat_suffix}", 0)
+
+        # Compute site assignments in sites dataframe
+        sites = pd.DataFrame(index=base.index)
+        sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
+        sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
+        sites["T_site"] = Si + Al
+        sites["XMg"] = (Mg / (Mg + Fe))
+        sites["En"] = Mg / (Mg + Fe + Ca)
+        sites["Fs"] = Fe / (Mg + Fe + Ca)
+        sites["Wo"] = Ca / (Mg + Fe + Ca)
+
+        return pd.concat([base, sites], axis=1)
+
+    def classify(self, subclass=True):
+        """
+        Classify pyroxene analyses into broad classes (ortho vs. clino) and
+        optional DHZ subclasses.
+
+        Parameters:
+            subclass (bool): If True, determine `Submineral` classification.
+
+        Returns:
+            classified_df (pd.DataFrame): DataFrame with new columns for Mineral, 
+                Submineral, En, Fs, and Wo. 
+        """
+
+        comps = self.calculate_components()
+        en = comps["En"].to_numpy()
+        fs = comps["Fs"].to_numpy()
+        wo = comps["Wo"].to_numpy()
+
+        def _label(e, f, w):
+            # broad
+            main = "Orthopyroxene" if w < 0.05 else "Clinopyroxene"
+            if not subclass:
+                return main, None
+
+            # DHZ sub-fields
+            if w < 0.05:
+                sub = "Enstatite" if f/(e+f) < 0.5 else "Ferrosilite"
+            elif w < 0.20:
+                sub = "Pigeonite"
+            elif w < 0.45:
+                sub = "Augite"
+            elif w < 0.50:
+                sub = "Diopside" if f/(e+f) < 0.5 else "Hedenbergite" # e > 0.275
+            else: 
+                sub = "Wollastonite"
+            return main, sub
+
+        labels = np.array([_label(e,f,w) for e,f,w in zip(en,fs,wo)])
+        df_class = comps.copy()
+        df_class["Mineral"] = labels[:,0]
+        if subclass:
+            df_class["Submineral"] = labels[:,1]
+        
+        df_class['En'] = comps['En']
+        df_class['Fs'] = comps['Fs']
+        df_class['Wo'] = comps['Wo']
+
+        return df_class
+
+    def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 5), **kw):
+
+        """
+        Plot pyroxene compositions on the DHZ quadrilateral.
+
+        Parameters:
+            df_class: Output of `.classify()`. If None, will call `.classify(subclass)`.
+            subclass: Whether to color by Submineral (if False, colors by Mineral).
+            figsize: Default (8,5)
+            **kw: Passed to the field-boundary `tax.line(…)` calls (e.g. ls=':', lw=0.5).
+
+        Returns:
+            fig: matplotlib.figure.Figure
+            tax: ternary.TernaryAxesSubplot
+        """
+
+        import ternary
+        import matplotlib.pyplot as plt
+
+        # get classification if needed
+        if df_class is None:
+            df_class = self.classify(subclass=subclass)
+        # grab En, Fs, Wo for scatter
+        pts = list(zip(df_class["Fs"], df_class["Wo"], df_class["En"]))
+
+        label_dict = {
+            "Diopside": "Di", "Hedenbergite": "Hd", "Augite": "Au",
+            "Pigeonite": "Pig", "Enstatite": "En", "Ferrosilite": "Fs"
+        }
+
+        if labels == "long":
+            label_set = {k: k for k in label_dict}
+        elif labels == "short" or labels is True:
+            label_set = label_dict
+        else:
+            label_set = None
+
+        # set up ternary
+        fig, tax = ternary.figure(scale=1.0)
+        fig.set_size_inches(figsize)
+        tax.boundary(linewidth=1.5, zorder=0)
+        tax.get_axes().set_ylim(-0.01, 0.435)
+        tax.left_corner_label("En", fontsize=14)
+        tax.right_corner_label("Fs", fontsize=14)
+        tax.top_corner_label("Wo", fontsize=14)
+        tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
+        tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
+
+        # DHZ field boundaries
+        lines = [
+            ([0, 0.5, 0.5],[0.5, 0.5, 0]),
+            ([0, 0.45, 0.55],[0.55, 0.45, 0]),
+            ([0.25, 0.5, 0.25],[0.275, 0.45, 0.275]),
+            ([0, 0.05, 0.95],[0.95, 0.05, 0]),
+            ([0, 0.2, 0.8],[0.8, 0.2, 0]),
+            ([0.5, 0, 0.5],[0.475, 0.05, 0.475]),
+        ]
+        for xs, ys in lines:
+            tax.line(xs, ys, color="k", **kw, zorder=0)
+
+        # scatter points
+        if subclass and "Submineral" in df_class:
+            cmap = plt.get_cmap("tab10")
+            for i, g in enumerate(df_class["Submineral"].unique()):
+                mask = df_class["Submineral"] == g
+                tax.scatter([pts[j] for j in np.where(mask)[0]],
+                            marker='o', label=g, color=cmap(i),
+                            edgecolor='k', s=20, alpha=0.8)
+            tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02,1))
+        else:
+            tax.scatter(pts, marker='o', color='C0', edgecolor='k', s=20, alpha=0.8)
+
+        # draw & filter ticks so they only appear where the quadrilateral lives
+        ax = tax.get_axes()
+        def draw_and_filter(axis, keep_min=None, keep_max=None):
+            nL, nT = len(ax.lines), len(ax.texts)
+            ticks = [i * 0.1 for i in range(11)]
+            tax.ticks(axis=axis, ticks=ticks, offset=0.02, tick_formats="%.1f")
+            newL, newT = ax.lines[nL:], ax.texts[nT:]
+            for L, T in zip(newL, newT):
+                v = float(T.get_text())
+                if (keep_min is not None and v < keep_min) or (keep_max is not None and v > keep_max):
+                    L.set_visible(False); T.set_visible(False)
+
+        draw_and_filter('l', keep_min=0.5, keep_max=1.0)  # En axis
+        draw_and_filter('r', keep_min=0.0, keep_max=0.5)  # Fs axis
+        draw_and_filter('b', keep_min=0.0, keep_max=1.0)  # Wo axis
+
+        if label_set:
+            fs = 12
+            lab_z = 120
+            ax = tax.get_axes()
+            ax.text(0.375, 0.4, label_set["Diopside"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+            ax.text(0.625, 0.4, label_set["Hedenbergite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+            ax.text(0.5, 0.275, label_set["Augite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+            ax.text(0.5, 0.1, label_set["Pigeonite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+            ax.text(0.25, 0.02, label_set["Enstatite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+            ax.text(0.75, 0.02, label_set["Ferrosilite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+
+
+        tax.clear_matplotlib_ticks()
+        ax.axis("off")
+        return fig, tax
 
 
 class QuartzCalculator(BaseMineralCalculator):
@@ -1248,7 +2209,7 @@ class SerpentineCalculator(BaseMineralCalculator):
 
 
 class SpinelCalculator(BaseMineralCalculator):
-    """Spinel-specific calculations. MgAl2O4."""
+    """Spinel group-specific calculations. MgAl2O4, Fe3O4, AB2X4."""
     OXYGEN_BASIS = 4
     CATION_BASIS = 3
     MINERAL_SUFFIX = "_Sp"
@@ -1260,45 +2221,42 @@ class SpinelCalculator(BaseMineralCalculator):
 
         # Grab just the cation columns from `base`
         cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
-        Fe = base[f"Fe2t{cat_suffix}"]
+        total_cat = base[cation_cols].sum(axis=1)
+        T_S = self.CATION_BASIS / total_cat
+        base["S_init"] = total_cat # initial total cations
+        base["T_S"] = T_S
+        Fe_init = base[f"Fe2t{cat_suffix}"]
 
         if Fe_correction == "Droop":
             # Droop (1987) equation
-            total_cat = base[cation_cols].sum(axis=1)
-            Fe3 = (2 * self.OXYGEN_BASIS * (1 - self.CATION_BASIS / total_cat)).clip(lower=0)
-            Fe3_prop = (Fe3 / Fe).clip(upper=1)
-            Fe2 = Fe - Fe3
+            scaled = base.loc[:, cation_cols].mul(T_S.values, axis=0)
+            base.loc[:, cation_cols] = scaled.to_numpy()
+            Fe_corr = base[f"Fe2t{cat_suffix}"]
+            Fe3 = (2 * self.OXYGEN_BASIS * (1 - self.CATION_BASIS / base["S_init"])).clip(lower=0)
+            Fe3_prop = (Fe3 / Fe_corr).clip(upper=1)
+            Fe2 = Fe_corr - Fe3
         elif Fe_correction == "All_Fe2":
-            Fe2 = Fe
+            Fe2 = Fe_init
             Fe3 = pd.Series(0, index=base.index)
             Fe3_prop = pd.Series(0, index=base.index)
+        elif Fe_correction == "All_Fe3":
+            Fe2 = Fe_init
+            Fe3 = pd.Series(0, index=base.index)
+            Fe3_prop = pd.Series(1, index=base.index)
         else:
-            raise ValueError("Invalid Fe_correction: choose 'Droop' or 'All_Fe2'")
-
+            raise ValueError("Invalid Fe_correction: choose 'Droop', 'All_Fe2', or 'All_Fe3'.")
         base["FeO"] = base["FeOt"] * (1 - Fe3_prop)
         base["Fe2O3"] = base["FeOt"] * Fe3_prop * (1 / 0.89992485)
-        update_base = base.drop(columns=["FeOt"])
+        base[f"Fe3{cat_suffix}"] = Fe3
+        base[f"Fe2{cat_suffix}"] = Fe2
 
-        update_cation_cols = [ox for ox in self.OXIDE_MASSES if ox in update_base.columns]
-        update_comps = update_base[update_cation_cols].copy()
-        update_df = pd.concat([
-            self.metadata,
-            update_comps
-            ], axis=1)
-        update_calc = type(self)(update_df)
-        base_update = update_calc.calculate_all()
-        cation_cols_update = [col for col in base_update.columns if col.endswith(cat_suffix)]
-
-        sites = pd.DataFrame(index=base.index)
-        sites["Cation_Sum"] = base_update[cation_cols_update].sum(axis=1)
-        
-        Ti = base_update.get(f"Ti{cat_suffix}", 0)
-        Al = base_update[f"Al{cat_suffix}"]
-        Fe2 = base_update[f"Fe2{cat_suffix}"]
-        Fe3 = base_update[f"Fe3{cat_suffix}"]
-        Mn = base_update[f"Mn{cat_suffix}"]
-        Mg = base_update[f"Mg{cat_suffix}"]
-        Cr = base_update.get(f"Cr{cat_suffix}", 0)
+        Ti = base.get(f"Ti{cat_suffix}", 0)
+        Al = base.get(f"Al{cat_suffix}", 0) 
+        Fe2 = base[f"Fe2{cat_suffix}"]
+        Fe3 = base[f"Fe3{cat_suffix}"]
+        Mn = base.get(f"Mn{cat_suffix}", 0)
+        Mg = base.get(f"Mg{cat_suffix}", 0)
+        Cr = base.get(f"Cr{cat_suffix}", 0)
 
         # Compute site assignments in sites dataframe
         sites = pd.DataFrame(index=base.index)
@@ -1307,11 +2265,15 @@ class SpinelCalculator(BaseMineralCalculator):
         sites["A_site_expanded"] = Mg + Fe2 + Mn # Zn, Ni, Co, Ni, Cu, Ge
         sites["B_site"] = Al + Ti + Cr + Fe3 # V
         sites["A_B_site"] = Mg + Fe2 + Mn + Al + Ti + Cr + Fe3
-        sites["Fe_Ti"] = Fe + Ti
+        sites["Fe_Ti"] = Fe2 + Fe3 + Ti
         sites['Fe3_prop'] = Fe3 / (Fe2 + Fe3)
+        total = (Fe2 + Fe3 + Ti + Al + Cr + Mn + Mg)
+        sites["XR2"] = (Fe2 + Mn + Mg) / total # having as true R2+ (Fe+Mg+Mn) pushes all spinels away
+        sites["XR3"] = (Fe3 + Al + Cr) / total
+        sites["XTi"] = Ti / total
 
-        return pd.concat([base_update, sites], axis=1)
-
+        return pd.concat([base, sites], axis=1)
+    
 
 class TitaniteCalculator(BaseMineralCalculator):
     """Titanite-specific calculations. CaTiSiO5."""
@@ -1398,7 +2360,7 @@ class ZirconCalculator(BaseMineralCalculator):
     OXYGEN_BASIS = 4
     MINERAL_SUFFIX = "_Zr"
 
-    # Extend the parent's dictionaries by merging them with ZrO2 and HfO2 nodata
+    # Extend the parent's dictionaries by merging them with ZrO2 and HfO2 data
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"ZrO2": 123.222, "HfO2": 210.484})
     OXYGEN_NUMBERS = dict(BaseMineralCalculator.OXYGEN_NUMBERS, **{"ZrO2": 2, "HfO2": 2})
     CATION_NUMBERS = dict(BaseMineralCalculator.CATION_NUMBERS, **{"ZrO2": 1, "HfO2": 1})
@@ -1421,7 +2383,9 @@ class ZirconCalculator(BaseMineralCalculator):
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["M_site"] = Zr
         sites["T_site"] = Si
-        sites["Hf_Zr"] = Hf / Zr
+        # sites["Hf_Zr"] = np.where(Zr > 0, Hf / Zr, np.nan)
 
         return pd.concat([base, sites], axis=1)
 
+
+# %%

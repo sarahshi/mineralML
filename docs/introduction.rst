@@ -26,23 +26,30 @@ These folks have been fundamental to the development of ``mineralML``:
 Minerals
 ========
 
-``mineralML`` is trained on a curated dataset of 86k analyses of 17 minerals. The machine learning models classify these minerals:
+``mineralML`` is trained on a curated dataset of 115k analyses of 27 mineral groups/glass. The machine learning models classify these minerals:
 
 - Amphibole
 - Apatite
 - Biotite
-- Clinopyroxene
+- Calcite
+- Chlorite
+- Epidote
+- Feldspar (KFeldspar and Plagioclase)
 - Garnet
-- Ilmenite
-- K-Feldspar
-- Magnetite
+- Glass
+- Kalsilite
+- Leucite
+- Melilite
 - Muscovite
+- Nepheline
 - Olivine
-- Orthopyroxene
-- Plagioclase
+- Pyroxene (Clinopyroxene and Orthopyroxene)
 - Quartz
+- Rhombohedral_Oxides (Hematite-Ilmenite)
 - Rutile
-- Spinel
+- Serpentine
+- Spinels (Magnetite-Spinel)
+- Titanite
 - Tourmaline
 - Zircon
 
@@ -51,7 +58,7 @@ Minerals
 Chemistry
 =========
 
-``mineralML`` requires inputs of mineral chemistry, in the form of oxides. The machine learning models are trained on 10 oxides: 
+``mineralML`` requires inputs of mineral chemistry, in the form of oxides. The machine learning models are trained on 11 oxides: 
 
 *  SiO₂
 *  TiO₂
@@ -63,10 +70,11 @@ Chemistry
 *  Na₂O
 *  K₂O
 *  Cr₂O₃
+*  P₂O₅
 
 
 =====
 Units
 =====
 
-``mineralML`` performs all calculations using mineral compositions in oxide weight percentages.
+``mineralML`` performs all calculations using mineral compositions in oxide weight percentages. If needed, `mm.oxide_to_element` or `mm.element_to_oxide` may be helpful for converting your data into a usable format.

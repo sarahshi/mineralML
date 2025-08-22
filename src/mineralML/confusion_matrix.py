@@ -19,7 +19,7 @@ def pp_matrix(
     fz=12,
     lw=0.5,
     cbar=False,
-    figsize=[10.5, 10.5],
+    figsize=[14, 14],
     show_null_values=0,
     pred_val_axis="x",
 ):
@@ -80,9 +80,21 @@ def pp_matrix(
         fmt=fmt,
     )
 
-    # set ticklabels rotation
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, fontsize=13, ha="right")
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=35, fontsize=13, va="top")
+    # force one tick per column
+    n_cols = df_cm.shape[1]
+    ax.set_xticks(np.arange(n_cols) + 0.5)                 # centre ticks in each cell
+    ax.set_xticklabels(df_cm.columns, rotation=45,         # use all column names
+                       fontsize=13, ha="right")
+
+    # force one tick per row
+    n_rows = df_cm.shape[0]
+    ax.set_yticks(np.arange(n_rows) + 0.5)
+    ax.set_yticklabels(df_cm.index, rotation=35,          # use all index names
+                       fontsize=13, va="top")
+
+    # # set ticklabels rotation
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=45, fontsize=13, ha="right")
+    # ax.set_yticklabels(ax.get_yticklabels(), rotation=35, fontsize=13, va="top")
 
     # Turn off all the ticks
     for t in ax.xaxis.get_major_ticks():

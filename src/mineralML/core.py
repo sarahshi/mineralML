@@ -122,7 +122,7 @@ def load_scaler(scaler_path):
     current_dir = os.path.dirname(__file__)
     scaler_path = os.path.join(current_dir, scaler_path)  # Note the .joblib extension
 
-    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3']
+    oxides = ['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'Cr2O3', 'P2O5']
 
     # Attempt to load the scaler and handle exceptions if the loading fails.
     try:
@@ -250,7 +250,7 @@ def load_model(model, optimizer=None, path=''):
 
     """
 
-    check_point = torch.load(path)
+    check_point = torch.load(path, weights_only=True)
     model.load_state_dict(check_point['params'])
     if optimizer is not None:
         optimizer.load_state_dict(check_point['optimizer'])

@@ -8,6 +8,13 @@ Core Functions
    :members:
 
 
+Constants
+=========
+
+.. automodule:: mineralML.constants
+   :members:
+
+
 Supervised Machine Learning Functions
 =====================================
 
@@ -28,6 +35,13 @@ Stoichiometric Functions
 ========================
 
 .. automodule:: mineralML.stoichiometry
+   :members:
+
+
+Synthetic Mineral Generator
+===========================
+
+.. automodule:: mineralML.synthetic_minerals
    :members:
 
 
