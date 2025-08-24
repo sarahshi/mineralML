@@ -24,3 +24,4 @@ dependencies:
         - torch
         - hdbscan
         - mineralML
+        - python-ternary

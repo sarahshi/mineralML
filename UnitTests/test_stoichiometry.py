@@ -4,8 +4,149 @@ import pandas as pd
 
 import mineralML as mm
 
+R = {
+    "Amphibole": {
+        "Sample Name": "Z2099",
+        "SiO2": 42.96, "TiO2": 1.8, "Al2O3": 14.33, "FeOt": 4.07, "MnO": 0.07,
+        "MgO": 17.39, "CaO": 12.03, "Na2O": 3.1, "K2O": 0.03, "P2O5": np.nan, "Cr2O3": 0.65
+    },
+    "Apatite": {
+        "Sample Name": "SG-09-32_12",
+        "SiO2": 0.17, "TiO2": np.nan, "Al2O3": np.nan, "FeOt": 0.7, "MnO": np.nan,
+        "MgO": 0.13, "CaO": 54.32, "Na2O": np.nan, "K2O": np.nan, "P2O5": 40.97, "Cr2O3": np.nan
+    },
+    "Biotite": {
+        "Sample Name": "IgnA-2",
+        "SiO2": 36.9, "TiO2": 2.31, "Al2O3": 16.4, "FeOt": 8.2, "MnO": 0.08,
+        "MgO": 20.6, "CaO": 0.03, "Na2O": 0.71, "K2O": 8.79, "P2O5": np.nan, "Cr2O3": 0.09
+    },
+    "Calcite": {
+        "Sample Name": "REG55-calcite-1",
+        "SiO2": 0.0, "TiO2": 0.0, "Al2O3": 0.0, "FeOt": 0.07, "MnO": 0.0457,
+        "MgO": 0.0526, "CaO": 57.0312, "Na2O": 0.0046, "K2O": 0.0216, "P2O5": np.nan, "Cr2O3": 0.1757
+    },
+    "Chlorite": {
+        "Sample Name": "zk803-31-01-01",
+        "SiO2": 29.41, "TiO2": 0.03, "Al2O3": 18.6, "FeOt": 33.22, "MnO": 0.08,
+        "MgO": 6.7, "CaO": 0.1, "Na2O": 0.03, "K2O": 0.26, "P2O5": np.nan, "Cr2O3": np.nan
+    },
+    "Clinopyroxene": {
+        "Sample Name": "17MMSG37_cpx4-1",
+        "SiO2": 46.8911, "TiO2": 2.8722, "Al2O3": 6.5948, "FeOt": 8.4685, "MnO": 0.1886,
+        "MgO": 13.884, "CaO": 20.2569, "Na2O": 0.3403, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": 0.0908
+    },
+    "Epidote": {
+        "Sample Name": "CL09MB009 C2 ep 20",
+        "SiO2": 37.38, "TiO2": 0.01, "Al2O3": 21.29, "FeOt": 15.3507, "MnO": 0.29,
+        "MgO": 0.06, "CaO": 23.19, "Na2O": 0.0, "K2O": 0.0, "P2O5": np.nan, "Cr2O3": np.nan
+    },
+    "Garnet": {
+        "Sample Name": "Lw-Ec_GR1_core",
+        "SiO2": 38.52, "TiO2": 0.04, "Al2O3": 21.84, "FeOt": 27.07, "MnO": 1.49,
+        "MgO": 5.58, "CaO": 5.82, "Na2O": 0.03, "K2O": 0.0, "P2O5": np.nan, "Cr2O3": 0.0
+    },
+    "Hematite": {
+        "Sample Name": "LS-13_C1_Hem-1-1",
+        "SiO2": 0.396, "TiO2": 0.026, "Al2O3": 0.218, "FeOt": 86.9907, "MnO": np.nan,
+        "MgO": 0.016, "CaO": 0.096, "Na2O": np.nan, "K2O": 0.003, "P2O5": 0.145, "Cr2O3": np.nan
+    },
+    "Ilmenite": {
+        "Sample Name": "UC1250",
+        "SiO2": 0.0424, "TiO2": 49.1927, "Al2O3": 0.0757, "FeOt": 43.9452, "MnO": 1.6045,
+        "MgO": 2.8229, "CaO": 0.0139, "Na2O": np.nan, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": 0.0148
+    },
+    "Kalsilite": {
+        "Sample Name": "REG-18_kalsilite-1",
+        "SiO2": 37.02, "TiO2": 0.0, "Al2O3": 31.43, "FeOt": 0.35, "MnO": 0.0,
+        "MgO": 0.0, "CaO": 0.0, "Na2O": 0.04, "K2O": 29.61, "P2O5": np.nan, "Cr2O3": 0.0069
+    },
+    "KFeldspar": {
+        "Sample Name": "DG-44",
+        "SiO2": 65.0797, "TiO2": np.nan, "Al2O3": 18.8768, "FeOt": 0.0, "MnO": np.nan,
+        "MgO": np.nan, "CaO": 0.0664, "Na2O": 2.4138, "K2O": 13.194, "P2O5": np.nan, "Cr2O3": np.nan
+    },
+    "Leucite": {
+        "Sample Name": "VS219_129 / 1 . Leu",
+        "SiO2": 54.7008, "TiO2": 0.113, "Al2O3": 23.0378, "FeOt": 0.5208, "MnO": 0.0064,
+        "MgO": 0.0493, "CaO": np.nan, "Na2O": 0.0205, "K2O": 21.7093, "P2O5": np.nan, "Cr2O3": np.nan
+    },
+    "Magnetite": {
+        "Sample Name": "UC1080",
+        "SiO2": 0.16, "TiO2": 16.572, "Al2O3": 0.941, "FeOt": 74.515, "MnO": 0.565,
+        "MgO": 0.851, "CaO": 0.037, "Na2O": np.nan, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": 0.012
+    },
+    "Melilite": {
+        "Sample Name": "S80_7 / 2 .",
+        "SiO2": 41.0155, "TiO2": 0.0521, "Al2O3": 5.6907, "FeOt": 5.2198, "MnO": 0.131,
+        "MgO": 6.6045, "CaO": 28.6936, "Na2O": 3.7814, "K2O": 0.1842, "P2O5": np.nan, "Cr2O3": np.nan
+    },
+    "Muscovite": {
+        "Sample Name": "WS5_37",
+        "SiO2": 44.8, "TiO2": 0.24, "Al2O3": 35.12, "FeOt": 0.269, "MnO": 0.04,
+        "MgO": 3.22, "CaO": 0.16, "Na2O": 0.15, "K2O": 10.57, "P2O5": np.nan, "Cr2O3": 0.0
+    },
+    "Nepheline": {
+        "Sample Name": "10_N_1",
+        "SiO2": 42.033, "TiO2": np.nan, "Al2O3": 32.705, "FeOt": 0.0, "MnO": np.nan,
+        "MgO": np.nan, "CaO": 0.105, "Na2O": 15.507, "K2O": 7.859, "P2O5": np.nan, "Cr2O3": np.nan
+    },
+    "Olivine": {
+        "Sample Name": "CN_C_Ol1",
+        "SiO2": 39.846, "TiO2": 2e-05, "Al2O3": 0.01915, "FeOt": 17.3987, "MnO": 0.243865,
+        "MgO": 43.1267, "CaO": 0.21963, "Na2O": 0.01495, "K2O": 0.007775, "P2O5": 0.013685, "Cr2O3": np.nan
+    },
+    "Orthopyroxene": {
+        "Sample Name": "L04_N1_1",
+        "SiO2": 56.08, "TiO2": 0.2769, "Al2O3": 1.868, "FeOt": 7.21, "MnO": 0.1732,
+        "MgO": 34.17, "CaO": 0.517, "Na2O": np.nan, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": 0.4681
+    },
+    "Plagioclase": {
+        "Sample Name": "K8_plag1_rtoc",
+        "SiO2": 46.6657, "TiO2": 0.0297, "Al2O3": 32.4782, "FeOt": 0.5769, "MnO": 0.0013,
+        "MgO": 0.2178, "CaO": 16.8384, "Na2O": 1.7939, "K2O": 0.0031, "P2O5": np.nan, "Cr2O3": np.nan
+    },
+    "Quartz": {
+        "Sample Name": "OM08-206A_2",
+        "SiO2": 99.7, "TiO2": 0.0, "Al2O3": 0.0, "FeOt": 0.3, "MnO": 0.03,
+        "MgO": 0.0, "CaO": 0.0, "Na2O": 0.01, "K2O": 0.02, "P2O5": np.nan, "Cr2O3": 0.0
+    },
+    "Rutile": {
+        "Sample Name": "E2718C-1",
+        "SiO2": 0.0091, "TiO2": 98.4337, "Al2O3": 0.0236, "FeOt": 0.2144, "MnO": 0.0089,
+        "MgO": np.nan, "CaO": np.nan, "Na2O": np.nan, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": 0.1976,
+        "Nb2O5": 0.0, "Ta2O5": 0.0
+    },
+    "Serpentine": {
+        "Sample Name": "OM15-6",
+        "SiO2": 41.2574, "TiO2": np.nan, "Al2O3": 1.34979, "FeOt": 4.38996, "MnO": np.nan,
+        "MgO": 39.5454, "CaO": np.nan, "Na2O": np.nan, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": 0.26425
+    },
+    "Spinel": {
+        "Sample Name": "HOR-11-01BY_SP503",
+        "SiO2": 0.0554, "TiO2": 0.7736, "Al2O3": 22.1179, "FeOt": 23.5226, "MnO": np.nan,
+        "MgO": 12.9254, "CaO": 0.0466, "Na2O": np.nan, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": 39.0881
+    },
+    "Titanite": {
+        "Sample Name": "REG-19-titanite-1",
+        "SiO2": 29.3211, "TiO2": 33.0262, "Al2O3": 1.3941, "FeOt": 2.90473, "MnO": 0.0339,
+        "MgO": 0.076, "CaO": 26.5311, "Na2O": 0.1435, "K2O": 0.0327, "P2O5": np.nan, "Cr2O3": 0.0
+    },
+    "Tourmaline": {
+        "Sample Name": "Tourmaline1",
+        "SiO2": 36.47, "TiO2": 0.82, "Al2O3": 30.79, "FeOt": 4.13, "MnO": np.nan,
+        "MgO": 9.52, "CaO": 0.74, "Na2O": 2.36, "K2O": np.nan, "P2O5": np.nan, "Cr2O3": np.nan, "B2O3": 2.5
+    },
+    "Zircon": {
+        "Sample Name": "Zrn-I",
+        "SiO2": 32.816, "TiO2": 0.005, "Al2O3": 0.0, "FeOt": 0.007, "MnO": np.nan,
+        "MgO": np.nan, "CaO": 0.0, "Na2O": 0.008, "K2O": np.nan, "P2O5": 0.027, "Cr2O3": np.nan,
+        # Note: ZrO2 not reported; calculator should still run (Zr columns will be 0)
+    },
+}
 
-# Helpers 
+
+# Helpers
+
 def _finite_nonneg(s):
     return np.isfinite(s).all() and (s >= 0).all()
 
@@ -13,42 +154,38 @@ def _assert_cols(testcase, df, cols):
     for c in cols:
         testcase.assertIn(c, df.columns)
 
-def _make_basic_df(extra=None):
-    """
-    Minimal whole-rock style wt% row that many calculators can tolerate.
-    ONLY FeOt (no FeO/Fe2O3) to satisfy your Fe guardrails.
-    """
-    base = dict(
-        SiO2=50.0, TiO2=1.0, Al2O3=15.0, FeOt=9.0, MnO=0.1, MgO=12.0,
-        CaO=10.0, Na2O=2.5, K2O=1.5, Cr2O3=0.05, P2O5=0.2
-    )
+def _df(name, extra=None):
+    d = dict(R[name])
     if extra:
-        base.update(extra)
-    return pd.DataFrame([base])
+        d.update(extra)
+    return pd.DataFrame([d])
 
 
 # Base + utilities
+
 class TestBaseMineralCalculator(unittest.TestCase):
     def setUp(self):
-        self.df = pd.DataFrame({'SiO2': [39.84], 'MgO': [43.12], 'FeOt': [17.39]})
+        self.df = _df("Olivine")
 
     def test_invalid_base_instantiation(self):
         with self.assertRaises(NotImplementedError):
             mm.BaseMineralCalculator(self.df)
 
     def test_invalid_fe_combinations(self):
-        bad = self.df.copy()
+        bad = _df("Olivine")
         bad["Fe2O3"] = 1.0
         with self.assertRaises(ValueError):
             mm.OlivineCalculator(bad)
-        bad = self.df.copy()
+
+        bad = _df("Olivine")
         bad["FeO"] = 1.0
         with self.assertRaises(ValueError):
             mm.OlivineCalculator(bad)
+
         # Using FeO and Fe2O3 but missing one -> raises
-        bad = pd.DataFrame({'SiO2':[40], 'MgO':[40], 'FeO':[10]})
+        broken = pd.DataFrame({'SiO2':[40], 'MgO':[40], 'FeO':[10]})
         with self.assertRaises(ValueError):
-            mm.OlivineCalculator(bad)
+            mm.OlivineCalculator(broken)
 
     def test_calculate_moles_ox_cats_exist(self):
         calc = mm.OlivineCalculator(self.df)
@@ -67,71 +204,63 @@ class TestBaseMineralCalculator(unittest.TestCase):
 
 class TestOxideElementConversions(unittest.TestCase):
     def test_roundtrip_oxide_element(self):
-        df = _make_basic_df()
-        el, f1 = mm.oxide_to_element(df)
-        ox, f2 = mm.element_to_oxide(el)
-        # Only compare keys present on both sides
+        # Use a mixed real sample (Biotite) to make sure round-trip is stable.
+        df = _df("Biotite")
+        el, _ = mm.oxide_to_element(df)
+        ox, _ = mm.element_to_oxide(el)
         common = [c for c in df.columns if c in ox.columns]
-        diff = (df[common] - ox[common]).abs().to_numpy()
+        diff = (df[common].fillna(0) - ox[common].fillna(0)).abs().to_numpy()
         self.assertLess(np.nanmax(diff), 1e-6)
 
 
-# Specific calculators (smoke + invariants)
+# Specific calculators (real data)
+
 class TestOlivine(unittest.TestCase):
     def test_components_and_xfo_range(self):
-        df = pd.DataFrame({'SiO2':[39.84], 'MgO':[43.12], 'FeOt':[17.39]})
-        res = mm.OlivineCalculator(df).calculate_components()
+        res = mm.OlivineCalculator(_df("Olivine")).calculate_components()
         _assert_cols(self, res, ["XFo", "M_site", "T_site", "Mg_cat_4ox"])
         xfo = float(res["XFo"].iloc[0])
         self.assertTrue(0.0 <= xfo <= 1.0)
 
 
 class TestAmphibole(unittest.TestCase):
-    def test_amphibole_minimal(self):
-        df = _make_basic_df(extra={"H2O": 1.0, "F": 0.0, "Cl": 0.0})
-        res = mm.AmphiboleCalculator(df).calculate_components()
-        # Keys from ridolfi/leake pipelines should exist
-        keys = ["Cation_Sum", "Mgno_leake", "Si_T_leake", "Charge_ridolfi", "Fe3_calc_ridolfi"]
-        # Some may be suffixed; just ensure presence of leake/ridolfi outputs broadly:
+    def test_amphibole_real(self):
+        res = mm.AmphiboleCalculator(_df("Amphibole")).calculate_components()
+        # Presence-based due to suffixed columns
         self.assertTrue(any(k in res.columns for k in ["Mgno_leake"]))
         self.assertTrue(any("ridolfi" in c for c in res.columns))
 
 
 class TestApatite(unittest.TestCase):
     def test_apatite_sites(self):
-        df = _make_basic_df(extra={"P2O5": 5.0, "CaO": 55.0, "Na2O": 0.5, "MnO": 0.1})
-        res = mm.ApatiteCalculator(df).calculate_components()
+        res = mm.ApatiteCalculator(_df("Apatite")).calculate_components()
         _assert_cols(self, res, ["M_site", "T_site", "Ca_P"])
         self.assertTrue(_finite_nonneg(res[["M_site","T_site"]].iloc[0]))
 
 
 class TestBiotite(unittest.TestCase):
     def test_biotite_sites(self):
-        df = _make_basic_df()
-        res = mm.BiotiteCalculator(df).calculate_components()
+        res = mm.BiotiteCalculator(_df("Biotite")).calculate_components()
         _assert_cols(self, res, ["X_site", "M_site", "T_site"])
 
 
 class TestCalcite(unittest.TestCase):
     def test_calcite_co2_injected(self):
-        df = pd.DataFrame({"CaO":[55.0], "MgO":[0.0], "MnO":[0.0], "FeOt":[0.0]})
-        res = mm.CalciteCalculator(df).calculate_components()
+        res = mm.CalciteCalculator(_df("Calcite")).calculate_components()
         _assert_cols(self, res, ["CO2", "C_cat_3ox", "C_site", "M_site"])
         self.assertGreater(float(res["CO2"].iloc[0]), 0)
 
 
 class TestChlorite(unittest.TestCase):
     def test_chlorite_sites(self):
-        df = _make_basic_df()
-        res = mm.ChloriteCalculator(df).calculate_components()
+        res = mm.ChloriteCalculator(_df("Chlorite")).calculate_components()
         _assert_cols(self, res, ["T_site", "M_site", "XMg", "Al_IV", "Al_VI"])
         self.assertTrue(0 <= float(res["XMg"].iloc[0]) <= 1)
 
 
 class TestCpx(unittest.TestCase):
     def test_cpx_en_fs_wo(self):
-        df = _make_basic_df()
-        res = mm.ClinopyroxeneCalculator(df).calculate_components()
+        res = mm.ClinopyroxeneCalculator(_df("Clinopyroxene")).calculate_components()
         _assert_cols(self, res, ["En", "Fs", "Wo"])
         s = float((res["En"] + res["Fs"] + res["Wo"]).iloc[0])
         self.assertTrue(0.99 <= s <= 1.01)
@@ -139,33 +268,27 @@ class TestCpx(unittest.TestCase):
 
 class TestEpidote(unittest.TestCase):
     def test_epidote_fe_conversion_and_sites(self):
-        # Provide FeOt only; class will convert to Fe2O3t
-        df = _make_basic_df()
-        res = mm.EpidoteCalculator(df).calculate_components()
+        res = mm.EpidoteCalculator(_df("Epidote")).calculate_components()
         _assert_cols(self, res, ["A_site", "M_site", "Z_site"])
-        # Ensure FeOt was removed in internal conversion path
-        # (Not strictly required to drop in final, but conversion must have happened)
         self.assertIn("Fe3t_cat_12.5ox", res.columns)
 
 
 class TestFeldspar(unittest.TestCase):
-    def test_feldspar_an_ab_or(self):
-        df = _make_basic_df()
-        res = mm.FeldsparCalculator(df).calculate_components()
+    def test_feldspar_an_ab_or_plagioclase(self):
+        res = mm.FeldsparCalculator(_df("Plagioclase")).calculate_components()
         _assert_cols(self, res, ["An", "Ab", "Or"])
         s = float((res["An"] + res["Ab"] + res["Or"]).iloc[0])
         self.assertTrue(0.99 <= s <= 1.01)
 
-    def test_feldspar_classifier(self):
-        df = pd.DataFrame([{"SiO2":60.0,"Al2O3":23.0,"CaO":5.0,"Na2O":9.5,"K2O":1.0,"FeOt":0.5}])
-        out = mm.FeldsparClassifier(df).classify(subclass=True)
+    def test_feldspar_classifier_kfeldspar(self):
+        out = mm.FeldsparClassifier(_df("KFeldspar")).classify(subclass=True)
         _assert_cols(self, out, ["Mineral", "Submineral"])
         self.assertIn(out["Mineral"].iloc[0], ["Plagioclase","KFeldspar","Unclassified"])
 
 
 class TestGarnet(unittest.TestCase):
     def test_garnet_droop_and_allfe2(self):
-        df = _make_basic_df(extra={"CaO": 5.0})
+        df = _df("Garnet")
         droop = mm.GarnetCalculator(df).calculate_components(Fe_correction="Droop")
         allfe2 = mm.GarnetCalculator(df).calculate_components(Fe_correction="All_Fe2")
         _assert_cols(self, droop, ["XMg","Alm","Prp","Grs","Sps","And"])
@@ -175,37 +298,32 @@ class TestGarnet(unittest.TestCase):
 
 class TestKalsilite(unittest.TestCase):
     def test_kalsilite(self):
-        df = pd.DataFrame([{"SiO2":45.0,"Al2O3":36.0,"K2O":17.0,"FeOt":2.0}])
-        res = mm.KalsiliteCalculator(df).calculate_components()
+        res = mm.KalsiliteCalculator(_df("Kalsilite")).calculate_components()
         _assert_cols(self, res, ["A_site","B_site","T_site"])
 
 
 class TestLeucite(unittest.TestCase):
     def test_leucite(self):
-        df = pd.DataFrame([{"SiO2":53.0,"Al2O3":23.0,"K2O":20.0,"Na2O":2.5,"FeOt":1.0}])
-        res = mm.LeuciteCalculator(df).calculate_components()
+        res = mm.LeuciteCalculator(_df("Leucite")).calculate_components()
         _assert_cols(self, res, ["Channel_site","T_site"])
 
 
 class TestMuscovite(unittest.TestCase):
     def test_muscovite(self):
-        df = _make_basic_df()
-        res = mm.MuscoviteCalculator(df).calculate_components()
+        res = mm.MuscoviteCalculator(_df("Muscovite")).calculate_components()
         _assert_cols(self, res, ["X_site","M_site","T_site","Al_IV","Al_VI"])
         self.assertTrue(_finite_nonneg(res[["Al_IV","Al_VI"]].iloc[0]))
 
 
 class TestNepheline(unittest.TestCase):
     def test_nepheline(self):
-        df = pd.DataFrame([{"SiO2":44.0,"Al2O3":33.0,"Na2O":17.0,"K2O":4.5,"FeOt":1.0}])
-        res = mm.NephelineCalculator(df).calculate_components()
+        res = mm.NephelineCalculator(_df("Nepheline")).calculate_components()
         _assert_cols(self, res, ["A_B_site","A_site","B_site","T_site"])
 
 
 class TestOpx(unittest.TestCase):
     def test_opx_components(self):
-        df = _make_basic_df()
-        res = mm.OrthopyroxeneCalculator(df).calculate_components()
+        res = mm.OrthopyroxeneCalculator(_df("Orthopyroxene")).calculate_components()
         _assert_cols(self, res, ["En","Fs","Wo","Al_IV","Al_VI"])
         s = float((res["En"] + res["Fs"] + res["Wo"]).iloc[0])
         self.assertTrue(0.99 <= s <= 1.01)
@@ -213,86 +331,82 @@ class TestOpx(unittest.TestCase):
 
 class TestQuartz(unittest.TestCase):
     def test_quartz(self):
-        df = pd.DataFrame([{"SiO2":99.5,"TiO2":0.3,"Al2O3":0.2}])
-        res = mm.QuartzCalculator(df).calculate_components()
+        res = mm.QuartzCalculator(_df("Quartz")).calculate_components()
         _assert_cols(self, res, ["T_site"])
 
 
 class TestRutile(unittest.TestCase):
     def test_rutile(self):
-        df = pd.DataFrame([{"TiO2":99.0,"Nb2O5":0.5,"Ta2O5":0.2}])
-        res = mm.RutileCalculator(df).calculate_components()
+        res = mm.RutileCalculator(_df("Rutile")).calculate_components()
         _assert_cols(self, res, ["M_site","Ti_cat_2ox"])
 
 
 class TestSerpentine(unittest.TestCase):
     def test_serpentine(self):
-        df = pd.DataFrame([{"SiO2":42.0,"MgO":43.0,"FeOt":8.0,"Al2O3":2.0}])
-        res = mm.SerpentineCalculator(df).calculate_components()
+        res = mm.SerpentineCalculator(_df("Serpentine")).calculate_components()
         _assert_cols(self, res, ["M_site","T_site","XMg","XFe"])
         self.assertTrue(0.0 <= float(res["XMg"].iloc[0]) <= 1.0)
 
 
 class TestSpinel(unittest.TestCase):
     def test_spinel_droop(self):
-        # Spinel-like: MgAl2O4-ish with Fe present
-        df = pd.DataFrame([{"MgO":20.0,"Al2O3":40.0,"FeOt":20.0,"TiO2":2.0,"Cr2O3":5.0,"SiO2":3.0}])
-        res = mm.SpinelCalculator(df).calculate_components(Fe_correction="Droop")
+        res = mm.SpinelCalculator(_df("Spinel")).calculate_components(Fe_correction="Droop")
         _assert_cols(self, res, ["XR2","XR3","XTi","Fe3_prop"])
         s = float((res["XR2"] + res["XR3"] + res["XTi"]).iloc[0])
         self.assertTrue(0.99 <= s <= 1.01)
 
 
 class TestRhombohedralOxide(unittest.TestCase):
-    def test_oxide_droop_and_allfe3(self):
-        df = pd.DataFrame([{"FeOt":65.0,"TiO2":10.0,"Al2O3":1.0}])
-        r1 = mm.RhombohedralOxideCalculator(df).calculate_components(Fe_correction="Droop")
-        r2 = mm.RhombohedralOxideCalculator(df).calculate_components(Fe_correction="All_Fe3")
-        _assert_cols(self, r1, ["XR2","XR3","XTi","XHem","XIlm"])
-        _assert_cols(self, r2, ["XR2","XR3","XTi","XHem","XIlm"])
-        self.assertTrue(0.99 <= float((r1["XR2"]+r1["XR3"]+r1["XTi"]).iloc[0]) <= 1.01)
+    def test_hematite_allfe3_and_ilmenite_droop(self):
+        # Hematite-like: use All_Fe3 path
+        hem = mm.RhombohedralOxideCalculator(_df("Hematite")).calculate_components(Fe_correction="All_Fe3")
+        _assert_cols(self, hem, ["XR2","XR3","XTi","XHem","XIlm"])
+        self.assertTrue(0.99 <= float((hem["XR2"]+hem["XR3"]+hem["XTi"]).iloc[0]) <= 1.01)
+
+        # Ilmenite-like: Droop
+        ilm = mm.RhombohedralOxideCalculator(_df("Ilmenite")).calculate_components(Fe_correction="Droop")
+        _assert_cols(self, ilm, ["XR2","XR3","XTi","XHem","XIlm"])
+        self.assertTrue(0.99 <= float((ilm["XR2"]+ilm["XR3"]+ilm["XTi"]).iloc[0]) <= 1.01)
 
 
 class TestTitanite(unittest.TestCase):
     def test_titanite_feot_to_fe2o3t(self):
-        df = pd.DataFrame([{"CaO":28.0,"TiO2":40.0,"SiO2":31.0,"FeOt":1.0}])
-        res = mm.TitaniteCalculator(df).calculate_components()
+        res = mm.TitaniteCalculator(_df("Titanite")).calculate_components()
         _assert_cols(self, res, ["VII_site","M_site","T_site","Fe3t_cat_5ox"])
 
 
 class TestTourmaline(unittest.TestCase):
     def test_tourmaline(self):
-        df = pd.DataFrame([{"SiO2":35.0,"Al2O3":32.0,"FeOt":10.0,"MgO":8.0,"Na2O":2.0,"K2O":0.5,"B2O3":2.5}])
-        res = mm.TourmalineCalculator(df).calculate_components()
+        res = mm.TourmalineCalculator(_df("Tourmaline")).calculate_components()
         _assert_cols(self, res, ["X_site","Y_site","Z_site","T_site"])
 
 
 class TestZircon(unittest.TestCase):
     def test_zircon(self):
-        df = pd.DataFrame([{"SiO2":33.0,"ZrO2":65.0,"HfO2":1.0}])
-        res = mm.ZirconCalculator(df).calculate_components()
-        _assert_cols(self, res, ["M_site","T_site","Zr_cat_4ox"])
+        res = mm.ZirconCalculator(_df("Zircon")).calculate_components()
+        _assert_cols(self, res, ["M_site","T_site","Si_cat_4ox"])  # Zr may be 0; still check structure
 
 
-# Classifiers
+# Classifiers (real data)
+
 class TestPyroxeneClassifier(unittest.TestCase):
-    def test_classify_fields(self):
-        df = _make_basic_df()
-        out = mm.PyroxeneClassifier(df).classify(subclass=True)
+    def test_classify_fields_real(self):
+        # Use a clinopyroxene-like row
+        out = mm.PyroxeneClassifier(_df("Clinopyroxene")).classify(subclass=True)
         _assert_cols(self, out, ["Mineral","Submineral","En","Fs","Wo"])
         s = float((out["En"] + out["Fs"] + out["Wo"]).iloc[0])
         self.assertTrue(0.99 <= s <= 1.01)
 
+
 class TestOxideClassifier(unittest.TestCase):
-    def test_routing_rhomb_vs_spinel(self):
+    def test_routing_real(self):
         rows = [
-            {"Predict_Mineral":"Rhombohedral_Oxides","FeOt":65.0,"TiO2":8.0,"Al2O3":1.0},
-            {"Predict_Mineral":"Spinels","MgO":20.0,"Al2O3":40.0,"FeOt":20.0,"TiO2":2.0,"Cr2O3":5.0},
+            dict(R["Hematite"], Predict_Mineral="Hematite"),
+            dict(R["Spinel"],   Predict_Mineral="Spinels"),
         ]
         df = pd.DataFrame(rows)
         out = mm.OxideClassifier(df).calculate_components()
         _assert_cols(self, out, ["XR2","XR3","XTi"])
-        # Both rows should have ternary fractions
         s = (out.loc[:, ["XR2","XR3","XTi"]].sum(axis=1)).to_numpy()
         self.assertTrue(np.all((0.99 <= s) & (s <= 1.01)))
 

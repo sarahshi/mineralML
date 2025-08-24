@@ -37,7 +37,7 @@ The following columns are required for this Chemistry file:
 *  Cr₂O₃
 *  P₂O₅
 
-For example, here a screenshot of a CSV spreadsheet containing the mineral composition data. You can use the ChemistryTemplate.csv from the Training_Data bit of the GitHub repository to create your own. For oxides that were not analyzed or not detected, enter 0 into the cell or alternatively ``mineralML`` will fill in these empty cells with not a number (nan) values.
+For example, here an example containing the mineral composition data in the desired input format. You can use the ChemistryTemplate.csv from the Training_Data bit of the GitHub repository to create your own. For oxides that were not analyzed or not detected, enter 0 into the cell or alternatively ``mineralML`` will fill in these empty cells with not a number (nan) values.
 
 +--------+----------------------+---------+----------+-----------+----------+------------+----------+-----------+-----------+------------+------------+-----------+---------------+
 |        | Sample Name          |    SiO2 |     TiO2 |     Al2O3 |     FeOt |        MnO |      MgO |       CaO |      Na2O |        K2O |       P2O5 |     Cr2O3 | Mineral       |
