@@ -18,7 +18,7 @@ from mineralML.constants import (
 )
 
 def _mk_ssg(endmembers, oxygen_basis=4, **kwargs):
-    # No overrides here—let the class use mineralML.constants
+    # Let the class use mineralML.constants
     return mm.SolidSolutionGenerator(
         endmembers=endmembers,
         oxygen_basis=oxygen_basis,
@@ -26,13 +26,34 @@ def _mk_ssg(endmembers, oxygen_basis=4, **kwargs):
         **kwargs,
     )
 
+AVAILABLE = set(CATION_TO_OXIDE_MAP.keys())
+
+def pick_alt(*candidates):
+    """Return the first candidate cation that exists in the constants map."""
+    for el in candidates:
+        if el in AVAILABLE:
+            return el
+    raise unittest.SkipTest("No suitable cation present in CATION_TO_OXIDE_MAP")
+
+def pick_two_distinct(*candidates):
+    """Return two distinct available cations from a preference list."""
+    chosen = []
+    for el in candidates:
+        if el in AVAILABLE and el not in chosen:
+            chosen.append(el)
+        if len(chosen) == 2:
+            break
+    if len(chosen) < 2:
+        raise unittest.SkipTest("Not enough distinct cations available in constants")
+    return tuple(chosen)
+
+
 class TestSolidSolutionGenerator(unittest.TestCase):
     def setUp(self):
         np.random.seed(12345)
 
     def test_constants_are_from_mm(self):
         ssg = _mk_ssg({"Em": {"Mg": 2, "Si": 1, "O": 4}})
-        # sanity: the instance got the module constants
         self.assertIs(ssg.CATION_TO_OXIDE_MAP, CATION_TO_OXIDE_MAP)
         self.assertIs(ssg.OXYGEN_NUMBERS, OXYGEN_NUMBERS)
         self.assertIs(ssg.CATION_NUMBERS, CATION_NUMBERS)
@@ -48,9 +69,10 @@ class TestSolidSolutionGenerator(unittest.TestCase):
             mm.SolidSolutionGenerator(bad, oxygen_basis=4)
 
     def test_generate_mixing_fraction_variants(self):
+        B = pick_alt("Fe", "Ca", "Na", "K", "Mg")
         # beta
-        ssg = _mk_ssg({"A": {"Mg": 2, "Si": 1, "O": 4}, "B": {"Fe": 2, "Si": 1, "O": 4}},
-                    mixing_dist="beta", mixing_params={"a": 2, "b": 2})
+        ssg = _mk_ssg({"A": {"Mg": 2, "Si": 1, "O": 4}, "B": {B: 2, "Si": 1, "O": 4}},
+                      mixing_dist="beta", mixing_params={"a": 2, "b": 2})
         x = ssg._generate_mixing_fraction()
         self.assertTrue(0.0 <= x <= 1.0)
 
@@ -59,11 +81,12 @@ class TestSolidSolutionGenerator(unittest.TestCase):
         x = ssg._generate_mixing_fraction()
         self.assertTrue(0.0 <= x <= 1.0)
 
-        # dirichlet (expects a vector whose entries sum to 1)
+        # dirichlet (vector whose entries sum to 1)
+        B, C = pick_two_distinct("Fe", "Ca", "Na", "K", "Mg")
         ssg3 = _mk_ssg(
             {"A": {"Mg": 2, "Si": 1, "O": 4},
-            "B": {"Fe": 2, "Si": 1, "O": 4},
-            "C": {"Ca": 2, "Si": 1, "O": 4}},
+             "B": {B: 2, "Si": 1, "O": 4},
+             "C": {C: 2, "Si": 1, "O": 4}},
             mixing_dist="dirichlet", mixing_params={"alpha": [1, 1, 1]}
         )
         v = ssg3._generate_mixing_fraction()
@@ -72,11 +95,10 @@ class TestSolidSolutionGenerator(unittest.TestCase):
             self.assertTrue(np.all((v >= 0) & (v <= 1)))
             self.assertAlmostEqual(float(v.sum()), 1.0, places=6)
         else:
-            # If the implementation returns a scalar, at least assert it's in [0,1]
             self.assertTrue(0.0 <= v <= 1.0)
 
         # bad name
-        ssg_bad = _mk_ssg({"A": {"Mg": 2, "O": 4}, "B": {"Fe": 2, "O": 4}})
+        ssg_bad = _mk_ssg({"A": {"Mg": 2, "O": 4}, "B": {B: 2, "O": 4}})
         ssg_bad.mixing_dist = "nope"
         with self.assertRaises(ValueError):
             ssg_bad._generate_mixing_fraction()
@@ -90,9 +112,7 @@ class TestSolidSolutionGenerator(unittest.TestCase):
 
         self.assertIn("Na", out)
         self.assertGreaterEqual(out["Na"], 0.0)
-        # majors were reduced to make room for Na
         self.assertLess(out["Mg"] + out["Si"], total_before)
-        # total should be roughly conserved (allowing very small fp noise)
         self.assertAlmostEqual(out["Mg"] + out["Si"] + out["Na"], total_before, places=6)
 
     def test_apply_site_variation_scalar_and_dict(self):
@@ -107,13 +127,10 @@ class TestSolidSolutionGenerator(unittest.TestCase):
         self.assertGreaterEqual(varied2["M"], 0.2 * 3.0)
 
     def test_add_element_noise_preserves_oxygen_basis_and_nonneg(self):
-        ssg = _mk_ssg({"Em": {"Mg": 2.0, "Si": 1.0, "O": 4}},
-                      element_noise_scale=0.05)
+        ssg = _mk_ssg({"Em": {"Mg": 2.0, "Si": 1.0, "O": 4}}, element_noise_scale=0.05)
         c = {"Mg": 2.0, "Si": 1.0}
         out = ssg._add_element_noise(c)
         self.assertTrue(all(v >= 0 for v in out.values()))
-
-        # sum(c_i * oxygen_number(oxide_i)) ≈ oxygen_basis
         o_sum = sum(out[e] * ssg.OXYGEN_NUMBERS[ssg.CATION_TO_OXIDE_MAP[e]] for e in out)
         self.assertAlmostEqual(o_sum, ssg.oxygen_basis, delta=ssg.oxygen_basis * 0.05)
 
@@ -122,39 +139,40 @@ class TestSolidSolutionGenerator(unittest.TestCase):
         wt = ssg._calculate_oxide_wt_percent({"Mg": 2.0, "Si": 1.0})
         self.assertTrue(set(wt.keys()) >= {"MgO", "SiO2"})
         self.assertAlmostEqual(sum(wt.values()), 100.0, places=6)
-
         with self.assertRaises(ValueError):
             ssg._calculate_oxide_wt_percent({"Xx": 1.0})
 
     @patch.object(plt, "show")
     def test_generate_binary_single_dirichlet(self, _show):
-        # Binary path
+        # Binary path (use available cation for B)
+        B = pick_alt("Fe", "Ca", "Na", "K", "Mg")
         ssg_bin = _mk_ssg({"A": {"Mg": 2.0, "Si": 1.0, "O": 4},
-                           "B": {"Fe": 2.0, "Si": 1.0, "O": 4}},
+                           "B": {B: 2.0, "Si": 1.0, "O": 4}},
                           mixing_dist="beta", mixing_params={"a": 2, "b": 2})
         df_bin = ssg_bin.generate(n_samples=20)
         self.assertFalse(df_bin.empty)
         self.assertTrue(any(c.endswith(ssg_bin.suffix) for c in df_bin.columns))
-        self.assertIn("MgO", df_bin.columns)  # oxide weights present
+        self.assertIn("MgO", df_bin.columns)
 
         # Single endmember path
         ssg_one = _mk_ssg({"Only": {"Mg": 2.0, "Si": 1.0, "O": 4}})
         df_one = ssg_one.generate(n_samples=10)
         self.assertFalse(df_one.empty)
 
-        # >2 endmembers path (dirichlet)
+        # >2 endmembers path (dirichlet) — ensure vector mixing fractions
+        B, C = pick_two_distinct("Fe", "Ca", "Na", "K", "Mg")
         ssg_tri = _mk_ssg({"A": {"Mg": 2.0, "Si": 1.0, "O": 4},
-                           "B": {"Fe": 2.0, "Si": 1.0, "O": 4},
-                           "C": {"Ca": 2.0, "Si": 1.0, "O": 4}},
+                           "B": {B: 2.0, "Si": 1.0, "O": 4},
+                           "C": {C: 2.0, "Si": 1.0, "O": 4}},
                           mixing_dist="dirichlet", mixing_params={"alpha": [1, 1, 1]})
-        df_tri = ssg_tri.generate(n_samples=15)
+        with patch.object(ssg_tri, "_generate_mixing_fraction",
+                          return_value=np.array([0.2, 0.5, 0.3])):
+            df_tri = ssg_tri.generate(n_samples=15)
         self.assertFalse(df_tri.empty)
 
     @patch.object(plt, "show")
     def test_compare_distributions_returns_stats_and_handles_twin_axis(self, _show):
         ssg = _mk_ssg({"Only": {"Mg": 2.0, "Si": 1.0, "O": 4}}, oxygen_basis=4)
-
-        # Build base/synth with both cation and oxide columns so twin-axis branch is exercised
         suffix = ssg.suffix
         base = pd.DataFrame({
             f"Mg{suffix}": np.random.lognormal(mean=0, sigma=0.1, size=50) + 1.5,
@@ -168,11 +186,9 @@ class TestSolidSolutionGenerator(unittest.TestCase):
             "MgO": np.random.normal(loc=41, scale=2, size=60),
             "SiO2": np.random.normal(loc=59, scale=2, size=60),
         })
-
         stats = ssg.compare_distributions(base_df=base, synth_df=synth, ncols=2, figsize_per=(3, 2))
         self.assertIsInstance(stats, pd.DataFrame)
         self.assertTrue({"ks_stat", "p_value", "mean_base", "mean_synth", "std_base", "std_synth"}.issubset(stats.columns))
-        # Index is the cation column names
         self.assertTrue(all(idx.endswith(suffix) for idx in stats.index))
 
     @patch.object(plt, "show")
@@ -183,10 +199,14 @@ class TestSolidSolutionGenerator(unittest.TestCase):
         self.assertTrue(isinstance(out, pd.DataFrame))
         self.assertTrue(out.empty)
 
+    def test_total_charge_strips_suffix(self):
+        ssg = _mk_ssg({"Em": {"Mg": 2.0, "Si": 1.0, "O": 4}})
+        cations = {f"Mg{ssg.suffix}": 2.0, "Si": 1.0}
+        self.assertAlmostEqual(ssg._total_charge(cations), 8.0, places=6)
+
     def test_check_charge_balance_calls_noise(self):
         ssg = _mk_ssg({"Em": {"Mg": 2.0, "Si": 1.0, "O": 4}})
-        # Add a suffix-ed key to ensure _total_charge strips suffix correctly
-        cations = {f"Mg{ssg.suffix}": 2.0, "Si": 1.0}
+        cations = {"Mg": 2.0, "Si": 1.0}
         with patch.object(ssg, "_add_element_noise", wraps=ssg._add_element_noise) as w:
             _ = ssg._check_charge_balance_add_noise(cations)
             w.assert_called_once()
