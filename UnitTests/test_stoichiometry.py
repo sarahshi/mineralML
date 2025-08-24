@@ -2,7 +2,12 @@ import unittest
 import numpy as np
 import pandas as pd
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 import mineralML as mm
+
 
 R = {
     "Amphibole": {
@@ -409,6 +414,119 @@ class TestOxideClassifier(unittest.TestCase):
         _assert_cols(self, out, ["XR2","XR3","XTi"])
         s = (out.loc[:, ["XR2","XR3","XTi"]].sum(axis=1)).to_numpy()
         self.assertTrue(np.all((0.99 <= s) & (s <= 1.01)))
+
+
+# Test plotting 
+
+
+class TestAmphibolePlot(unittest.TestCase):
+    def test_amphibole_plot_returns_axes_and_draws(self):
+        calc = mm.AmphiboleClassifier(_df("Amphibole"))
+        df_class = calc.classify(subclass=True)
+
+        fig, ax = calc.plot(df_class=df_class, subclass=True)
+        try:
+            # Basic type checks
+            self.assertIsNotNone(fig)
+            self.assertIsNotNone(ax)
+
+            # Axis labels & limits
+            self.assertEqual(ax.get_xlabel(), "Si (apfu)")
+            self.assertEqual(ax.get_ylabel(), "Mg# Amphibole")
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            # x is inverted in function; first > second
+            self.assertGreater(xlim[0], xlim[1])
+            self.assertLessEqual(ylim[0], 0.0)
+            self.assertGreaterEqual(ylim[1], 1.0)
+
+            # Something was scattered
+            # (matplotlib scatter adds a PathCollection to ax.collections)
+            self.assertTrue(any(hasattr(col, "get_offsets") for col in ax.collections))
+
+            # Legend should exist when subclass/hue provided
+            self.assertIsNotNone(ax.get_legend())
+        finally:
+            plt.close(fig)
+
+
+class TestFeldsparPlot(unittest.TestCase):
+    def test_feldspar_plot_draws_on_ternary(self):
+        clf = mm.FeldsparClassifier(_df("Plagioclase"))
+        df_class = clf.classify(subclass=True)
+
+        fig, tax = clf.plot(df_class=df_class, subclass=True, labels="short", figsize=(6, 6))
+        try:
+            # tax is a ternary axes wrapper; underlying Matplotlib axes exists
+            ax = tax.get_axes()
+            self.assertIsNotNone(ax)
+
+            # Expect some artists: boundary lines or scatter points
+            drew_lines = len(ax.lines) > 0
+            drew_scatter = len(ax.collections) > 0
+            self.assertTrue(drew_lines or drew_scatter)
+
+            # Legend should exist if we drew labeled classes (may be empty for single sample, but created)
+            # ternary puts legend on the underlying axes
+            self.assertIsNotNone(ax.get_legend())
+        finally:
+            plt.close(fig)
+
+
+class TestOxidePlot(unittest.TestCase):
+    def test_oxide_plot_main_and_spinel_subplot(self):
+        # Build a small dataframe with one rhombohedral oxide and one spinel
+        rows = [
+            dict(R["Hematite"], Predict_Mineral="Hematite"),
+            dict(R["Spinel"],   Predict_Mineral="Spinels"),
+        ]
+        df = pd.DataFrame(rows)
+
+        ox = mm.OxideClassifier(df)
+
+        # Main ternary plot
+        fig, tax = ox.plot(figsize=(6, 6), include_unclassified=True)
+        try:
+            ax = tax.get_axes()
+            self.assertIsNotNone(ax)
+            # Should draw guide lines and some points
+            self.assertTrue(len(ax.lines) > 0 or len(ax.collections) > 0)
+            # Legend on axes
+            self.assertIsNotNone(ax.get_legend())
+        finally:
+            plt.close(fig)
+
+        # Spinel sub-plot should return a valid (fig, ax) for spinel rows
+        fig2, ax2 = ox.plot_spinel()
+        try:
+            self.assertIsNotNone(fig2)
+            self.assertIsNotNone(ax2)
+            # gridlines & scatter present
+            self.assertTrue(len(ax2.lines) > 0 or len(ax2.collections) > 0)
+            self.assertEqual(ax2.get_xlabel(), r"$\mathregular{Fe^{2+}/(Fe^{2+}+Mg^{2+})}$")
+            self.assertEqual(ax2.get_ylabel(), r"$\mathregular{Fe^{3+}/(Fe^{3+}+Al^{3+})}$")
+            self.assertIsNotNone(ax2.get_legend())
+        finally:
+            plt.close(fig2)
+
+
+class TestPyroxenePlot(unittest.TestCase):
+    def test_pyroxene_plot_draws_and_labels(self):
+        clf = mm.PyroxeneClassifier(_df("Clinopyroxene"))
+        df_class = clf.classify(subclass=True)
+
+        fig, tax = clf.plot(df_class=df_class, subclass=True, labels="short", figsize=(6, 4))
+        try:
+            ax = tax.get_axes()
+            self.assertIsNotNone(ax)
+
+            # Expect boundary lines and scatter
+            self.assertTrue(len(ax.lines) > 0 or len(ax.collections) > 0)
+
+            # If subclass True, a legend should be present
+            self.assertIsNotNone(ax.get_legend())
+        finally:
+            plt.close(fig)
 
 
 if __name__ == "__main__":
