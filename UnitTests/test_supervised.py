@@ -1,12 +1,15 @@
+import types
 import unittest
+from unittest import mock
+from unittest.mock import patch
 import numpy as np
 import pandas as pd
-
-import torch
 from math import sqrt
+import torch
+import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
 
 import mineralML as mm
-
 
 def _get_oxides():
     # Be tolerant to where OXIDES lives
@@ -15,6 +18,17 @@ def _get_oxides():
     if hasattr(mm, "OXIDES"):
         return mm.OXIDES
     raise AttributeError("Could not find OXIDES in mineralML.")
+
+def tiny_loader(n=32, in_features=11, n_classes=4, batch=16):
+    x = torch.randn(n, in_features)
+    y = torch.randint(0, n_classes, (n,))
+    return DataLoader(TensorDataset(x, y), batch_size=batch, shuffle=False)
+
+def _fake_scaler_series(oxides):
+    # Series with index=oxides as your norm_data_nn expects
+    mean = pd.Series(np.zeros(len(oxides)), index=oxides)
+    std  = pd.Series(np.ones(len(oxides)), index=oxides)
+    return mean, std
 
 class mineralML_supervised(unittest.TestCase):
     def setUp(self):
@@ -159,6 +173,170 @@ class test_variational_layer(unittest.TestCase):
         kl_div = self.layer.kl_divergence()
         self.assertIsInstance(kl_div, torch.Tensor)
         self.assertGreaterEqual(kl_div.item(), 0.0)
+
+
+class TestMultiClassClassifier(unittest.TestCase):
+    def test_forward_and_predict_shapes(self):
+        model = mm.MultiClassClassifier(input_dim=11, classes=7, hidden_layer_sizes=[16, 8, 4], dropout_rate=0.0)
+        x = torch.randn(5, 11)
+        logits = model(x)
+        self.assertEqual(logits.shape, (5, 7))
+        pred = model.predict(x)
+        self.assertEqual(pred.shape, (5,))
+        self.assertTrue((pred >= 0).all() and (pred < 7).all())
+
+
+class TestTrainNN(unittest.TestCase):
+    def test_train_nn_runs_and_early_stops(self):
+        in_features, n_classes = 10, 3
+        model = mm.MultiClassClassifier(input_dim=in_features, classes=n_classes, hidden_layer_sizes=[8, 4], dropout_rate=0.0)
+        opt = torch.optim.SGD(model.parameters(), lr=1e-2)
+        crit = nn.CrossEntropyLoss()
+        train_loader = tiny_loader(n=48, in_features=in_features, n_classes=n_classes, batch=16)
+        valid_loader = tiny_loader(n=48, in_features=in_features, n_classes=n_classes, batch=16)
+        out = mm.train_nn(
+            model=model,
+            optimizer=opt,
+            train_loader=train_loader,
+            valid_loader=valid_loader,
+            n_epoch=20,               # small
+            criterion=crit,
+            kl_weight_decay=0.1,      # small increments
+            kl_decay_epochs=5,        # ramp quickly
+            patience=3,               # force early stop quickly
+        )
+        train_out, valid_out, train_losses, valid_losses, best_valid, best_state = out
+        # minimal sanity checks
+        self.assertIsNotNone(best_state)
+        self.assertGreater(len(train_losses), 0)
+        self.assertGreater(len(valid_losses), 0)
+        self.assertIsInstance(best_valid, float)
+
+
+class TestPredictTrainLoop(unittest.TestCase):
+    def test_predict_class_prob_nn_train_stats_shape(self):
+        # Model that injects noise so std > 0
+        class NoisyModel(nn.Module):
+            def __init__(self, in_f=6, classes=5):
+                super().__init__()
+                self.fc = nn.Linear(in_f, classes)
+            def forward(self, x):
+                return self.fc(x) + torch.randn_like(self.fc(x))*0.01
+
+        model = NoisyModel(in_f=6, classes=5)
+        x = torch.randn(4, 6)
+        mean, std = mm.predict_class_prob_nn_train(model, x, n_iterations=8)
+        self.assertEqual(mean.shape, (4, 5))
+        self.assertEqual(std.shape, (4, 5))
+        self.assertTrue(np.allclose(mean.sum(axis=1), 1.0, atol=1e-5))
+
+
+class TestPredictClassProbNN(unittest.TestCase):
+    @patch("mineralML.supervised.class2mineral_nn", side_effect=lambda idx: np.array([f"C{int(i)}" for i in idx]))
+    @patch("mineralML.supervised.load_model", side_effect=lambda model, opt, path: None)  # no file I/O
+    @patch("mineralML.supervised.norm_data_nn")
+    @patch("mineralML.supervised.load_minclass_nn")
+    def test_predict_class_prob_nn_shapes_and_columns(self, p_classes, p_norm, _p_load_model, _p_c2m):
+        # Mock class list & mapping (ids must be contiguous 0..K-1)
+        fake_classes = [f"C{i}" for i in range(6)]
+        fake_map = {i: fake_classes[i] for i in range(len(fake_classes))}
+        p_classes.return_value = (fake_classes, fake_map)
+
+        # Normed data returned by scaler: shape (N, len(OXIDES))
+        ox = mm.constants.OXIDES
+        N = 5
+        p_norm.return_value = np.zeros((N, len(ox)), dtype=np.float32)
+
+        # Build df with required columns (OXIDES + ZrO2 + SampleID index)
+        df = pd.DataFrame(0.0, columns=list(ox) + ["ZrO2"], index=[f"S{i}" for i in range(N)])
+        # Ensure Zr shortcut is exercised for one row
+        df.iloc[0, df.columns.get_loc("ZrO2")] = 60.0
+
+        # Run
+        out_df, prob = mm.predict_class_prob_nn(df, n_iterations=3)
+
+        # DF has prediction cols
+        for col in ["Predict_Mineral", "Predict_Probability", "Second_Predict_Mineral", "Second_Predict_Probability"]:
+            self.assertIn(col, out_df.columns)
+
+        # Zircon rule should set row 0 deterministically
+        self.assertEqual(out_df.iloc[0]["Predict_Mineral"], "Zircon")
+        self.assertEqual(out_df.iloc[0]["Predict_Probability"], 1.0)
+
+        # probability_matrix shape: (non-zircon_count, n_classes)
+        self.assertEqual(prob.ndim, 2)
+        self.assertEqual(prob.shape[0], N - 1)
+        self.assertEqual(prob.shape[1], len(fake_classes))
+
+
+class TestBalance(unittest.TestCase):
+    def test_balance_groups_with_mocks(self):
+        # Build minimal df with “special” and “other” classes
+        ox = mm.constants.OXIDES
+        rows = []
+        def row(mineral):
+            r = {c: 0.0 for c in ox}
+            r["Mineral"] = mineral
+            return r
+        for mineral in ["Clinopyroxene", "Orthopyroxene", "Plagioclase", "KFeldspar",
+                        "Hematite", "Ilmenite", "Spinel", "Magnetite", "Glass",
+                        "Garnet"]:
+            rows.append(row(mineral))
+        df = pd.DataFrame(rows)
+
+        # --- mock imblearn + pyrolite so balance() doesn't require those deps ---
+        fake_imblearn = types.ModuleType("imblearn")
+        fake_os = types.ModuleType("over_sampling")
+        class FakeROS:
+            def __init__(self, sampling_strategy=None, random_state=None): pass
+            def fit_resample(self, X, y):
+                # simple passthrough: return X,y unchanged
+                return X.values, y.values
+        fake_os.RandomOverSampler = FakeROS
+        fake_imblearn.over_sampling = fake_os
+
+        fake_pyrolite = types.ModuleType("pyrolite")
+        fake_util = types.ModuleType("util")
+        fake_cls = types.ModuleType("classification")
+        class FakeTAS:
+            def __init__(self): pass
+            def predict(self, df_):
+                # bucket everything into two bins to exercise logic
+                return pd.Series(np.where((df_.get("SiO2", 0) > 40), "A", "B"), index=df_.index)
+        fake_cls.TAS = FakeTAS
+        fake_util.classification = fake_cls
+        fake_pyrolite.util = fake_util
+
+        with mock.patch.dict("sys.modules", {
+            "imblearn": fake_imblearn,
+            "imblearn.over_sampling": fake_os,
+            "pyrolite": fake_pyrolite,
+            "pyrolite.util": fake_util,
+            "pyrolite.util.classification": fake_cls,
+        }):
+            balanced = mm.balance(df, n=2)
+
+        # Result should contain combined group names
+        self.assertIn("Pyroxene", balanced["Mineral"].unique())
+        self.assertIn("Feldspar", balanced["Mineral"].unique())
+        self.assertIn("Rhombohedral_Oxides", balanced["Mineral"].unique())
+        self.assertIn("Spinels", balanced["Mineral"].unique())
+        # Glass handled (either present or empty frame)
+        self.assertTrue("Glass" in balanced["Mineral"].unique() or "Glass" not in df["Mineral"].unique())
+
+
+class TestConfusionMatrixDF(unittest.TestCase):
+    def test_confusion_matrix_df_merges_and_shape(self):
+        given = ["Magnetite", "Plagioclase", "Hematite", "Zircon"]
+        pred  = ["Spinels",   "KFeldspar",  "Ilmenite", "Zircon"]
+        cm = mm.confusion_matrix_df(given, pred)
+        # Square with the fixed label set
+        self.assertEqual(cm.shape[0], cm.shape[1])
+        # Merge: Magnetite -> Spinels should contribute to Spinels column
+        self.assertGreaterEqual(cm.loc["Spinels", "Spinels"], 1)
+        # Zircon row/col present
+        self.assertIn("Zircon", cm.index)
+        self.assertIn("Zircon", cm.columns)
 
 
 if __name__ == "__main__":
