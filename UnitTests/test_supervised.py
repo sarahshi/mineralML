@@ -351,5 +351,134 @@ class TestConfusionMatrixDF(unittest.TestCase):
         self.assertIn("Zircon", cm.columns)
 
 
+def _toy_df(n=60):
+    """Tiny synthetic dataset with required columns."""
+    ox = mm.constants.OXIDES
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(50, 10, size=(n, len(ox))), columns=ox)
+    # Add a few minerals (>= 2 classes so stratify works)
+    minerals = np.array(["Garnet", "Olivine", "Pyroxene"])
+    y = pd.Series(minerals[rng.integers(0, len(minerals), size=n)], name="Mineral")
+    df = pd.concat([X, y], axis=1)
+    # also required by prep/nn paths sometimes, but not strictly used here
+    if "ZrO2" not in df.columns:
+        df["ZrO2"] = 0.0
+    # include an index like SampleID (not required by this function, but common)
+    df.insert(0, "SampleID", [f"S{i}" for i in range(n)])
+    return df
+
+class TestNeuralNetworkDriver(unittest.TestCase):
+    @patch("mineralML.supervised.balance")
+    @patch("mineralML.supervised.train_nn")
+    @patch("mineralML.supervised.save_model_nn")
+    @patch("mineralML.supervised.classification_report")
+    @patch("mineralML.supervised.np.savez")
+    @patch("mineralML.supervised.torch.cuda.is_available", return_value=False)
+    def test_grid_search_wiring_and_best_selection(
+        self,
+        _cuda_off,
+        p_savez,
+        p_class_report,
+        p_save_model,
+        p_train_nn,
+        p_balance,
+    ):
+        # --- Arrange ---
+        df = _toy_df(n=60)
+
+        # Make balance() a passthrough so we can assert it was called.
+        p_balance.side_effect = lambda d, n=1000: d
+
+        # Fake train_nn returning different "best" losses per (call index)
+        # Signature: returns (train_out, valid_out, train_losses, valid_losses, best_valid, best_state)
+        fake_states = [{"w": 1}, {"w": 2}, {"w": 3}, {"w": 4}]
+        best_losses = [0.50, 0.40, 0.60, 0.35]  # lowest is 0.35 on 4th call
+        def _train_return(*args, **kwargs):
+            idx = p_train_nn.call_count - 1  # 0-based
+            return (None, None, [1.0], [1.0], best_losses[idx], fake_states[idx])
+        p_train_nn.side_effect = _train_return
+
+        # classification_report returns a small dict to avoid heavy work
+        p_class_report.return_value = {"macro avg": {"f1-score": 0.5}}
+
+        # Keep np.savez from writing to disk
+        p_savez.return_value = None
+
+        # Hyper-params grid (2x2) -> 4 train_nn calls
+        hls_list = [[8, 4], [16, 8]]
+        kl_list = [0.01, 0.1]
+
+        # --- Act ---
+        best_state = mm.neuralnetwork(
+            df=df,
+            hls_list=hls_list,
+            kl_weight_decay_list=kl_list,
+            lr=1e-3,
+            wd=1e-4,
+            dr=0.1,
+            ep=2,           # keep tiny
+            n=0.2,          # 80/20 split
+            balanced=True,  # exercise balance() routing
+        )
+
+        # --- Assert ---
+        # balance was called once (since balanced=True)
+        p_balance.assert_called_once()
+        # train_nn tried every grid combo (order: for hls in hls_list; for kl in kl_list)
+        self.assertEqual(p_train_nn.call_count, len(hls_list) * len(kl_list))
+
+        # pick the lowest best_valid_loss (0.35 -> the 4th state)
+        self.assertEqual(best_state, fake_states[-1])
+
+        # save_model_nn called once with the final best state
+        self.assertTrue(p_save_model.called)
+        args, kwargs = p_save_model.call_args
+        # args: (optimizer, best_model_state, model_path)
+        self.assertIs(args[1], fake_states[-1])
+        self.assertIsInstance(args[0], torch.optim.Optimizer)
+        self.assertIsInstance(args[2], str)
+
+        # classification_report called for both train and valid
+        self.assertGreaterEqual(p_class_report.call_count, 2)
+
+        # multiple np.savez calls made for scaler, features, losses, data blobs
+        self.assertGreaterEqual(p_savez.call_count, 3)
+
+    @patch("mineralML.supervised.balance")
+    @patch("mineralML.supervised.train_nn")
+    @patch("mineralML.supervised.save_model_nn")
+    @patch("mineralML.supervised.classification_report")
+    @patch("mineralML.supervised.np.savez")
+    @patch("mineralML.supervised.torch.cuda.is_available", return_value=False)
+    def test_unbalanced_path_and_small_grid(
+        self, _cuda_off, p_savez, p_class_report, p_save_model, p_train_nn, p_balance
+    ):
+        # Arrange: tiny grid, balanced=False (balance() should NOT be called)
+        df = _toy_df(n=45)
+        p_balance.side_effect = lambda d, n=1000: d
+        p_train_nn.return_value = (None, None, [1.0], [1.0], 0.99, {"w": 99})
+        p_class_report.return_value = {"macro avg": {"f1-score": 0.1}}
+
+        best_state = mm.neuralnetwork(
+            df=df,
+            hls_list=[[8]],
+            kl_weight_decay_list=[0.2],
+            lr=1e-3,
+            wd=1e-4,
+            dr=0.1,
+            ep=1,
+            n=0.25,
+            balanced=False,
+        )
+
+        # Assert
+        p_balance.assert_not_called()
+        self.assertEqual(best_state, {"w": 99})
+        p_train_nn.assert_called_once()
+
+        # Ensure scaler and losses were saved (without touching disk)
+        self.assertGreaterEqual(p_savez.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
