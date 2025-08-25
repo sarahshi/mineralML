@@ -2,8 +2,8 @@
 Change Log
 ==========
 
-Version 0.0.0.8
-===============
+Version 0.0.1
+=============
 New version of mineralML calibrated for 28 mineral [groups]: Amphibole, Apatite, Biotite, Calcite, Chlorite, Epidote, Feldspar (KFeldspar and Plagioclase with inbuilt classification), Garnet, Glass, Kalsilite, Leucite, Melilite, Muscovite, Nepheline, Olivine, Pyroxene (Clinopyroxene and Orthopyroxene), Quartz, Rhombohedral_Oxides (Hematite and Ilmenite), Rutile, Serpentine, Spinels (Magnetite and Spinel), Titanite, Tourmaline, Zircon. Adds the 11th input of P2O5 concentration for accurate classification of apatites (needed for comparison against calcite). These mineral groups are classified, and the subgroups or classes are empirically classified after the neural network takes a first pass. 
 
 Presents stoichiometry calculators for all the aforementioned mineral [groups], along with classification. All components of interest are returned (e.g. XFo in Olivine, An Ab Or in Feldspar, En Fs Wo in Pyroxene, etc.) and classifications for solid solution minerals are presented, based on DHZ. 
