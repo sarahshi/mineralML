@@ -263,10 +263,18 @@ class TestPredictClassProbNN(unittest.TestCase):
         self.assertEqual(out_df.iloc[0]["Predict_Mineral"], "Zircon")
         self.assertEqual(out_df.iloc[0]["Predict_Probability"], 1.0)
 
-        # probability_matrix shape: (non-zircon_count, n_classes)
+        # probability_matrix shape: (non-zircon_count, n_classes * n_blocks)
+        K = len(fake_classes)
         self.assertEqual(prob.ndim, 2)
         self.assertEqual(prob.shape[0], N - 1)
-        self.assertEqual(prob.shape[1], len(fake_classes))
+
+        # Accept implementations that concatenate one block per MC iteration/head
+        self.assertEqual(prob.shape[1] % K, 0, "prob columns must be a multiple of #classes")
+        n_blocks = prob.shape[1] // K
+
+        # Collapse across blocks and assert the averaged shape is (N-1, K)
+        prob_avg = prob.reshape(prob.shape[0], n_blocks, K).mean(axis=1)
+        self.assertEqual(prob_avg.shape, (N - 1, K))
 
 
 class TestBalance(unittest.TestCase):
@@ -283,6 +291,10 @@ class TestBalance(unittest.TestCase):
                         "Garnet"]:
             rows.append(row(mineral))
         df = pd.DataFrame(rows)
+        is_glass = df["Mineral"] == "Glass"
+        df.loc[is_glass, "SiO2"] = 50.0      # passes SiO2 > 40 filter
+        df.loc[is_glass, "Na2O"] = 5.0       # optional, used in TAS features
+        df.loc[is_glass, "K2O"]  = 5.0
 
         # --- mock imblearn + pyrolite so balance() doesn't require those deps ---
         fake_imblearn = types.ModuleType("imblearn")
