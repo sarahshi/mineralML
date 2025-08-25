@@ -35,6 +35,7 @@ setup(
             'scikit-learn',
             'torch',
             'hdbscan', 
+            'python-ternary',
             ],
 
     classifiers=[
