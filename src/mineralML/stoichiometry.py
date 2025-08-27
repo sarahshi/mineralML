@@ -1599,16 +1599,29 @@ class OxideClassifier:
                 "Dataframe must contain a 'Predict_Mineral' column"
             )
 
-        names = self.df[self.mineral_col].astype(str).str.lower()
-        self.rhomb_oxide_mask = (
+        # names = self.df[self.mineral_col].astype(str).str.lower()
+        # self.rhomb_oxide_mask = (
+        #     names.str.contains("rhombohedral_oxides", case=False, regex=False) |
+        #     names.str.contains("ilmenite", case=False, regex=False) |
+        #     names.str.contains("hematite", case=False, regex=False)
+        # )
+        # self.spinel_mask = (
+        #     names.str.contains("spinel", case=False, regex=False) |
+        #     names.str.contains("magnetite", case=False, regex=False)
+        # )
+
+    def _name_masks(self, frame: pd.DataFrame):
+        names = frame[self.mineral_col].astype(str).str.lower()
+        rhomb_mask = (
             names.str.contains("rhombohedral_oxides", case=False, regex=False) |
-            names.str.contains("ilmenite", case=False, regex=False) |
-            names.str.contains("hematite", case=False, regex=False)
+            names.str.contains("ilmenite",          case=False, regex=False) |
+            names.str.contains("hematite",          case=False, regex=False)
         )
-        self.spinel_mask = (
-            names.str.contains("spinel", case=False, regex=False) |
+        spinel_mask = (
+            names.str.contains("spinel",    case=False, regex=False) |
             names.str.contains("magnetite", case=False, regex=False)
         )
+        return rhomb_mask, spinel_mask
 
     def calculate_components(self, Fe_correction="Droop"):
         """
@@ -1616,11 +1629,11 @@ class OxideClassifier:
         write results back into a copy of the original df.
         """
         out = self.df.copy()
+        rhomb_mask, spinel_mask = self._name_masks(out)
 
         # Rhombohedral oxides
-        if self.rhomb_oxide_mask.any():
-            idx = self.rhomb_oxide_mask[self.rhomb_oxide_mask].index
-            ox_df = out.loc[idx]
+        if rhomb_mask.any():
+            ox_df = out.loc[rhomb_mask]
 
             # Split into hematite-rich (FeOt > 60) and others
             if "FeOt" in ox_df.columns:
@@ -1628,34 +1641,28 @@ class OxideClassifier:
                 hematite_df = ox_df[hematite_mask]
                 other_df = ox_df[~hematite_mask]
             else:
-                hematite_mask = pd.Series(False, index=ox_df.index)
+                hematite_df = ox_df.iloc[0:0] # empty df
                 other_df = ox_df
 
             # Process hematite-rich samples with All_Fe3
-            if hematite_mask.any():
+            if not hematite_df.empty:
                 hematite_res = RhombohedralOxideCalculator(hematite_df).calculate_components(
                     Fe_correction="All_Fe3"
                 )
-                for col in hematite_res.columns:
-                    out.loc[idx[hematite_mask], col] = hematite_res[col].values
+                out.loc[hematite_df.index, hematite_res.columns] = hematite_res.values
 
             # Process others with default Fe_correction
-            if len(other_df) > 0:
+            if not other_df.empty:
                 other_res = RhombohedralOxideCalculator(other_df).calculate_components(
                     Fe_correction=Fe_correction
                 )
-                for col in other_res.columns:
-                    out.loc[idx[~hematite_mask], col] = other_res[col].values
+                out.loc[other_df.index, other_res.columns] = other_res.values
 
         # Spinels
-        if self.spinel_mask.any():
-            idx = self.spinel_mask[self.spinel_mask].index
-            sp_df = out.loc[idx]
-            sp_res = SpinelCalculator(sp_df).calculate_components(
-                Fe_correction=Fe_correction
-            )
-            for col in sp_res.columns:
-                out.loc[idx, col] = sp_res[col].values
+        if spinel_mask.any():
+            sp_df  = out.loc[spinel_mask]
+            sp_res = SpinelCalculator(sp_df).calculate_components(Fe_correction=Fe_correction)
+            out.loc[sp_df.index, sp_res.columns] = sp_res.values
 
         return out
 
@@ -1716,11 +1723,12 @@ class OxideClassifier:
 
         required_cols = ["XR3", "XTi", "XR2"]
         has_required_cols = all(col in df_class.columns for col in required_cols)
+        rhomb_mask, spinel_mask = self._name_masks(df_class)
 
         if has_required_cols:
             # Rhombohedral oxides: Hematite-Ilmenite line
-            if self.rhomb_oxide_mask.any():
-                idx = self.rhomb_oxide_mask[self.rhomb_oxide_mask].index
+            if rhomb_mask.any():
+                idx = df_class.index[rhomb_mask]
                 P = df_class.loc[idx, ["XR3", "XTi", "XR2"]].to_numpy()
                 H = np.array([1.0, 0.0, 0.0])  # Hematite
                 I = np.array([0.0, 0.5, 0.5])  # Ilmenite
@@ -1731,8 +1739,8 @@ class OxideClassifier:
                 # df_class.loc[idx[on_hi], "Classification_Confidence"] = 1 - (dist_hi[on_hi]/eps)
 
             # Spinels: Magnetite-Ulvöspinel line
-            if self.spinel_mask.any():
-                idx = self.spinel_mask[self.spinel_mask].index
+            if spinel_mask.any():
+                idx = df_class.index[spinel_mask]
                 P = df_class.loc[idx, ["XR3", "XTi", "XR2"]].to_numpy()
                 M = np.array([2/3, 0.0, 1/3]) # Magnetite (Fe3O4)
                 U = np.array([0.0, 1/3, 2/3]) # Ulvöspinel (Fe2TiO4)
