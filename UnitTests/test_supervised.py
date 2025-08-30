@@ -245,12 +245,12 @@ class TestPredictClassProbNN(unittest.TestCase):
         # Normed data returned by scaler: shape (N, len(OXIDES))
         ox = mm.constants.OXIDES
         N = 5
-        p_norm.return_value = np.zeros((df[ df["ZrO2"] <= 50 ].shape[0], len(ox)), dtype=np.float32)
 
-        # Build df with required columns (OXIDES + ZrO2 + SampleID index)
         df = pd.DataFrame(0.0, columns=list(ox) + ["ZrO2"], index=[f"S{i}" for i in range(N)])
-        # Ensure Zr shortcut is exercised for one row
-        df.iloc[0, df.columns.get_loc("ZrO2")] = 60.0
+        df.iloc[0, df.columns.get_loc("ZrO2")] = 60.0  # one zircon row
+
+        # Mock scaler to return zeros with matching row count to the INPUT it receives
+        p_norm.side_effect = lambda d: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
         # Run
         out_df, prob = mm.predict_class_prob_nn(df, n_iterations=3)
