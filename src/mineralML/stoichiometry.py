@@ -1614,11 +1614,11 @@ class OxideClassifier:
         names = frame[self.mineral_col].astype(str).str.lower()
         rhomb_mask = (
             names.str.contains("rhombohedral_oxides", case=False, regex=False) |
-            names.str.contains("ilmenite",          case=False, regex=False) |
-            names.str.contains("hematite",          case=False, regex=False)
+            names.str.contains("ilmenite", case=False, regex=False) |
+            names.str.contains("hematite", case=False, regex=False)
         )
         spinel_mask = (
-            names.str.contains("spinel",    case=False, regex=False) |
+            names.str.contains("spinel", case=False, regex=False) |
             names.str.contains("magnetite", case=False, regex=False)
         )
         return rhomb_mask, spinel_mask

@@ -22,6 +22,7 @@ def pp_matrix(
     figsize=[14, 14],
     show_null_values=0,
     pred_val_axis="x",
+    savefig=None
 ):
     """
 
@@ -139,8 +140,8 @@ def pp_matrix(
     ax.set_ylabel(ylbl)
     plt.tight_layout()  # set layout slim
 
-    # if savefig != None:
-    #     plt.savefig(savefig + '.pdf')
+    if savefig != None:
+        plt.savefig(savefig + '.pdf')
 
 
 def insert_totals(df_cm):

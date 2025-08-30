@@ -470,6 +470,7 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
         "Na2O",
         "K2O",
         "Cr2O3",
+        "P2O5",
     ]
 
     # wt = df[oxides].fillna(0)

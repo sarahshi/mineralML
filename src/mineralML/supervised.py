@@ -78,8 +78,13 @@ def prep_df_nn(df):
 
     oxides = OXIDES
     oxides_plus_zr = oxides + ["ZrO2"]
-    # Ensure all required columns are present in the DataFrame
-    for col in oxides_plus_zr + ["Mineral", "SampleID"]:
+
+    sample_cols = ["SampleID", "Sample", "Sample Name"]
+    present_sample_cols = [c for c in sample_cols if c in df.columns]
+    sample_col = present_sample_cols[0] if present_sample_cols else None
+
+    # ensure required columns exist
+    for col in oxides_plus_zr + ["Mineral"] + present_sample_cols:
         if col not in df.columns:
             df[col] = np.nan
             warnings.warn(
@@ -89,9 +94,7 @@ def prep_df_nn(df):
             )
 
     # Convert columns to numeric, coercing errors to NaN
-    df[oxides_plus_zr] = df[oxides_plus_zr].apply(pd.to_numeric, errors='coerce')
-    
-    # Warn if any non-numeric values were coerced to NaN
+    df[oxides_plus_zr] = df[oxides_plus_zr].apply(pd.to_numeric, errors="coerce")
     if df[oxides_plus_zr].isnull().any().any():
         warnings.warn(
             "Some non-numeric values were found in the oxides columns and have been coerced to NaN.",
@@ -106,10 +109,11 @@ def prep_df_nn(df):
     df.loc[:, oxides_plus_zr] = df.loc[:, oxides_plus_zr].fillna(0)
 
     # Ensure only oxides, 'Mineral', and 'SampleID' columns are kept
-    df = df.loc[:, oxides_plus_zr + ["Mineral", "SampleID"]]
+    keep_cols = oxides_plus_zr + ["Mineral"] + present_sample_cols
+    df = df.loc[:, keep_cols]
 
-    # Ensure SampleID is the index
-    df.set_index("SampleID", inplace=True)
+    if sample_col:
+        df.set_index(sample_col, inplace=True)
 
     return df
 
@@ -570,26 +574,43 @@ def predict_class_prob_nn(df, n_iterations=100):
         norm_wt = norm_data_nn(non_za_df).astype(np.float32, copy=False)
         input_data = torch.Tensor(norm_wt).to(device)
         
+        # # VECTORIZED APPROACH - All iterations in one go
+        # with torch.no_grad():
+        #     # Expand input to [n_iterations, batch_size, features]
+        #     expanded_input = input_data.unsqueeze(0).expand(n_iterations, -1, -1)
+            
+        #     # Flatten to [n_iterations * batch_size, features] for batch processing
+        #     flat_input = expanded_input.reshape(-1, input_data.shape[1])
+            
+        #     # Forward pass through model
+        #     flat_output = model(flat_input)
+            
+        #     # Reshape back to [n_iterations, batch_size, num_classes]
+        #     output = flat_output.reshape(n_iterations, len(non_za_df), -1)
+            
+        #     # Apply softmax and convert to numpy
+        #     probabilities = torch.nn.functional.softmax(output, dim=2)
+        #     probability_matrix = probabilities.mean(dim=0).cpu().numpy()  # [batch_size, num_classes]
+
         model.eval()
-        
-        # VECTORIZED APPROACH - All iterations in one go
-        with torch.no_grad():
-            # Expand input to [n_iterations, batch_size, features]
-            expanded_input = input_data.unsqueeze(0).expand(n_iterations, -1, -1)
-            
-            # Flatten to [n_iterations * batch_size, features] for batch processing
-            flat_input = expanded_input.reshape(-1, input_data.shape[1])
-            
-            # Forward pass through model
-            flat_output = model(flat_input)
-            
-            # Reshape back to [n_iterations, batch_size, num_classes]
-            output = flat_output.reshape(n_iterations, len(non_za_df), -1)
-            
-            # Apply softmax and convert to numpy
-            probabilities = torch.nn.functional.softmax(output, dim=2)
-            probability_matrix = probabilities.mean(dim=0).cpu().numpy()  # [batch_size, num_classes]
-        
+        with torch.inference_mode():
+            N = len(input_data)
+            # infer classes if needed: C = model(input_data[:1]).shape[1]
+            C = model.classes
+            BATCH = 10
+            probs_sum = torch.zeros((N, C), device="cpu")
+
+            for _ in range(n_iterations):
+                i = 0
+                while i < N:
+                    x = input_data[i:i+BATCH]
+                    logits = model(x)
+                    probs = torch.softmax(logits, dim=1).cpu()
+                    probs_sum[i:i+BATCH] += probs
+                    i += BATCH
+
+            probability_matrix = (probs_sum / float(n_iterations)).numpy()
+
         # Get top predictions efficiently
         top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
         first_probs = probability_matrix[np.arange(len(probability_matrix)), top_two_indices[:, 1]]
@@ -1128,5 +1149,34 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     )
 
     return best_model_state
+
+
+def export_predictions_to_excel(results_df, filename="prediction_results.xlsx"):
+    """
+    Export prediction results to an Excel workbook with one sheet called "All"
+    containing all rows, and additional sheets for each predicted mineral.
+
+    Parameters:
+        results_df (pd.DataFrame): The results DataFrame returned by predict_class_prob_nn.
+        filename (str): The name of the Excel file to write.
+
+    Returns:
+        str: Path to the saved Excel file.
+    """
+    # check if Predict_Mineral column exists
+    if "Predict_Mineral" not in results_df.columns:
+        raise ValueError("results_df must contain a 'Predict_Mineral' column")
+
+    with pd.ExcelWriter(filename, engine="openpyxl") as writer:
+        # Write all results
+        results_df.to_excel(writer, sheet_name="All", index=False)
+
+        # write separate sheets for each mineral
+        for mineral, group in results_df.groupby("Predict_Mineral"):
+            sheet_name = str(mineral)[:31].replace("/", "-").replace("\\", "-")
+            group.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    return filename
+
 
 # %%
