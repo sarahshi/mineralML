@@ -245,7 +245,7 @@ class TestPredictClassProbNN(unittest.TestCase):
         # Normed data returned by scaler: shape (N, len(OXIDES))
         ox = mm.constants.OXIDES
         N = 5
-        p_norm.return_value = np.zeros((N, len(ox)), dtype=np.float32)
+        p_norm.return_value = np.zeros((df[ df["ZrO2"] <= 50 ].shape[0], len(ox)), dtype=np.float32)
 
         # Build df with required columns (OXIDES + ZrO2 + SampleID index)
         df = pd.DataFrame(0.0, columns=list(ox) + ["ZrO2"], index=[f"S{i}" for i in range(N)])
