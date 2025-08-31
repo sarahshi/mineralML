@@ -509,7 +509,7 @@ def predict_class_prob_nn_train(model, input_data, n_iterations=100):
     return prediction_mean, prediction_std
 
 
-def predict_class_prob_nn(df, n_iterations=100):
+def predict_class_prob_nn(df, n_iterations=50):
     """
 
     Predicts the class probabilities, corresponding mineral names, and the maximum
@@ -594,22 +594,36 @@ def predict_class_prob_nn(df, n_iterations=100):
 
         model.eval()
         with torch.inference_mode():
+            device = next(model.parameters()).device
             N = len(input_data)
-            # infer classes if needed: C = model(input_data[:1]).shape[1]
             C = model.classes
-            BATCH = 10
-            probs_sum = torch.zeros((N, C), device="cpu")
+            BATCH = 2**13 # bump this as high as memory allows
+            K = 8 # MC passes per batch chunk (grouped to cut Python overhead)
 
-            for _ in range(n_iterations):
-                i = 0
-                while i < N:
-                    x = input_data[i:i+BATCH]
-                    logits = model(x)
-                    probs = torch.softmax(logits, dim=1).cpu()
-                    probs_sum[i:i+BATCH] += probs
-                    i += BATCH
+            probs_mean = torch.empty((N, C), device=device, dtype=torch.float32)
 
-            probability_matrix = (probs_sum / float(n_iterations)).numpy()
+            for start in range(0, N, BATCH):
+                end = min(start + BATCH, N)
+                x = input_data[start:end] 
+                b = x.shape[0]
+
+                done = 0
+                acc = torch.zeros((b, C), device=device, dtype=torch.float32)
+
+                while done < n_iterations:
+                    kk = min(K, n_iterations - done)
+
+                    # run kk independent forwards and average on the device
+                    outs = []
+                    for _ in range(kk):
+                        logits = model(x)
+                        outs.append(torch.softmax(logits, dim=1))
+                    acc += torch.stack(outs, dim=0).mean(dim=0) * kk
+                    done += kk
+
+                probs_mean[start:end] = acc / float(n_iterations)
+
+            probability_matrix = probs_mean.detach().cpu().numpy()
 
         # Get top predictions efficiently
         top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
