@@ -265,6 +265,7 @@ def element_to_oxide(df):
 
     return pd.DataFrame(result, index=df.index), pd.Series(factors)
 
+
 # %%
 
 
@@ -990,7 +991,7 @@ class FeldsparClassifier(FeldsparCalculator):
 
             # Area in between is miscibility gap
             else:
-                return "Unclassified", "Unclassified"
+                return "Feld Unclassified", "Feld Unclassified"
 
             return main, sub
 
@@ -1098,7 +1099,7 @@ class FeldsparClassifier(FeldsparCalculator):
         pts = list(zip(df_class["An"], df_class["Or"], df_class["Ab"]))
         cmap = plt.get_cmap("tab10")
         for i, g in enumerate(df_class["Submineral"].unique()):
-            if g == "Unclassified":
+            if g == "Feld Unclassified":
                 continue
             mask = df_class["Submineral"] == g
             pts_sub = [pts[j] for j in np.where(mask)[0]]
@@ -1108,10 +1109,10 @@ class FeldsparClassifier(FeldsparCalculator):
         tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
 
         # Plot “Unclassified” as hollow xs:
-        mask_unc = df_class["Submineral"] == "Unclassified"
+        mask_unc = df_class["Submineral"] == "Feld Unclassified"
         if mask_unc.any():
             pts_unc = [pts[j] for j in np.where(mask_unc)[0]]
-            tax.scatter(pts_unc, marker='x', label="Unclassified", color='0.35',
+            tax.scatter(pts_unc, marker='x', label="Feld Unclassified", color='0.35',
                         s=15, alpha=0.9, zorder=30)
             tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
 
@@ -1599,17 +1600,6 @@ class OxideClassifier:
                 "Dataframe must contain a 'Predict_Mineral' column"
             )
 
-        # names = self.df[self.mineral_col].astype(str).str.lower()
-        # self.rhomb_oxide_mask = (
-        #     names.str.contains("rhombohedral_oxides", case=False, regex=False) |
-        #     names.str.contains("ilmenite", case=False, regex=False) |
-        #     names.str.contains("hematite", case=False, regex=False)
-        # )
-        # self.spinel_mask = (
-        #     names.str.contains("spinel", case=False, regex=False) |
-        #     names.str.contains("magnetite", case=False, regex=False)
-        # )
-
     def _name_masks(self, frame: pd.DataFrame):
         names = frame[self.mineral_col].astype(str).str.lower()
         rhomb_mask = (
@@ -1789,12 +1779,12 @@ class OxideClassifier:
                 df_class.loc[idx[near_tio2], "Submineral"] = "Rutile"
                 df_class.loc[idx[near_feo], "Submineral"] = "FeO"
                 df_class.loc[idx[near_fe2o3], "Submineral"] = "Hematite"
-        df_class["Submineral"] = df_class["Submineral"].fillna("Unclassified")
 
-        # # Use  appropriate mineral column as fallback
-        # mineral_col = self.mineral_col  # set in __init__ to either "Mineral" or "Predict_Mineral"
-        # # Fill NA values with the original mineral prediction
-        # df_class["Submineral"] = df_class["Submineral"].fillna(df_class[mineral_col])        
+
+        mineral_col = self.mineral_col
+        df_class["Submineral"] = df_class["Submineral"].fillna(df_class[mineral_col].astype(str))
+
+        # df_class["Submineral"] = df_class["Submineral"].fillna("Unclassified")
 
         sp_rows = df_class["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
         if sp_rows.any():

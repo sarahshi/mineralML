@@ -9,6 +9,8 @@ from matplotlib.patches import Patch
 from matplotlib.colors import ListedColormap
 
 from mineralML.stoichiometry import *
+from mineralML.supervised import *
+
 
 # %% 
 
@@ -180,7 +182,7 @@ def convert_dir_to_oxide_maps(path):
     return ox_maps
 
 
-def pick_common_phases(mineral_map, min_frac=0.025, top_k=None):
+def pick_common_phases(mineral_map, min_frac=0.01, top_k=None):
     """
     Select abundant phases by pixel fraction, optionally capped at top_k.
 
@@ -200,37 +202,58 @@ def pick_common_phases(mineral_map, min_frac=0.025, top_k=None):
     return [p for p in freqs.index if p in keep][:top_k] if top_k else keep
 
 
-def _auto_figsize_from_array(shape, n_legend=0, legend_side="right",
-                             base_long=10.0, min_long=6.0, max_long=16.0):
+def _auto_figsize_from_array(shape, n_legend, legend_side="right", legend_cols=1, 
+                            base_width=6, base_height=6, legend_width_ratio=0.3):
     """
-    Compute (width,height) inches from map shape; preserve aspect; widen for legend.
-
+    Automatically calculate figure size based on array shape and legend requirements.
+    
     Parameters:
-        shape (tuple[int,int]): (H,W) of the map.
-        n_legend (int): Number of legend entries; adds width if >0 and right-sided.
-        legend_side (str): "right" or "left"; only "right" adds extra width.
-        base_long (float): Base inches for long side before scaling.
-        min_long (float): Minimum inches for width/height after scaling.
-        max_long (float): Maximum inches for width/height after scaling.
-
+    shape: tuple - Shape of the mineral map array (height, width)
+    n_legend: int - Number of legend entries
+    legend_side: str - "right", "left", "top", "bottom"
+    legend_cols: int - Number of columns for legend
+    base_width: float - Base width for square-ish maps
+    base_height: float - Base height for square-ish maps
+    legend_width_ratio: float - Ratio of width dedicated to legend
+    
     Returns:
-        size (tuple[float,float]): (width_in, height_in) for plt.subplots(figsize=...).
+    tuple - (width, height) in inches
     """
-    H, W = map(int, shape)
-    if H <= 0 or W <= 0:
-        return (8.0, 6.0)
-    aspect = W / float(H)
-    long_px = max(H, W)
-    scale = np.clip(long_px / 1200.0, min_long / base_long, max_long / base_long)
-    long_in = base_long * scale
-    if W >= H:
-        fig_w, fig_h = long_in, long_in / max(aspect, 1e-6)
+    height, width = shape
+    aspect_ratio = width / height
+    
+    if legend_side in ("right", "left"):
+        # For side legends, adjust width to accommodate legend
+        if aspect_ratio > 1:  # Wider than tall
+            fig_width = base_width * aspect_ratio + base_width * legend_width_ratio
+            fig_height = base_height
+        else:  # Taller than wide or square
+            fig_width = base_width + base_width * legend_width_ratio
+            fig_height = base_height / aspect_ratio
+        
+        # Adjust for multi-column legends
+        if legend_cols > 1:
+            fig_width += base_width * legend_width_ratio * 0.5
+        
+    elif legend_side in ("top", "bottom"):
+        # For top/bottom legends, adjust height
+        if aspect_ratio > 1:  # Wider than tall
+            fig_width = base_width * aspect_ratio
+            fig_height = base_height + base_height * 0.4
+        else:  # Taller than wide or square
+            fig_width = base_width
+            fig_height = base_height / aspect_ratio + base_height * 0.4
+        
+        # Adjust for legend rows
+        legend_rows = (n_legend + legend_cols - 1) // legend_cols
+        fig_height += legend_rows * 0.2
+    
     else:
-        fig_h, fig_w = long_in, long_in * max(aspect, 1e-6)
-    if legend_side == "right" and n_legend > 0:
-        fig_w += float(np.clip(0.6 + 0.12 * n_legend, 0.8, 3.0))
-    return (float(np.clip(fig_w, min_long, max_long + 4.0)),
-            float(np.clip(fig_h, min_long * 0.8, max_long)))
+        # Default to square-ish
+        fig_width = base_width
+        fig_height = base_height
+    
+    return fig_width, fig_height
 
 
 def _auto_bar_width(n, min_w=6.0, max_w=22.0, per_cat=0.45):
@@ -249,43 +272,91 @@ def _auto_bar_width(n, min_w=6.0, max_w=22.0, per_cat=0.45):
     return float(np.clip(min_w + per_cat * max(n, 1), min_w, max_w))
 
 
-def plot_phase_map(mineral_map_2d, keep=None, title="Phase Map",
-                   bg_color=(0.08, 0.08, 0.08), cmap_name="tab20", ax=None):
-    """
-    Render a phase map with auto-figsize; non-kept phases are background.
-
-    Parameters:
-        mineral_map_2d (array-like): (H,W) phase labels (objects/strings).
-        keep (list[str]|None): Phases to color (None→auto via pick_common_phases).
-        title (str): Axes title text.
-        bg_color (tuple): Background RGB in [0,1].
-        cmap_name (str): Colormap name for phase colors.
-        ax (matplotlib.axes.Axes|None): Existing axes (None→create new).
-
-    Returns:
-        fig_ax (tuple): (fig, ax) with the rendered map.
-    """
+def plot_phase_map(
+    mineral_map_2d,
+    keep=None,
+    title="Phase Map",
+    bg_color=(0.08, 0.08, 0.08),
+    cmap_name="tab20",
+    legend_side="right",      # "right","left","top","bottom"
+    legend_cols=1,
+    ax=None,                  # ignored when placing legend outside; we manage axes
+    dpi=100
+):
     mineral_map_2d = np.asarray(mineral_map_2d, dtype=object)
+
+    # --- map to integer ids ---
     keep = keep or pick_common_phases(mineral_map_2d, min_frac=0.025)
     phase_to_id = {p: i + 1 for i, p in enumerate(keep)}
     ids = np.zeros(mineral_map_2d.shape, dtype=int)
     for p, pid in phase_to_id.items():
         ids[mineral_map_2d == p] = pid
+
+    # --- palette & cmap ---
     phase_colors = _make_palette(keep, cmap_name=cmap_name)
     cmap = ListedColormap([bg_color] + [phase_colors[p] for p in keep])
-    fig_w, fig_h = _auto_figsize_from_array(ids.shape, n_legend=len(keep), legend_side="right")
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
+
+    # --- figure size computed once; DO NOT fudge after ---
+    fig_w, fig_h = _auto_figsize_from_array(
+        ids.shape, n_legend=len(keep),
+        legend_side=legend_side, legend_cols=legend_cols
+    )
+
+    # --- compute legend thickness (inches) for robust layout ratios ---
+    # side legends: width ~ per-column width; top/bottom: height ~ rows * per-item
+    per_item_h = 0.22  # inches per legend entry vertically
+    per_col_w  = 1.2   # inches per legend column (label + swatch)
+    ncols = max(1, int(legend_cols))
+    nrows = int(np.ceil(len(keep) / ncols)) if len(keep) else 1
+
+    if legend_side in ("right", "left"):
+        legend_w_in = ncols * per_col_w
+        map_w_in    = max(1e-6, fig_w - legend_w_in)
+        # convert to relative GridSpec ratios
+        width_ratios = [map_w_in, legend_w_in] if legend_side == "right" else [legend_w_in, map_w_in]
+        fig = plt.figure(figsize=(map_w_in + legend_w_in, fig_h), dpi=dpi, layout="constrained")
+        gs = fig.add_gridspec(nrows=1, ncols=2, width_ratios=width_ratios, wspace=0.02)
+        ax_map   = fig.add_subplot(gs[0, 0] if legend_side == "right" else gs[0, 1])
+        ax_legend= fig.add_subplot(gs[0, 1] if legend_side == "right" else gs[0, 0])
+    elif legend_side in ("top", "bottom"):
+        legend_h_in = max(per_item_h * nrows, 0.5)
+        map_h_in    = max(1e-6, fig_h - legend_h_in)
+        height_ratios = [legend_h_in, map_h_in] if legend_side == "top" else [map_h_in, legend_h_in]
+        fig = plt.figure(figsize=(fig_w, map_h_in + legend_h_in), dpi=dpi, layout="constrained")
+        gs = fig.add_gridspec(nrows=2, ncols=1, height_ratios=height_ratios, hspace=0.02)
+        ax_legend= fig.add_subplot(gs[0, 0] if legend_side == "top" else gs[1, 0])
+        ax_map   = fig.add_subplot(gs[1, 0] if legend_side == "top" else gs[0, 0])
     else:
-        fig = ax.figure
-        fig.set_size_inches(fig_w, fig_h, forward=True)
-    ax.imshow(ids, cmap=cmap, interpolation="nearest", origin="upper")
-    ax.set_title(title)
-    ax.axis("off")
+        # default: right
+        legend_w_in = ncols * per_col_w
+        map_w_in    = max(1e-6, fig_w - legend_w_in)
+        fig = plt.figure(figsize=(map_w_in + legend_w_in, fig_h), dpi=dpi, layout="constrained")
+        gs = fig.add_gridspec(nrows=1, ncols=2, width_ratios=[map_w_in, legend_w_in], wspace=0.02)
+        ax_map   = fig.add_subplot(gs[0, 0])
+        ax_legend= fig.add_subplot(gs[0, 1])
+
+    # --- draw map ---
+    ax_map.imshow(ids, cmap=cmap, interpolation="none", origin="upper")
+    ax_map.set_title(title, pad=8)
+    ax_map.axis("off")
+
+    # --- draw legend in its OWN axes ---
     handles = [Patch(facecolor=phase_colors[p], label=p) for p in keep]
-    ax.legend(handles=handles, loc="upper right", bbox_to_anchor=(1.20, 1.0),
-              frameon=False, title="Phases")
-    return fig, ax
+    ax_legend.axis("off")
+    # place legend fully inside legend axes; no bbox_to_anchor; no overlap possible
+    ax_legend.legend(
+        handles=handles,
+        loc="upper left",
+        frameon=False,
+        title="Phases",
+        ncol=ncols,
+        borderaxespad=0.0,
+        handlelength=1.2,
+        handletextpad=0.6,
+        columnspacing=1.0
+    )
+
+    return fig, ax_map
 
 
 def plot_phase_counts(mineral_map_2d, title="Mineral Phases (count)"):
@@ -370,8 +441,8 @@ def plot_probability_histograms(prob_map_2d, mineral_map_2d,
     return fig, axes
 
 
-def run_sample(sample_dir, n_iterations=50, prob_threshold=0.75,
-               min_frac_to_show=0.025, top_k=None, phases=None,
+def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
+               min_frac_to_show=0.01, top_k=None, phases=None,
                return_everything=False, show=True):
     """
     Load → convert → predict → plot for one folder of CSV maps.

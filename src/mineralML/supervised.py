@@ -18,9 +18,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
-from mineralML.core import *
-from mineralML.stoichiometry import *
-
+from .core import *
+from .stoichiometry import *
 from .constants import OXIDES
 
 
@@ -748,8 +747,8 @@ def confusion_matrix_df(given_min, pred_min):
         # "Feldspar",
         "Garnet",
         "Glass",
-        "Hematite",
-        "Ilmenite",
+        # "Hematite",
+        # "Ilmenite",
         "KFeldspar",
         "Kalsilite",
         "Leucite",
@@ -762,7 +761,7 @@ def confusion_matrix_df(given_min, pred_min):
         "Plagioclase",
         # "Pyroxene",
         "Quartz",
-        # "Rhombohedral_Oxides",
+        "Rhombohedral_Oxides",
         "Rutile",
         "Serpentine",
         "Spinels",

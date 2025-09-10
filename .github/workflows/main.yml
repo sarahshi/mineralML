@@ -54,7 +54,7 @@ jobs:
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
-  
+
   deploy:
     needs: test
     runs-on: ubuntu-latest
