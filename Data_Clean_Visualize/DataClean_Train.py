@@ -128,7 +128,7 @@ min_df = pd.read_csv('../Training_Data/min_df_v2.csv')
 
 # %% 
 
-amp_calc = mm.AmphiboleCalculator(min_df[min_df.Mineral=='Amphibole']) # [['SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3']])
+amp_calc = mm.AmphiboleCalculator(min_df[min_df.Mineral=='Amphibole'])
 amp_comp = amp_calc.calculate_components()
 display(amp_comp)
 
@@ -235,6 +235,7 @@ plt.tight_layout()
 
 cpx_calc = mm.ClinopyroxeneCalculator(min_df[min_df.Mineral=='Clinopyroxene'])
 cpx_comp = cpx_calc.calculate_components()
+jd_comp = cpx_comp[cpx_comp["Jd"] > 0.1]
 display(cpx_comp)
 
 cpx_comp_filt = cpx_comp.loc[((cpx_comp.Cation_Sum.between(3.95, 4.05)) & (cpx_comp.Wo.between(0.35, 0.525)))]
@@ -243,6 +244,7 @@ fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
 ax[0].scatter(cpx_comp['Cation_Sum'], cpx_comp['Wo'], s = 5, color = 'r')
 ax[0].scatter(cpx_comp_filt['Cation_Sum'], cpx_comp_filt['Wo'], s = 5, color = 'g')
+# ax[0].scatter(jd_comp['Cation_Sum'], jd_comp['Wo'], s = 5, color = 'blue')
 ax[0].set_xlabel('Cation_Sum')
 ax[0].set_ylabel('Wo')
 ax[1].scatter(cpx_comp['M_site'], cpx_comp['T_site'], s = 5, color = 'r')
@@ -297,11 +299,12 @@ plt.tight_layout()
 
 # %% 
 
-hem_calc = mm.OxideCalculator(min_df[min_df.Mineral=='Hematite'])
-hem_comp = hem_calc.calculate_components()
+hem_calc = mm.RhombohedralOxideCalculator(min_df[min_df.Mineral=='Hematite'])
+hem_comp = hem_calc.calculate_components(Fe_correction="All_Fe3")
+hem_comp['Mineral'] = 'Hematite'
 display(hem_comp)
 
-hem_comp_filt = hem_comp.loc[((hem_comp.Cation_Sum.between(2.0, 2.3)))] # & (hem_comp.Fe_Ti.between(2.05, 2.3)) & (hem_comp.A_site_expanded.between(0.66, 0.76)))
+hem_comp_filt = hem_comp.loc[((hem_comp.Cation_Sum.between(1.975, 2.3))) & (hem_comp.Fe_Ti.between(1.9, 2.0))] # & (hem_comp.Fe_Ti.between(2.05, 2.3)) & (hem_comp.A_site_expanded.between(0.66, 0.76)))
 
 fe_conversion = 159.688 / (2 * 71.8464)
 hem_comp_filt["FeOt"] = (hem_comp_filt["FeO"] + hem_comp_filt["Fe2O3"] / fe_conversion)
@@ -320,12 +323,12 @@ plt.tight_layout()
 
 # %% 
 
-ilm_calc = mm.OxideCalculator(min_df[min_df.Mineral=='Ilmenite'])
+ilm_calc = mm.RhombohedralOxideCalculator(min_df[min_df.Mineral=='Ilmenite'])
 ilm_comp = ilm_calc.calculate_components()
 display(ilm_comp)
 
 fe_conversion = 159.688 / (2 * 71.8464)
-ilm_comp_filt = ilm_comp.loc[((ilm_comp.Cation_Sum.between(1.99, 2.01)) & (ilm_comp.Fe_Ti.between(1.85, 1.95)))]
+ilm_comp_filt = ilm_comp.loc[((ilm_comp.Cation_Sum.between(2.0, 2.15)) & (ilm_comp.Fe_Ti.between(1.95, 2.05)))]
 ilm_comp_filt["FeOt"] = (ilm_comp_filt["FeO"] + ilm_comp_filt["Fe2O3"] / fe_conversion)
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
@@ -362,9 +365,12 @@ plt.tight_layout()
 
 # %% 
 
-ksp_calc = mm.FeldsparCalculator(min_df[min_df.Mineral=='KFeldspar'])
-ksp_comp = ksp_calc.calculate_components()
+ksp_calc = mm.FeldsparClassifier(min_df[min_df.Mineral=='KFeldspar'])
+ksp_comp = ksp_calc.classify()
+ksp_comp = ksp_comp[ksp_comp.Submineral!='Feldspar_Miscibility_Gap']
+ksp_comp = ksp_comp[ksp_comp.Submineral!='Albite']
 display(ksp_comp)
+
 
 ksp_comp_filt = ksp_comp.loc[((ksp_comp.Cation_Sum.between(4.9, 5.1)) & (ksp_comp.T_site.between(3.96, 4.04)) & (ksp_comp.SiO2.between(40, 80)) & (ksp_comp.K2O.between(5, 17)))]
 
@@ -402,8 +408,8 @@ plt.tight_layout()
 
 # %%
 
-mt_calc = mm.MagnetiteCalculator(min_df[min_df.Mineral=='Magnetite'])
-mt_comp = mt_calc.calculate_components()
+mt_calc = mm.SpinelCalculator(min_df[min_df.Mineral=='Magnetite'])
+mt_comp = mt_calc.calculate_components(Fe_correction='All_Fe2')
 display(mt_comp)
 
 mt_comp_filt = mt_comp.loc[((mt_comp.Cation_Sum.between(3.2, 3.8)) & (mt_comp.A_site.between(2.6, 3.6)) & (mt_comp.B_site.between(0.2, 0.8)))]
@@ -522,8 +528,10 @@ plt.tight_layout()
 
 # %% 
 
-pl_calc = mm.FeldsparCalculator(min_df[min_df.Mineral=='Plagioclase'])
-pl_comp = pl_calc.calculate_components()
+pl_calc = mm.FeldsparClassifier(min_df[min_df.Mineral=='Plagioclase'])
+pl_comp = pl_calc.classify()
+pl_comp = pl_comp[pl_comp.Submineral!='Feldspar_Miscibility_Gap']
+pl_comp = pl_comp[pl_comp.Submineral!='Anorthoclase']
 display(pl_comp)
 
 pl_comp_filt = pl_comp.loc[((pl_comp.Cation_Sum.between(4.95, 5.05)) & (pl_comp.M_site.between(0.9, 1.05)))]
@@ -593,7 +601,7 @@ plt.tight_layout()
 # %% 
 
 sp_calc = mm.SpinelCalculator(min_df[min_df.Mineral=='Spinel'])
-sp_comp = sp_calc.calculate_components()
+sp_comp = sp_calc.calculate_components(Fe_correction='All_Fe2')
 display(sp_comp)
 
 fe_conversion = 159.688 / (2 * 71.8464)
@@ -734,7 +742,7 @@ display(min_df_all.Mineral.value_counts())
 
 oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'Mineral']
 min_df_lim = min_df_all[oxideslab]
-min_df_lim.to_csv('../Training_Data/min_df_v2_clean_natural.csv', index=False)
+min_df_lim.to_csv('../Training_Data/min_df_v2_natural.csv', index=False)
 
 # %% 
 
@@ -824,6 +832,7 @@ ol_gen = mm.SolidSolutionGenerator(
 df_ol = ol_gen.generate(1000)
 ol_calc_synth = mm.OlivineCalculator(df_ol)
 ol_comp_synth = ol_calc_synth.calculate_components()
+ol_comp_synth['Mineral'] = 'Olivine'
 display(ol_comp_synth)
 
 stats_ol = ol_gen.compare_distributions(base_df=ol_comp_filt, synth_df=ol_comp_synth, suptitle="Olivine")
@@ -889,11 +898,11 @@ zr_gen = mm.SolidSolutionGenerator(
 )
 
 # generate 1000 synthetic zircons
-df_zr = zr_gen.generate(n_samples=(1000-len(min_df_all[min_df_all.Mineral=='Zircon'])))
+df_zr = zr_gen.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='Zircon'])))
 zr_calc_synth = mm.ZirconCalculator(df_zr)
 zr_comp_synth = zr_calc_synth.calculate_components()
-display(zr_comp_synth)
 zr_comp_synth['Mineral'] = 'Zircon'
+display(zr_comp_synth)
 
 stats_zr = zr_gen.compare_distributions(base_df=zr_comp_filt,synth_df=zr_comp_synth, suptitle="Zircon")
 display(stats_zr)
@@ -943,11 +952,11 @@ gen_ks = mm.SolidSolutionGenerator(
 )
 
 # generate samples
-df_ks = gen_ks.generate(n_samples=(1000-len(min_df_all[min_df_all.Mineral=='Kalsilite'])))
+df_ks = gen_ks.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='Kalsilite'])))
 ks_calc_synth = mm.KalsiliteCalculator(df_ks)
 ks_comp_synth = ks_calc_synth.calculate_components()
-display(ks_comp_synth)
 ks_comp_synth['Mineral'] = 'Kalsilite'
+display(ks_comp_synth)
 
 stats_ks = gen_ks.compare_distributions(base_df=ks_comp_filt, synth_df=ks_comp_synth, suptitle="Kalsilite")
 display(stats_ks)
@@ -1000,7 +1009,7 @@ gen_qz = mm.SolidSolutionGenerator(
 )
 
 # generate synthetic quartz analyses
-df_qz_synth = gen_qz.generate(n_samples=(1000-len(min_df_all[min_df_all.Mineral=='Quartz'])))
+df_qz_synth = gen_qz.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='Quartz'])))
 
 # compare synthetic and natural data 
 stats_qz = gen_qz.compare_distributions(base_df = qz_comp_filt, synth_df = df_qz_synth, suptitle = "Quartz")
@@ -1053,7 +1062,7 @@ gen_hem = mm.SolidSolutionGenerator(
 )
 
 # generate synthetic hematite analyses
-df_hem_synth = gen_hem.generate(n_samples=(1000-len(min_df_all[min_df_all.Mineral=='Hematite'])))
+df_hem_synth = gen_hem.generate(n_samples=(2000-len(min_df_all[min_df_all.Mineral=='Hematite'])))
 fe_conversion = 159.688 / (2 * 71.8464)
 df_hem_synth["FeOt"] = (df_hem_synth["FeO"] + df_hem_synth["Fe2O3"] / fe_conversion)
 
@@ -1061,11 +1070,11 @@ df_hem_synth["FeOt"] = (df_hem_synth["FeO"] + df_hem_synth["Fe2O3"] / fe_convers
 stats_hem = gen_hem.compare_distributions(base_df = hem_comp_filt, synth_df = df_hem_synth, suptitle = "Hematite")
 display(stats_hem)
 
-hem_calc_synth = mm.OxideCalculator(df_hem_synth[["FeOt", "Al2O3"]])
+hem_calc_synth = mm.RhombohedralOxideCalculator(df_hem_synth[["FeOt", "Al2O3"]])
 hem_comp_synth = hem_calc_synth.calculate_components()
 hem_comp_synth["Mineral"] = "Hematite"
-display(hem_comp_synth)
 hem_comp_synth["FeOt"] = (hem_comp_synth["FeO"] + hem_comp_synth["Fe2O3"] / fe_conversion)
+display(hem_comp_synth)
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 5))
 ax = ax.flatten()
@@ -1097,6 +1106,6 @@ display(min_df_all_synth.Mineral.value_counts())
 
 oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'Mineral']
 min_df_lim_synth = min_df_all_synth[oxideslab]
-min_df_lim_synth.to_csv('../Training_Data/min_df_v2_clean_synth.csv', index=False)
+min_df_lim_synth.to_csv('../Training_Data/min_df_v2_synth.csv', index=False)
 
 # %%

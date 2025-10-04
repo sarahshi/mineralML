@@ -39,7 +39,7 @@ def load_minclass_nn():
     """
 
     current_dir = os.path.dirname(__file__)
-    filepath = os.path.join(current_dir, "mineral_classes_nn_v001.npz")
+    filepath = os.path.join(current_dir, "mineral_classes_nn_v0011.npz")
 
     with np.load(filepath, allow_pickle=True) as data:
         min_cat = data["classes"].tolist()
@@ -135,7 +135,7 @@ def norm_data_nn(df):
 
     oxides = OXIDES
     
-    mean, std = load_scaler("scaler_nn_v001.npz")
+    mean, std = load_scaler("scaler_nn_v0011.npz")
 
     # Ensure that mean and std are Series objects with indices matching the columns
     if not isinstance(mean, pd.Series) or not isinstance(std, pd.Series):
@@ -162,90 +162,152 @@ def norm_data_nn(df):
 
     return array_x
 
-
 def balance(df, n=1000):
     """
-
-    Balances the training dataset with special handling for:
-    - Pyroxene group (clinopyroxene + orthopyroxene -> 'pyroxene')
-    - Feldspar group (plagioclase + k-feldspar -> 'feldspar')
+    Groups to 2000 total:
+    - Pyroxene group (clinopyroxene + orthopyroxene -> 'pyroxene'), kmeans for representative sampling
+    - Feldspar group (plagioclase + k-feldspar -> 'feldspar'), kmeans for representative sampling
     - Rhombohedral oxide group (hematite + ilmenite -> 'rhombohedral oxide')
     - Spinel group (magnetite + spinel -> 'spinel')
-    - Glass (separate group with 2000 samples)
-    - All other classes get standard n samples (default 1000)
-    
-    Uses RandomOverSampler for minority classes before grouping.
-
-    Parameters:
-        train_x (numpy.ndarray): The feature matrix for the training data.
-        train_y (numpy.ndarray): The corresponding label vector for the training data.
-        n (int): Number of samples to take from each standard class (default: 1000)
-
-    Returns:
-        train_x (numpy.ndarray): The feature matrix after oversampling and group combination.
-        train_y (numpy.ndarray): The label vector after oversampling and group combination.
-
+    - Glass (separate group with 2000 samples), TAS stratified sampling
+    - All other classes get standard n samples (default 1000). If count <1250, shuffle+oversample
+        - Olivine, kmeans for representative sampling
     """
-    from pyrolite.util.classification import TAS
 
-    try:
-        from imblearn.over_sampling import RandomOverSampler
-    except ImportError:
-        raise RuntimeError(
-            "You have not installed imblearn, which is required to balance the datasets used for training the neural networks. "
-            "If you use conda, run conda install -c conda-forge imbalanced-learn. If you use pip, run pip install -U imbalanced-learn."
-        )
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.cluster import KMeans
 
-    # Resample the dataset
-    oversample = RandomOverSampler(sampling_strategy="minority", random_state=42)
-    Xo, yo = oversample.fit_resample(df[OXIDES], df["Mineral"])
-    df = pd.DataFrame(Xo, columns=OXIDES)
-    df["Mineral"] = yo
-
-    # Define special groups
+    olivine_classes = ['Olivine']
     pyroxene_classes = ['Clinopyroxene', 'Orthopyroxene']
     feldspar_classes = ['Plagioclase', 'KFeldspar']
     rhombohedral_oxide_classes = ['Hematite', 'Ilmenite']
     spinel_classes = ['Magnetite', 'Spinel']
-    feldspar_classes = ['Plagioclase', 'KFeldspar']
     glass_class = ['Glass']
-    
-    # Get other classes (not in special groups)
-    other_classes = [
-        c for c in df["Mineral"].unique() 
-        if c not in pyroxene_classes + feldspar_classes + rhombohedral_oxide_classes + spinel_classes + glass_class
-    ]
+    lower_threshold = 1250
+    random_seed = 42
 
-    def process_group(group_classes, group_name, samples_per_member):
+    # Helpers
+    def kmeans_multi_sample(member_df,
+                            n_target,
+                            n_clusters=10,
+                            min_per_cluster=1):
+        """Cluster into 10 groups and sample multiple per cluster to total n_target."""
+        n_rows = len(member_df)
+        if n_rows == 0:
+            return member_df.iloc[[]].copy()
+        if n_rows <= n_target:
+            return member_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
+
+        C = int(max(2, min(n_clusters, n_rows, n_target)))
+        X = member_df[OXIDES].fillna(0.0).to_numpy()
+        Xs = StandardScaler().fit_transform(X)
+
+        km = KMeans(n_clusters=C, random_state=random_seed, n_init=10)
+        labels = km.fit_predict(Xs)
+
+        tmp = member_df.copy()
+        tmp["_cluster"] = labels
+
+        # cluster sizes
+        sizes = tmp["_cluster"].value_counts().sort_index().to_numpy()
+
+        # start uniform then distribute remainder to the largest clusters
+        base = n_target // C
+        alloc = np.full(C, base, dtype=int)
+        remainder = n_target - alloc.sum()
+        if remainder > 0:
+            give = np.argsort(-sizes)[:remainder]
+            alloc[give] += 1
+
+        # enforce floor
+        alloc = np.maximum(alloc, min_per_cluster)
+        # trim if we overshot
+        over = alloc.sum() - n_target
+        if over > 0:
+            order = np.argsort(-(alloc - min_per_cluster))
+            for idx in order:
+                if over <= 0:
+                    break
+                can_trim = alloc[idx] - min_per_cluster
+                if can_trim > 0:
+                    t = min(can_trim, over)
+                    alloc[idx] -= t
+                    over -= t
+
+        parts = []
+        for c_idx, n_c in enumerate(alloc):
+            g = tmp[tmp["_cluster"] == c_idx]
+            replace = len(g) < n_c
+            parts.append(g.sample(n=n_c, replace=replace, random_state=random_seed))
+
+        out = (pd.concat(parts, ignore_index=True)
+                 .drop(columns=["_cluster"])
+                 .sample(frac=1, random_state=random_seed)
+                 .reset_index(drop=True))
+        return out
+
+    def random_cap(member_df, n_target):
+        """Random cap to n_target (no replacement if enough)."""
+        if len(member_df) <= n_target:
+            return member_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
+        return member_df.sample(n=n_target, replace=False, random_state=random_seed).reset_index(drop=True)
+
+    def shuffle_oversample_to(member_df, n_target):
+        """Shuffle, then oversample with replacement up to n_target."""
+        if len(member_df) == 0:
+            return member_df.iloc[[]].copy()
+        if len(member_df) >= n_target:
+            return random_cap(member_df, n_target)
+        # oversample with replacement
+        return (member_df.sample(frac=1, random_state=random_seed)
+                          .sample(n=n_target, replace=True, random_state=random_seed)
+                          .reset_index(drop=True))
+
+    def process_group_per_member(group_classes, sampler_fn, n_per_member, relabel_as):
+        """Apply sampler per member class to n_per_member, then relabel to group name."""
         present = [c for c in group_classes if c in df["Mineral"].unique()]
         if not present:
             return pd.DataFrame(columns=OXIDES + ["Mineral"])
-        frames = []
-        for member in present:
-            member_df = df[df["Mineral"] == member]
-            replace = len(member_df) < samples_per_member
-            frames.append(
-                member_df.sample(
-                    n=samples_per_member,
-                    replace=replace,
-                    random_state=42
-                )
-            )
-        out = pd.concat(frames, ignore_index=True)
-        out["Mineral"] = group_name
+        pieces = []
+        for m in present:
+            sub = df[df["Mineral"] == m]
+            pieces.append(sampler_fn(sub, n_per_member))
+        out = pd.concat(pieces, ignore_index=True)
+        out["Mineral"] = relabel_as
         return out
 
-    # Process special groups
-    pyroxene_df = process_group(pyroxene_classes, 'Pyroxene', n)  # 1000 each
-    feldspar_df = process_group(feldspar_classes, 'Feldspar', n)  # 1000 each
-    rhombohedral_oxide_df = process_group(rhombohedral_oxide_classes, 'Rhombohedral_Oxides', n)  # 1000 each
-    spinel_df = process_group(spinel_classes, 'Spinels', n)  # 1000 each
+    # Build groups
+    # Olivine: kmeans to n
+    oli_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
+    if 'Olivine' in df["Mineral"].unique():
+        oli_df = kmeans_multi_sample(df[df.Mineral == 'Olivine'], n_target=n)
+        oli_df["Mineral"] = 'Olivine'
 
-    # Process glass (2000 samples)
+    # Pyroxene: Cpx kmeans->n + Opx kmeans->n  => total 2n
+    pyroxene_df = process_group_per_member(pyroxene_classes, 
+                                           lambda d, k: kmeans_multi_sample(d, n_target=k),
+                                           n_per_member=n, relabel_as='Pyroxene')
+
+    # Feldspar: Plag kmeans->n + KFspar kmeans->n => total 2n
+    feldspar_df = process_group_per_member(feldspar_classes,
+                                           lambda d, k: kmeans_multi_sample(d, n_target=k),
+                                           n_per_member=n, relabel_as='Feldspar')
+
+    # Rhombohedral oxides: per member random->n (=> 2n total)
+    rhombohedral_oxide_df = process_group_per_member(rhombohedral_oxide_classes,
+                                                     lambda d, k: random_cap(d, k),
+                                                     n_per_member=n, relabel_as='Rhombohedral_Oxides')
+
+    # Spinels: per member random->n (=> 2n total)
+    spinel_df = process_group_per_member(spinel_classes,
+                                         lambda d, k: random_cap(d, k),
+                                         n_per_member=n, relabel_as='Spinels')
+
+    # Glass: TAS-stratified to 2n
+    from pyrolite.util.classification import TAS
     gl_df = df[df.Mineral == 'Glass']
     if len(gl_df):
         gl_df = gl_df[gl_df.SiO2 > 40].copy()
-        from pyrolite.util.classification import TAS
         cm = TAS()
         gl_df['Na2O + K2O'] = gl_df['Na2O'] + gl_df['K2O']
         gl_df['TAS'] = cm.predict(gl_df)
@@ -254,11 +316,9 @@ def balance(df, n=1000):
             gl_df
             .groupby('TAS', group_keys=False)
             .apply(lambda x: x.sample(
-                n = max(min_per, int(2*n * len(x) / len(gl_df))),
-                replace = True,
-                random_state = 42
-            ))
-            .sample(n=2*n, random_state=42)
+                n=max(min_per, int(2*n * len(x) / len(gl_df))),
+                replace=True, random_state=random_seed))
+            .sample(n=2*n, random_state=random_seed)
             .reset_index(drop=True)
         )
         resampled = resampled.drop(columns=['Na2O + K2O', 'TAS'])
@@ -267,21 +327,26 @@ def balance(df, n=1000):
     else:
         glass_df = pd.DataFrame(columns=OXIDES + ['Mineral'])
 
-    # Process other classes (n samples each)
+    # Other classes: if <1250 -> shuffle+oversample to n; else cap to n
+    special_flat = set(olivine_classes + pyroxene_classes + feldspar_classes +
+                       rhombohedral_oxide_classes + spinel_classes + glass_class)
+    other_classes = [c for c in df["Mineral"].unique() if c not in special_flat]
+
     other_dfs = []
     for cls in other_classes:
-        grp    = df[df.Mineral == cls]
-        replace = len(grp) < n
-        other_dfs.append(grp.sample(n=n, replace=replace, random_state=42))
-    other_df = pd.concat(other_dfs, ignore_index=True)
+        grp = df[df.Mineral == cls]
+        if len(grp) < lower_threshold:
+            other_dfs.append(shuffle_oversample_to(grp, n))
+        else:
+            other_dfs.append(random_cap(grp, n))
+    other_df = pd.concat(other_dfs, ignore_index=True) if other_dfs else pd.DataFrame(columns=OXIDES+["Mineral"])
 
-    # Combine all groups
     df_balanced = pd.concat(
-        [pyroxene_df, feldspar_df, rhombohedral_oxide_df, spinel_df, glass_df, other_df],
+        [oli_df, pyroxene_df, feldspar_df, rhombohedral_oxide_df, spinel_df, glass_df, other_df],
         ignore_index=True
     )
-
     return df_balanced
+
 
 
 class VariationalLayer(nn.Module):
@@ -566,30 +631,12 @@ def predict_class_prob_nn(df, n_iterations=50):
         ).to(device)
         
         optimizer = torch.optim.SGD(model.parameters(), lr=5e-3, weight_decay=1e-3)
-        model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v001.pt")
+        model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0011.pt")
         load_model(model, optimizer, model_path)
         
         # Normalize data
         norm_wt = norm_data_nn(non_za_df).astype(np.float32, copy=False)
         input_data = torch.Tensor(norm_wt).to(device)
-        
-        # # VECTORIZED APPROACH - All iterations in one go
-        # with torch.no_grad():
-        #     # Expand input to [n_iterations, batch_size, features]
-        #     expanded_input = input_data.unsqueeze(0).expand(n_iterations, -1, -1)
-            
-        #     # Flatten to [n_iterations * batch_size, features] for batch processing
-        #     flat_input = expanded_input.reshape(-1, input_data.shape[1])
-            
-        #     # Forward pass through model
-        #     flat_output = model(flat_input)
-            
-        #     # Reshape back to [n_iterations, batch_size, num_classes]
-        #     output = flat_output.reshape(n_iterations, len(non_za_df), -1)
-            
-        #     # Apply softmax and convert to numpy
-        #     probabilities = torch.nn.functional.softmax(output, dim=2)
-        #     probability_matrix = probabilities.mean(dim=0).cpu().numpy()  # [batch_size, num_classes]
 
         model.eval()
         with torch.inference_mode():
@@ -650,7 +697,7 @@ def predict_class_prob_nn(df, n_iterations=50):
         classifier = PyroxeneClassifier(sub)
         df_px_class = classifier.classify(subclass=False)
         result_df.loc[px_mask, "Predict_Mineral"] = df_px_class["Mineral"].values
-    
+
     # Feldspar classification
     fspar_mask = result_df["Predict_Mineral"] == "Feldspar"
     if fspar_mask.any():
@@ -744,22 +791,17 @@ def confusion_matrix_df(given_min, pred_min):
         "Chlorite",
         "Clinopyroxene",
         "Epidote",
-        # "Feldspar",
         "Garnet",
         "Glass",
-        # "Hematite",
-        # "Ilmenite",
         "KFeldspar",
         "Kalsilite",
         "Leucite",
-        # "Magnetite", merged with spinel group
         "Melilite",
         "Muscovite",
         "Nepheline",
         "Olivine",
         'Orthopyroxene',
         "Plagioclase",
-        # "Pyroxene",
         "Quartz",
         "Rhombohedral_Oxides",
         "Rutile",
@@ -781,7 +823,6 @@ def confusion_matrix_df(given_min, pred_min):
         if s in {"magnetite",}:
             return "Spinels"
         return x
-    given_min_merged = given.map(_merge_magnetite_to_spinels)
     def _merge_ulvospinel_to_spinels(x):
         if pd.isna(x):
             return x
@@ -789,8 +830,30 @@ def confusion_matrix_df(given_min, pred_min):
         if s in {"ulvöspinel",}:
             return "Spinels"
         return x
+    def _merge_hematite_to_rhomb_oxide(x):
+        if pd.isna(x):
+            return x
+        s = str(x).strip().lower()
+        if s in {"hematite",}:
+            return "Rhombohedral_Oxides"
+        return x
     given_min_merged = given.map(_merge_magnetite_to_spinels)
-    pred_min_merged = pred.map(_merge_ulvospinel_to_spinels)
+    def _merge_ilmenite_to_spinels(x):
+        if pd.isna(x):
+            return x
+        s = str(x).strip().lower()
+        if s in {"ilmenite",}:
+            return "Rhombohedral_Oxides"
+        return x
+
+    given_min_merged = given.map(_merge_magnetite_to_spinels)
+    given_min_merged = given_min_merged.map(_merge_ulvospinel_to_spinels)
+    given_min_merged = given_min_merged.map(_merge_hematite_to_rhomb_oxide)
+    given_min_merged = given_min_merged.map(_merge_ilmenite_to_spinels)
+    pred_min_merged = pred.map(_merge_magnetite_to_spinels)
+    pred_min_merged = pred_min_merged.map(_merge_ulvospinel_to_spinels)
+    pred_min_merged = pred_min_merged.map(_merge_hematite_to_rhomb_oxide)
+    pred_min_merged = pred_min_merged.map(_merge_ilmenite_to_spinels)
 
     # Create a confusion matrix with labels as all possible minerals
     cm_matrix = confusion_matrix(given_min_merged, pred_min_merged, labels=minerals)
@@ -984,6 +1047,7 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     )
     if balanced == True:
         train_df = balance(train_df, n=1000)
+    train_df.to_csv('train_df_nn.csv', index=False)
 
     all_cats = pd.Categorical(train_df["Mineral"])
     mapping = dict(enumerate(all_cats.categories))

@@ -156,8 +156,8 @@ class BaseMineralCalculator:
         oxide_cols = [ox for ox in self.OXIDE_MASSES.keys() if ox in self.comps.columns]
 
         # corresponding mol‐ and ox‐ columns
-        mole_cols   = [f"{ox}_mols"       for ox in oxide_cols]
-        oxygen_cols = [f"{ox}_ox"         for ox in oxide_cols]
+        mole_cols   = [f"{ox}_mols" for ox in oxide_cols]
+        oxygen_cols = [f"{ox}_ox" for ox in oxide_cols]
         # map each oxide → its cation column name and suffix
         cation_cols = [
             f"{self.OXIDE_TO_CATION_MAP[ox]}_cat_{self.OXYGEN_BASIS}ox"
@@ -791,6 +791,7 @@ class ClinopyroxeneCalculator(BaseMineralCalculator):
 
         # Compute site assignments in sites dataframe
         sites = pd.DataFrame(index=base.index)
+        # sites = sites.reset_index(drop=True)
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
         sites["T_site"] = Si + Al
@@ -798,7 +799,9 @@ class ClinopyroxeneCalculator(BaseMineralCalculator):
         sites["En"] = Mg / (Mg + Fe + Ca)
         sites["Fs"] = Fe / (Mg + Fe + Ca)
         sites["Wo"] = Ca / (Mg + Fe + Ca)
+        sites["Jd"] = Na
 
+        # This code is modified from Thermobar, with permission from Penny Wieser
         sites["Al_IV"] = 2 - Si
         sites["Al_VI"] = Al - sites["Al_IV"]
         sites["Al_VI"] = sites["Al_VI"].clip(lower=0) # Al_VI can't be negative
@@ -822,10 +825,10 @@ class ClinopyroxeneCalculator(BaseMineralCalculator):
 
         # If value of AlVI < Na cation fraction
         sites["CaTs"] = sites["Al_VI"] - Na
-        sites["Jd"] = Na
+        CaTs_mask = sites["CaTs"] < 0
         sites["Jd_from 0=Na, 1=Al"] = 0
-        sites.loc[sites["CaTs"] < 0, "Jd_from 0=Na, 1=Al"] = 1
-        sites.loc[sites["CaTs"] < 0, "Jd"] = sites["Al_VI"]
+        sites.loc[CaTs_mask, "Jd_from 0=Na, 1=Al"] = 1
+        sites.loc[CaTs_mask, "Jd"] = sites.loc[CaTs_mask, "Al_VI"].to_numpy()
         sites["CaTs"] = sites["CaTs"].clip(lower=0)
 
         # CaTi component
@@ -991,7 +994,7 @@ class FeldsparClassifier(FeldsparCalculator):
 
             # Area in between is miscibility gap
             else:
-                return "Feld Unclassified", "Feld Unclassified"
+                return "Feldspar_Miscibility_Gap", "Feldspar_Miscibility_Gap"
 
             return main, sub
 
@@ -1099,7 +1102,7 @@ class FeldsparClassifier(FeldsparCalculator):
         pts = list(zip(df_class["An"], df_class["Or"], df_class["Ab"]))
         cmap = plt.get_cmap("tab10")
         for i, g in enumerate(df_class["Submineral"].unique()):
-            if g == "Feld Unclassified":
+            if g == "Feldspar_Miscibility_Gap":
                 continue
             mask = df_class["Submineral"] == g
             pts_sub = [pts[j] for j in np.where(mask)[0]]
@@ -1109,10 +1112,10 @@ class FeldsparClassifier(FeldsparCalculator):
         tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
 
         # Plot “Unclassified” as hollow xs:
-        mask_unc = df_class["Submineral"] == "Feld Unclassified"
+        mask_unc = df_class["Submineral"] == "Feldspar_Miscibility_Gap"
         if mask_unc.any():
             pts_unc = [pts[j] for j in np.where(mask_unc)[0]]
-            tax.scatter(pts_unc, marker='x', label="Feld Unclassified", color='0.35',
+            tax.scatter(pts_unc, marker='x', label="Feldspar_Miscibility_Gap", color='0.35',
                         s=15, alpha=0.9, zorder=30)
             tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
 
@@ -1466,6 +1469,7 @@ class OrthopyroxeneCalculator(BaseMineralCalculator):
         sites["En"] = Mg / (Mg + Fe + Ca)
         sites["Fs"] = Fe / (Mg + Fe + Ca)
         sites["Wo"] = Ca / (Mg + Fe + Ca) # Ca_CaMgFe
+        sites["Jd"] = Na
 
         sites["Al_IV"] = 2 - Si
         sites["Al_VI"] = Al - sites["Al_IV"]
@@ -1701,7 +1705,7 @@ class OxideClassifier:
         p = P - A
         t = (p @ v) / vv
         t_clip = np.clip(t, 0.0, 1.0)
-        proj = A + t_clip[:, None] * v
+        # proj = A + t_clip[:, None] * v
         dist = np.linalg.norm(p - t_clip[:, None] * v, axis=1)
         on_line = dist <= eps
         return t_clip, on_line, dist
@@ -1936,6 +1940,37 @@ class PyroxeneClassifier(BaseMineralCalculator):
     OXYGEN_BASIS = 6
     MINERAL_SUFFIX = "_Px"
 
+    def _o_total_from_4cat(self):
+        """
+        1) compute moles from oxides
+        2) convert to cations per oxide (multiply by cation numbers)
+        3) normalize so total cations = 4
+        4) from those cat-normalized moles, compute O2_total using oxide stoichiometry
+        Returns: O_total both as pandas Series
+        """
+        moles = self.calculate_moles().copy()
+        moles.columns = [c.replace("_mols", "") for c in moles.columns]
+
+        # cations per oxide (not yet normalized)
+        cat_nums = pd.Series(self.CATION_NUMBERS)
+        # keep only oxides defined in cat_nums
+        moles2 = moles.loc[:, moles.columns.intersection(cat_nums.index)]
+        cations_raw = moles2.multiply(cat_nums, axis="columns")
+
+        # total cations and 4-cation normalization factor
+        cat_sum = cations_raw.sum(axis=1).replace(0, np.nan)
+        cat_norm = 4.0 / cat_sum
+
+        # cat-normalized moles (apply factor to moles
+        moles_4cat = moles.multiply(cat_norm, axis="rows")
+
+        # compute O_total from cat-normalized moles and per-oxide oxygen stoichiometry
+        O_per_oxide = pd.Series(self.OXYGEN_NUMBERS)
+        moles_4cat = moles_4cat.loc[:, moles_4cat.columns.intersection(O_per_oxide.index)]
+        O_total = moles_4cat.multiply(O_per_oxide, axis="columns").sum(axis=1)
+
+        return O_total
+
     def calculate_components(self):
         """Return complete pyroxene composition with site assignments and enstatite, ferrosilite, wollastonite."""
         base = self.calculate_all()  # includes self.comps, moles, oxygens, and cations
@@ -1949,26 +1984,115 @@ class PyroxeneClassifier(BaseMineralCalculator):
         Al = base[f"Al{cat_suffix}"]
         Fe = base[f"Fe2t{cat_suffix}"]
         Mg = base[f"Mg{cat_suffix}"]
+        Mn = base.get(f"Mn{cat_suffix}", 0)
         Ca = base[f"Ca{cat_suffix}"]
+        K = base.get(f"K{cat_suffix}", 0)
         Na = base.get(f"Na{cat_suffix}", 0)
         Cr = base.get(f"Cr{cat_suffix}", 0)
 
         # Compute site assignments in sites dataframe
         sites = pd.DataFrame(index=base.index)
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
+        sites["Oxygen_Sum"] = self._o_total_from_4cat()
         sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
         sites["T_site"] = Si + Al
         sites["XMg"] = (Mg / (Mg + Fe))
         sites["En"] = Mg / (Mg + Fe + Ca)
         sites["Fs"] = Fe / (Mg + Fe + Ca)
         sites["Wo"] = Ca / (Mg + Fe + Ca)
+        sites["Jd"] = Na
+        sites["Q"] = Ca + Mg + Fe
+        sites["J"] = 2 * Na
+
+        # This code is modified from Thermobar, with permission from Penny Wieser
+        sites["Al_IV"] = 2 - Si
+        sites["Al_VI"] = (Al - sites["Al_IV"]).clip(lower=0)
+
+        # Fe3+, Fe2+ Calculation
+        O_def = (6 - sites["Oxygen_Sum"]).clip(lower=0)
+        sites["Fe3_oxdef"] = np.minimum(Fe, 2.0*O_def)
+        sites["Fe2_oxdef"] = (Fe - sites["Fe3_oxdef"]).clip(lower=0)
+
+        # Fe3+, Fe2+ Calculation
+        sites["Fe3_Lindley"] = (
+            Na + sites["Al_IV"]
+            - sites["Al_VI"]
+            - (2 * Ti) - Cr
+        ).clip(lower=0, upper=Fe) # Fe3 can't be negative or greater than Fe
+        sites.loc[sites["Fe3_Lindley"] < 1e-10, "Fe3_Lindley"] = 0
+        sites["Fe2_Lindley"] = Fe - sites["Fe3_Lindley"]
+        sites["Fe3_prop_Lindley"] = (sites["Fe3_Lindley"] / Fe).replace(0, np.nan)
+
+        # Independent cpx components
+        sites["CrCaTs"] = 0.5 * Cr
+        sites['a_cpx_En'] = (
+            (1 - Ca - Na - K) * 
+            (1 - 0.5 * (Al + Cr + Na + K))
+        )
+
+        # If value of AlVI < Na cation fraction
+        sites["CaTs"] = sites["Al_VI"] - Na
+        CaTs_mask = sites["CaTs"] < 0
+        sites["Jd_from 0=Na, 1=Al"] = 0
+        sites.loc[CaTs_mask, "Jd_from 0=Na, 1=Al"] = 1
+        sites.loc[CaTs_mask, "Jd"] = sites.loc[CaTs_mask, "Al_VI"].to_numpy()
+        sites["CaTs"] = sites["CaTs"].clip(lower=0)
+
+        # CaTi component
+        sites["CaTi"] = ((sites["Al_IV"] - sites["CaTs"]) / 2).clip(lower=0)
+
+        # DiHd (Diopside-Hedenbergite) component
+        sites["DiHd_1996"] = (Ca - sites["CaTs"] - sites["CaTi"] - sites["CrCaTs"]).clip(lower=0)
+        sites["EnFs"] = ((Fe + Mg) - sites["DiHd_1996"]) / 2
+        sites["DiHd_2003"] = (Ca - sites["CaTs"] - sites["CaTi"] - sites["CrCaTs"]).clip(lower=0)
+        sites["Di"] = sites["DiHd_2003"] * (
+            Mg / (Mg + Mn + Fe).replace(0, np.nan)
+        )
+
+        # Wang 2021 Fe3+
+        sites["Fe3_Wang21"] = (Na + sites["Al_IV"] - sites["Al_VI"] - 2 * Ti - Cr)
+        sites["Fe2_Wang21"] = Fe - sites["Fe3_Wang21"]
+
+        # This code was converted from MATLAB to Python, from Jesse Walter's MinPlot
+        # Verified for alignment between values. 
+        # Sodic pool after balancing Ti
+        excess_Si = (Si - 2.0).clip(lower=0)
+        A1n = (sites["Al_IV"] - Ti).clip(lower=0) 
+        A3n = (sites["Al_VI"] - A1n).clip(lower=0) 
+        Fe3 = sites["Fe3_oxdef"].clip(lower=0) # Oxygen deficiency for now, would be different with other implementations
+        M3 = Cr + 2.0 * (excess_Si + Ti) + sites["Fe3_oxdef"] + (sites["Al_VI"] - sites["Al_IV"])
+        e = (M3 - (Na + K)).clip(lower=0.0) 
+        g  = (Ca - 0.5*e - A1n).clip(lower=0.0)
+
+        sites["Di_h"] = np.minimum(g, Mg)
+        sites["Hd_h"] = (g - sites["Di_h"]).clip(lower=0.0)
+        zp = (Na + K - Ti).clip(lower=0)
+        zm = (zp - A3n).clip(lower=0)
+        Ko = np.minimum(Cr, zm)
+        zk = (zm - Cr).clip(lower=0)
+
+        delta = (sites["Al_VI"]  - (sites["Al_IV"] - Ti))
+        F3n = np.where(delta < 0, Fe3 + delta, Fe3) # reduce Fe3 if needed
+        F3n = np.clip(F3n, 0.0, None)
+
+        Aeg = np.minimum(Fe3.clip(lower=0.0), zk)
+        sites["Aeg_h"] = pd.Series(Aeg, index=sites.index).clip(lower=0)
+
+        Jd  = np.minimum(A3n, zp)
+        sites["Jd_h"] = pd.Series(Jd, index=sites.index).clip(lower=0)
+
+        # Harlow's XEn (h): (Mg + Mn + Fe2 - g) / 2, clipped ≥ 0
+        En_h = ((Mg + Mn + sites["Fe2_oxdef"]) - g) / 2.0
+        En_h = En_h.clip(lower=0.0)
+        sites["En_h"] = En_h # store it so classify() can use it
 
         return pd.concat([base, sites], axis=1)
 
     def classify(self, subclass=True):
         """
         Classify pyroxene analyses into broad classes (ortho vs. clino) and
-        optional DHZ subclasses.
+        optional DHZ subclasses. Uses Morimoto (1988) scheme to first separate
+        sodic vs. non-sodic pyroxenes.
 
         Parameters:
             subclass (bool): If True, determine `Submineral` classification.
@@ -1983,38 +2107,114 @@ class PyroxeneClassifier(BaseMineralCalculator):
         fs = comps["Fs"].to_numpy()
         wo = comps["Wo"].to_numpy()
 
-        def _label(e, f, w):
-            # broad
-            main = "Orthopyroxene" if w < 0.05 else "Clinopyroxene"
-            if not subclass:
+        en_h = comps["En_h"].to_numpy()
+        di_h = comps["Di_h"].to_numpy()
+        hd_h = comps["Hd_h"].to_numpy()
+        jd_h = comps["Jd_h"].to_numpy()
+        aeg_h = comps["Aeg_h"].to_numpy(float)
+        q_morimoto = comps["Q"].to_numpy()
+        j_morimoto = comps["J"].to_numpy()
+
+        def _classify_non_sodic(en, fs, wo, subclass_flag):
+            """Classify non-sodic pyroxenes using Morimoto scheme."""
+            main = "Orthopyroxene" if wo < 0.05 else "Clinopyroxene"
+            if not subclass_flag:
                 return main, None
 
-            # DHZ sub-fields
-            if w < 0.05:
-                sub = "Enstatite" if f/(e+f) < 0.5 else "Ferrosilite"
-            elif w < 0.20:
+            # Safe ratio calculation
+            en_fs_sum = en + fs
+            fs_ratio = fs / en_fs_sum if en_fs_sum > 1e-10 else 0.5
+
+            if wo < 0.05:
+                sub = "Enstatite" if fs_ratio < 0.5 else "Ferrosilite"
+            elif wo < 0.20:
                 sub = "Pigeonite"
-            elif w < 0.45:
+            elif wo < 0.45:
                 sub = "Augite"
-            elif w < 0.50:
-                sub = "Diopside" if f/(e+f) < 0.5 else "Hedenbergite" # e > 0.275
+            elif wo < 0.50:
+                sub = "Diopside" if fs_ratio < 0.5 else "Hedenbergite"
             else: 
                 sub = "Wollastonite"
             return main, sub
 
-        labels = np.array([_label(e,f,w) for e,f,w in zip(en,fs,wo)])
+        def _classify_sodic(en_h, di_h, hd_h, jd_h, aeg_h, subclass_flag):
+            """Classify sodic pyroxenes."""
+            main = "Na-Pyroxene"
+            if not subclass_flag:
+                return main, None
+            
+            # Safe value conversion
+            en_h = max(float(en_h) if np.isfinite(en_h) else 0.0, 0.0)
+            jd = max(float(jd_h) if np.isfinite(jd_h) else 0.0, 0.0)
+            aeg = max(float(aeg_h) if np.isfinite(aeg_h) else 0.0, 0.0)
+            di = max(float(di_h) if np.isfinite(di_h) else 0.0, 0.0)
+            hd = max(float(hd_h) if np.isfinite(hd_h) else 0.0, 0.0)
+
+            q_raw = en_h + di + hd
+            total = q_raw + jd + aeg
+            
+            if not np.isfinite(total) or total <= 1e-10:
+                return main, None
+
+            q = q_raw / total
+            jl = jd / total
+            al = aeg / total
+
+            if q <= 0.20:
+                sub = "Jadeite" if jl >= al else "Aegirine"
+            elif q <= 0.80:
+                sub = "Omphacite" if jl >= al else "Aegirine-Augite"
+            else:
+                sub = "Ca-Mg-Fe Pyroxene"
+            return main, sub
+
+        def _label(en, fs, wo, jd_h, aeg_h, di_h, hd_h, en_h, j_morimoto, q_morimoto, subclass_flag):
+            """Main classification logic."""
+            # Handle NaN/infinite values
+            if not all(np.isfinite([en, fs, wo, j_morimoto, q_morimoto])):
+                main = "Orthopyroxene" if wo < 0.05 else "Clinopyroxene"
+                return main, None
+            
+            # Morimoto ratio calculation
+            denom_na = j_morimoto + q_morimoto
+            if denom_na > 1e-10:
+                r_morimoto = j_morimoto / denom_na
+                r_morimoto = np.clip(r_morimoto, 0.0, 1.0)
+            else:
+                r_morimoto = 0.0
+
+            # Classification decision
+            if r_morimoto < 0.20:
+                return _classify_non_sodic(en, fs, wo, subclass_flag)
+            else:
+                return _classify_sodic(en_h, di_h, hd_h, jd_h, aeg_h, subclass_flag)
+        
+        # Apply classification to all samples - SINGLE VERSION (remove the duplicate)
+        labels = np.array([
+            _label(e, f, w, j, a, d, h, e_h, j_m, q_m, subclass) 
+            for e, f, w, j, a, d, h, e_h, j_m, q_m in zip(
+                en, fs, wo, jd_h, aeg_h, di_h, hd_h, en_h, j_morimoto, q_morimoto
+            )
+        ])
         df_class = comps.copy()
         df_class["Mineral"] = labels[:,0]
+
         if subclass:
             df_class["Submineral"] = labels[:,1]
         
         df_class['En'] = comps['En']
         df_class['Fs'] = comps['Fs']
         df_class['Wo'] = comps['Wo']
+        df_class['En_h'] = comps['En_h']
+        df_class['Jd_h'] = comps['Jd_h']
+        df_class['Aeg_h'] = comps['Aeg_h']
+        df_class['Di_h'] = comps['Di_h']
+        df_class['Hd_h'] = comps['Hd_h']
 
         return df_class
 
-    def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 5), **kw):
+    def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 5), 
+             **kw):
 
         """
         Plot pyroxene compositions on the DHZ quadrilateral.
@@ -2036,87 +2236,194 @@ class PyroxeneClassifier(BaseMineralCalculator):
         # get classification if needed
         if df_class is None:
             df_class = self.classify(subclass=subclass)
-        # grab En, Fs, Wo for scatter
-        pts = list(zip(df_class["Fs"], df_class["Wo"], df_class["En"]))
 
-        label_dict = {
-            "Diopside": "Di", "Hedenbergite": "Hd", "Augite": "Au",
-            "Pigeonite": "Pig", "Enstatite": "En", "Ferrosilite": "Fs"
-        }
+        non_sodic_px = df_class.loc[(df_class["Mineral"] == 'Orthopyroxene') | (df_class["Mineral"] == 'Clinopyroxene')]
+        sodic_px = df_class.loc[(df_class["Mineral"] == "Na-Pyroxene")]
 
-        if labels == "long":
-            label_set = {k: k for k in label_dict}
-        elif labels == "short" or labels is True:
-            label_set = label_dict
-        else:
-            label_set = None
+        figs = []
 
-        # set up ternary
-        fig, tax = ternary.figure(scale=1.0)
-        fig.set_size_inches(figsize)
-        tax.boundary(linewidth=1.5, zorder=0)
-        tax.get_axes().set_ylim(-0.01, 0.435)
-        tax.left_corner_label("En", fontsize=14)
-        tax.right_corner_label("Fs", fontsize=14)
-        tax.top_corner_label("Wo", fontsize=14)
-        tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
-        tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
+        if len(non_sodic_px) > 0:
 
-        # DHZ field boundaries
-        lines = [
-            ([0, 0.5, 0.5],[0.5, 0.5, 0]),
-            ([0, 0.45, 0.55],[0.55, 0.45, 0]),
-            ([0.25, 0.5, 0.25],[0.275, 0.45, 0.275]),
-            ([0, 0.05, 0.95],[0.95, 0.05, 0]),
-            ([0, 0.2, 0.8],[0.8, 0.2, 0]),
-            ([0.5, 0, 0.5],[0.475, 0.05, 0.475]),
-        ]
-        for xs, ys in lines:
-            tax.line(xs, ys, color="k", **kw, zorder=0)
+            label_dict = {
+                "Diopside": "Di", "Hedenbergite": "Hd", "Augite": "Au",
+                "Pigeonite": "Pig", "Enstatite": "En", "Ferrosilite": "Fs"
+            }
 
-        # scatter points
-        if subclass and "Submineral" in df_class:
-            cmap = plt.get_cmap("tab10")
-            for i, g in enumerate(df_class["Submineral"].unique()):
-                mask = df_class["Submineral"] == g
-                tax.scatter([pts[j] for j in np.where(mask)[0]],
-                            marker='o', label=g, color=cmap(i),
-                            edgecolor='k', s=20, alpha=0.8)
-            tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02,1))
-        else:
-            tax.scatter(pts, marker='o', color='C0', edgecolor='k', s=20, alpha=0.8)
+            if labels == "long":
+                label_set = {k: k for k in label_dict}
+            elif labels == "short" or labels is True:
+                label_set = label_dict
+            else:
+                label_set = None
 
-        # draw & filter ticks so they only appear where the quadrilateral lives
-        ax = tax.get_axes()
-        def draw_and_filter(axis, keep_min=None, keep_max=None):
-            nL, nT = len(ax.lines), len(ax.texts)
-            ticks = [i * 0.1 for i in range(11)]
-            tax.ticks(axis=axis, ticks=ticks, offset=0.02, tick_formats="%.1f")
-            newL, newT = ax.lines[nL:], ax.texts[nT:]
-            for L, T in zip(newL, newT):
-                v = float(T.get_text())
-                if (keep_min is not None and v < keep_min) or (keep_max is not None and v > keep_max):
-                    L.set_visible(False); T.set_visible(False)
+            # grab En, Fs, Wo for scatter
+            pts = list(zip(non_sodic_px["Fs"].to_numpy(float),
+                           non_sodic_px["Wo"].to_numpy(float),
+                           non_sodic_px["En"].to_numpy(float)))
 
-        draw_and_filter('l', keep_min=0.5, keep_max=1.0)  # En axis
-        draw_and_filter('r', keep_min=0.0, keep_max=0.5)  # Fs axis
-        draw_and_filter('b', keep_min=0.0, keep_max=1.0)  # Wo axis
+            # set up ternary
+            fig, tax = ternary.figure(scale=1.0)
+            fig.set_size_inches(figsize)
+            tax.boundary(linewidth=1.5, zorder=0)
+            tax.get_axes().set_ylim(-0.035, 0.43375)
+            tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$", fontsize=14, offset=-0.2)
+            tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$", fontsize=14, offset=-0.2)
+            tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$", fontsize=14)
 
-        if label_set:
-            fs = 12
-            lab_z = 120
+            tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
+            tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
+
+            # DHZ field boundaries
+            lines = [
+                ([0, 0.5, 0.5],[0.5, 0.5, 0]),
+                ([0, 0.45, 0.55],[0.55, 0.45, 0]),
+                ([0.25, 0.5, 0.25],[0.275, 0.45, 0.275]),
+                ([0, 0.05, 0.95],[0.95, 0.05, 0]),
+                ([0, 0.2, 0.8],[0.8, 0.2, 0]),
+                ([0.5, 0, 0.5],[0.475, 0.05, 0.475]),
+            ]
+            for xs, ys in lines:
+                tax.line(xs, ys, color="k", **kw, zorder=0)
+
+            # scatter points
+            if subclass and "Submineral" in non_sodic_px:
+                cmap = plt.get_cmap("tab10")
+                for i, g in enumerate(non_sodic_px["Submineral"].unique()):
+                    mask = non_sodic_px["Submineral"] == g
+                    mask_indices = np.where(mask)[0]
+                    if len(mask_indices) > 0:  # Only plot if there are points
+                        tax.scatter([pts[j] for j in mask_indices],
+                                    marker='o', label=g, color=cmap(i),
+                                    edgecolor='k', s=20, alpha=0.8)
+                tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02,1))
+            else:
+                tax.scatter(pts, marker='o', color='C0', edgecolor='k', s=20, alpha=0.8)
+
+            # draw & filter ticks so they only appear where the quadrilateral lives
             ax = tax.get_axes()
-            ax.text(0.375, 0.4, label_set["Diopside"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-            ax.text(0.625, 0.4, label_set["Hedenbergite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-            ax.text(0.5, 0.275, label_set["Augite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-            ax.text(0.5, 0.1, label_set["Pigeonite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-            ax.text(0.25, 0.02, label_set["Enstatite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-            ax.text(0.75, 0.02, label_set["Ferrosilite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+            def draw_and_filter(axis, offset=0.02, keep_min=None, keep_max=None):
+                nL, nT = len(ax.lines), len(ax.texts)
+                ticks = [i * 0.1 for i in range(11)]
+                tax.ticks(axis=axis, ticks=ticks, linewidth=1, 
+                          tick_formats="%.1f", offset=offset, fontsize=10)
+                newL, newT = ax.lines[nL:], ax.texts[nT:]
+                for L, T in zip(newL, newT):
+                    v = float(T.get_text())
+                    if (keep_min is not None and v < keep_min) or (keep_max is not None and v > keep_max):
+                        L.set_visible(False)
+                        T.set_visible(False)
 
+            draw_and_filter('l', keep_min=0.5, keep_max=1.0)  # En axis
+            draw_and_filter('r', keep_min=0.0, keep_max=0.5)  # Fs axis
+            draw_and_filter('b', offset=0.01, keep_min=0.0, keep_max=1.0)  # Wo axis
 
-        tax.clear_matplotlib_ticks()
-        ax.axis("off")
-        return fig, tax
+            if label_set:
+                fs = 12
+                lab_z = 120
+                ax = tax.get_axes()
+                ax.text(0.375, 0.4, label_set["Diopside"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.625, 0.4, label_set["Hedenbergite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.5, 0.275, label_set["Augite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.5, 0.1, label_set["Pigeonite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.25, 0.02, label_set["Enstatite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.75, 0.02, label_set["Ferrosilite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+            tax.clear_matplotlib_ticks()
+            ax.axis("off")
+            figs.append((fig, tax))
+
+        if len(sodic_px) > 0:
+            
+            label_dict = {
+                "Omphacite": 'Omph', "Aegirine-Augite": "Aeg-Aug",
+                "Jadeite": "Jd", "Aegirine": "Aeg"
+            }
+            if labels == "long":
+                label_set = {k: k for k in label_dict}
+            elif labels == "short" or labels is True:
+                label_set = label_dict
+            else:
+                label_set = None
+
+            jd_raw  = pd.to_numeric(sodic_px["Jd_h"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(float)
+            en_raw = pd.to_numeric(sodic_px["En_h"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(float)
+            aeg_raw = pd.to_numeric(sodic_px["Aeg_h"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(float)
+            di_raw = pd.to_numeric(sodic_px["Di_h"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(float)
+            hd_raw = pd.to_numeric(sodic_px["Hd_h"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(float)
+            quad_raw  = en_raw + di_raw + hd_raw 
+            total = quad_raw + jd_raw + aeg_raw
+            jd = jd_raw/total
+            aeg = aeg_raw/total
+            quad = quad_raw/total
+
+            pts_sodic = []
+            for a, q, j in zip(aeg, quad, jd):
+                pts_sodic.append((a, q, j)) # (R, T, L) for python-ternary
+
+            fig_sod, tax_sod = ternary.figure(scale=1.0)
+            fig_sod.set_size_inches((8, 8))
+            tax_sod.boundary(linewidth=1.5, zorder=0)
+            tax_sod.top_corner_label("En+Di-Hd\n(Ca-Mg-Fe Pyroxenes)", fontsize=14)
+            tax_sod.left_corner_label("Jd\n$(\\mathregular{NaAlSi_2O_6})$", fontsize=14, offset=0.03)
+            tax_sod.right_corner_label("Aeg\n$(\\mathregular{NaFe^{3+}Si_2O_6})$", fontsize=14, offset=0.03)
+            tax_sod.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
+            tax_sod.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
+
+            # Guide lines: top=0.2 and top=0.8; plus center connector
+            lines = [
+                ([0.0, 0.2, 0.8],[0.8, 0.2, 0.0]),
+                ([0.0, 0.8, 0.2],[0.2, 0.8, 0.0]),
+                ([0.5, 0.0, 0.5],[0.1, 0.8, 0.1])
+            ]
+            for xs, ys in lines:
+                tax_sod.line(xs, ys, color="k", zorder=0)
+
+            tax_sod.ticks(axis='lr', multiple=0.2, linewidth=1,
+                          tick_formats="%.1f", offset=0.02, fontsize=10)
+            tax_sod.ticks(axis='b', multiple=0.2, linewidth=1,
+                          tick_formats="%.1f", offset=0.01, fontsize=10)
+
+            # Scatter: color by Submineral if present
+            if subclass and "Submineral" in sodic_px.columns:
+                cmap = plt.get_cmap("tab10")
+                subs = sodic_px["Submineral"].fillna(np.nan)
+                
+                for i, g in enumerate(subs.unique()):
+                    # Create mask for this submineral group
+                    mask = subs == g
+                    # Get the points for this group
+                    group_pts = [pt for pt, m in zip(pts_sodic, mask) if m]
+                    
+                    # plot if there are points
+                    if len(group_pts) > 0:
+                        tax_sod.scatter(group_pts, marker='o', label=str(g), color=cmap(i),
+                                         edgecolor='k', s=20, alpha=0.85)
+                # Only add legend if there are any points plotted
+                if len(pts_sodic) > 0:
+                    tax_sod.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02,1))
+            else:
+                # Fallback: plot all points without subclass coloring
+                if len(pts_sodic) > 0:
+                    tax_sod.scatter(pts_sodic, marker='o', color='C1',
+                                    edgecolor='k', s=22, alpha=0.85)
+
+            if label_set:
+                fs = 12
+                lab_z = 120
+                ax = tax_sod.get_axes()
+                ax.text(0.375, 0.4, label_set["Omphacite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.625, 0.4, label_set["Aegirine-Augite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.3, 0.09, label_set["Jadeite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.7, 0.09, label_set["Aegirine"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+
+            tax_sod.clear_matplotlib_ticks()
+            tax_sod.get_axes().axis("off")
+            figs.append((fig_sod, tax_sod))
+
+        if not figs:
+            return None
+        if len(figs) == 1:
+            return figs[0]
+        return figs
 
 
 class QuartzCalculator(BaseMineralCalculator):
@@ -2202,6 +2509,163 @@ class SerpentineCalculator(BaseMineralCalculator):
         sites["T_site"] = Si + Al # tetrahedral
         sites["XMg"] = Mg / (Mg + Fe)
         sites["XFe"] = Fe / (Mg + Fe)
+
+        return pd.concat([base, sites], axis=1)
+
+
+class SodicPyroxeneCalculator(BaseMineralCalculator):
+    """Sodic Pyroxene-specific calculations. (Na,Ca)(Mg,Fe3+,Al)Si2O6."""
+    OXYGEN_BASIS = 6
+    MINERAL_SUFFIX = "_NaPx"
+
+    def _o_total_from_4cat(self):
+        """
+        1) compute moles from oxides
+        2) convert to cations per oxide (multiply by cation numbers)
+        3) normalize so total cations = 4
+        4) from those cat-normalized moles, compute O2_total using oxide stoichiometry
+        Returns: O_total both as pandas Series
+        """
+        moles = self.calculate_moles().copy()
+        moles.columns = [c.replace("_mols", "") for c in moles.columns]
+
+        # cations per oxide (not yet normalized)
+        cat_nums = pd.Series(self.CATION_NUMBERS)
+        # keep only oxides defined in cat_nums
+        moles2 = moles.loc[:, moles.columns.intersection(cat_nums.index)]
+        cations_raw = moles2.multiply(cat_nums, axis="columns")
+
+        # total cations and 4-cation normalization factor
+        cat_sum = cations_raw.sum(axis=1).replace(0, np.nan)
+        cat_norm = 4.0 / cat_sum
+
+        # cat-normalized moles (apply factor to moles
+        moles_4cat = moles.multiply(cat_norm, axis="rows")
+
+        # compute O_total from cat-normalized moles and per-oxide oxygen stoichiometry
+        O_per_oxide = pd.Series(self.OXYGEN_NUMBERS)
+        moles_4cat = moles_4cat.loc[:, moles_4cat.columns.intersection(O_per_oxide.index)]
+        O_total = moles_4cat.multiply(O_per_oxide, axis="columns").sum(axis=1)
+
+        return O_total
+
+
+    def calculate_components(self):
+        """Return complete sodic pyroxene composition with site assignments and classic px, jadeite, aegirine, etc. assignments."""
+        base = self.calculate_all()  # includes self.comps, moles, oxygens, and cations
+        cat_suffix = f"_cat_{self.OXYGEN_BASIS}ox"
+
+        # Grab just the cation columns from `base`
+        cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
+
+        Si = base[f"Si{cat_suffix}"]
+        Ti = base.get(f"Ti{cat_suffix}", 0)
+        Al = base[f"Al{cat_suffix}"]
+        Fe = base[f"Fe2t{cat_suffix}"]
+        Mn = base.get(f"Mn{cat_suffix}", 0)
+        Mg = base[f"Mg{cat_suffix}"]
+        Ca = base[f"Ca{cat_suffix}"]
+        Na = base.get(f"Na{cat_suffix}", 0)
+        K = base.get(f"K{cat_suffix}", 0)
+        Cr = base.get(f"Cr{cat_suffix}", 0)
+
+        # Compute site assignments in sites dataframe
+        sites = pd.DataFrame(index=base.index)
+        # sites = sites.reset_index(drop=True)
+        sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
+        sites["Oxygen_Sum"] = self._o_total_from_4cat()
+        sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
+        sites["T_site"] = Si + Al
+        sites["XMg"] = (Mg / (Mg + Fe))
+        sites["En"] = Mg / (Mg + Fe + Ca)
+        sites["Fs"] = Fe / (Mg + Fe + Ca)
+        sites["Wo"] = Ca / (Mg + Fe + Ca)
+        sites["Jd"] = Na
+        sites["Q"] = Ca + Mg + Fe
+        sites["J"] = 2 * Na
+
+        # This code is modified from Thermobar, with permission from Penny Wieser
+        sites["Al_IV"] = 2 - Si
+        sites["Al_VI"] = (Al - sites["Al_IV"]).clip(lower=0)
+
+        # Fe3+, Fe2+ Calculation
+        O_def = (6 - sites["Oxygen_Sum"]).clip(lower=0)
+        sites["Fe3_oxdef"] = np.minimum(Fe, 2.0*O_def)
+        sites["Fe2_oxdef"] = (Fe - sites["Fe3_oxdef"]).clip(lower=0)
+
+        # Fe3+, Fe2+ Calculation
+        sites["Fe3_Lindley"] = (
+            Na + sites["Al_IV"]
+            - sites["Al_VI"]
+            - (2 * Ti) - Cr
+        ).clip(lower=0, upper=Fe) # Fe3 can't be negative or greater than Fe
+        sites.loc[sites["Fe3_Lindley"] < 1e-10, "Fe3_Lindley"] = 0
+        sites["Fe2_Lindley"] = Fe - sites["Fe3_Lindley"]
+        sites["Fe3_prop_Lindley"] = (sites["Fe3_Lindley"] / Fe).replace(0, np.nan)
+
+        # Independent cpx components
+        sites["CrCaTs"] = 0.5 * Cr
+        sites['a_cpx_En'] = (
+            (1 - Ca - Na - K) * 
+            (1 - 0.5 * (Al + Cr + Na + K))
+        )
+
+        # If value of AlVI < Na cation fraction
+        sites["CaTs"] = sites["Al_VI"] - Na
+        CaTs_mask = sites["CaTs"] < 0
+        sites["Jd_from 0=Na, 1=Al"] = 0
+        sites.loc[CaTs_mask, "Jd_from 0=Na, 1=Al"] = 1
+        sites.loc[CaTs_mask, "Jd"] = sites.loc[CaTs_mask, "Al_VI"].to_numpy()
+        sites["CaTs"] = sites["CaTs"].clip(lower=0)
+
+        # CaTi component
+        sites["CaTi"] = ((sites["Al_IV"] - sites["CaTs"]) / 2).clip(lower=0)
+
+        # DiHd (Diopside-Hedenbergite) component
+        sites["DiHd_1996"] = (Ca - sites["CaTs"] - sites["CaTi"] - sites["CrCaTs"]).clip(lower=0)
+        sites["EnFs"] = ((Fe + Mg) - sites["DiHd_1996"]) / 2
+        sites["DiHd_2003"] = (Ca - sites["CaTs"] - sites["CaTi"] - sites["CrCaTs"]).clip(lower=0)
+        sites["Di"] = sites["DiHd_2003"] * (
+            Mg / (Mg + Mn + Fe).replace(0, np.nan)
+        )
+
+        # Wang 2021 Fe3+
+        sites["Fe3_Wang21"] = (Na + sites["Al_IV"] - sites["Al_VI"] - 2 * Ti - Cr)
+        sites["Fe2_Wang21"] = Fe - sites["Fe3_Wang21"]
+
+        # This code was converted from MATLAB to Python, from Jesse Walter's MinPlot
+        # Verified for alignment between values. 
+        # Sodic pool after balancing Ti
+        excess_Si = (Si - 2.0).clip(lower=0)
+        A1n = (sites["Al_IV"] - Ti).clip(lower=0) 
+        A3n = (sites["Al_VI"] - A1n).clip(lower=0) 
+        Fe3 = sites["Fe3_oxdef"].clip(lower=0) # Oxygen deficiency for now, would be different with other implementations
+        M3 = Cr + 2.0 * (excess_Si + Ti) + sites["Fe3_oxdef"] + (sites["Al_VI"] - sites["Al_IV"])
+        e = (M3 - (Na + K)).clip(lower=0.0) 
+        g  = (Ca - 0.5*e - A1n).clip(lower=0.0)
+
+        sites["Di_h"] = np.minimum(g, Mg)
+        sites["Hd_h"] = (g - sites["Di_h"]).clip(lower=0.0)
+        zp = (Na + K - Ti).clip(lower=0)
+        zm = (zp - A3n).clip(lower=0)
+        Ko = np.minimum(Cr, zm)
+        zk = (zm - Cr).clip(lower=0)
+
+        delta = (sites["Al_VI"]  - (sites["Al_IV"] - Ti))
+        F3n = np.where(delta < 0, Fe3 + delta, Fe3) # reduce Fe3 if needed
+        F3n = np.clip(F3n, 0.0, None)
+
+        Aeg = np.minimum(Fe3.clip(lower=0.0), zk)
+        sites["Aeg_h"] = pd.Series(Aeg, index=sites.index).clip(lower=0)
+
+        Jd  = np.minimum(A3n, zp)
+        sites["Jd_h"] = pd.Series(Jd, index=sites.index).clip(lower=0)
+
+        # Harlow's XEn (h): (Mg + Mn + Fe2 - g) / 2, clipped ≥ 0
+        En_h = ((Mg + Mn + sites["Fe2_oxdef"]) - g) / 2.0
+        En_h = En_h.clip(lower=0.0)
+        sites["En_h"] = En_h # store it so classify() can use it
+
 
         return pd.concat([base, sites], axis=1)
 

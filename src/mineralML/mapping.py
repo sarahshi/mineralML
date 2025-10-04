@@ -188,18 +188,18 @@ def pick_common_phases(mineral_map, min_frac=0.01, top_k=None):
 
     Parameters:
         mineral_map (array-like): (H,W) or (N,) phase labels.
-        min_frac (float): Keep phases with fraction ≥ min_frac (default 0.025).
-        top_k (int|None): After filtering, keep only the top_k most abundant.
+        min_frac (float): phases phases with fraction ≥ min_frac (default 0.025).
+        top_k (int|None): After filtering, phases only the top_k most abundant.
 
     Returns:
-        keep (list[str]): Phase names in decreasing abundance.
+        phases (list[str]): Phase names in decreasing abundance.
     """
     labels = _clean_labels_1d(mineral_map)
     if labels.empty:
         return []
     freqs = labels.value_counts(normalize=True)
-    keep = [p for p, f in freqs.items() if f >= min_frac] or [freqs.idxmax()]
-    return [p for p in freqs.index if p in keep][:top_k] if top_k else keep
+    phases = [p for p, f in freqs.items() if f >= min_frac] or [freqs.idxmax()]
+    return [p for p in freqs.index if p in phases][:top_k] if top_k else phases
 
 
 def _auto_figsize_from_array(shape, n_legend, legend_side="right", legend_cols=1, 
@@ -274,40 +274,40 @@ def _auto_bar_width(n, min_w=6.0, max_w=22.0, per_cat=0.45):
 
 def plot_phase_map(
     mineral_map_2d,
-    keep=None,
+    phases=None,
     title="Phase Map",
     bg_color=(0.08, 0.08, 0.08),
     cmap_name="tab20",
-    legend_side="right",      # "right","left","top","bottom"
+    legend_side="right", 
     legend_cols=1,
-    ax=None,                  # ignored when placing legend outside; we manage axes
+    ax=None,
     dpi=100
 ):
     mineral_map_2d = np.asarray(mineral_map_2d, dtype=object)
 
-    # --- map to integer ids ---
-    keep = keep or pick_common_phases(mineral_map_2d, min_frac=0.025)
-    phase_to_id = {p: i + 1 for i, p in enumerate(keep)}
+    # map to integer ids
+    phases = phases or pick_common_phases(mineral_map_2d, min_frac=0.025)
+    phase_to_id = {p: i + 1 for i, p in enumerate(phases)}
     ids = np.zeros(mineral_map_2d.shape, dtype=int)
     for p, pid in phase_to_id.items():
         ids[mineral_map_2d == p] = pid
 
-    # --- palette & cmap ---
-    phase_colors = _make_palette(keep, cmap_name=cmap_name)
-    cmap = ListedColormap([bg_color] + [phase_colors[p] for p in keep])
+    # palette & cmap
+    phase_colors = _make_palette(phases, cmap_name=cmap_name)
+    cmap = ListedColormap([bg_color] + [phase_colors[p] for p in phases])
 
-    # --- figure size computed once; DO NOT fudge after ---
+    # figure size computed once; DO NOT fudge after
     fig_w, fig_h = _auto_figsize_from_array(
-        ids.shape, n_legend=len(keep),
+        ids.shape, n_legend=len(phases),
         legend_side=legend_side, legend_cols=legend_cols
     )
 
-    # --- compute legend thickness (inches) for robust layout ratios ---
+    # compute legend thickness (inches) for robust layout ratios
     # side legends: width ~ per-column width; top/bottom: height ~ rows * per-item
     per_item_h = 0.22  # inches per legend entry vertically
-    per_col_w  = 1.2   # inches per legend column (label + swatch)
+    per_col_w = 1.2 # inches per legend column (label + swatch)
     ncols = max(1, int(legend_cols))
-    nrows = int(np.ceil(len(keep) / ncols)) if len(keep) else 1
+    nrows = int(np.ceil(len(phases) / ncols)) if len(phases) else 1
 
     if legend_side in ("right", "left"):
         legend_w_in = ncols * per_col_w
@@ -335,13 +335,13 @@ def plot_phase_map(
         ax_map   = fig.add_subplot(gs[0, 0])
         ax_legend= fig.add_subplot(gs[0, 1])
 
-    # --- draw map ---
+    # draw map
     ax_map.imshow(ids, cmap=cmap, interpolation="none", origin="upper")
     ax_map.set_title(title, pad=8)
     ax_map.axis("off")
 
-    # --- draw legend in its OWN axes ---
-    handles = [Patch(facecolor=phase_colors[p], label=p) for p in keep]
+    # draw legend on other axes
+    handles = [Patch(facecolor=phase_colors[p], label=p) for p in phases]
     ax_legend.axis("off")
     # place legend fully inside legend axes; no bbox_to_anchor; no overlap possible
     ax_legend.legend(
@@ -386,7 +386,61 @@ def plot_phase_counts(mineral_map_2d, title="Mineral Phases (count)"):
     return fig, ax
 
 
-def plot_probability_histograms(prob_map_2d, mineral_map_2d,
+def plot_phase_counts(mineral_map_2d, title="Mineral Phases (count)",
+                      phases=None, normalize=True):
+    """
+    Bar chart of pixel counts (or fractions) per phase with auto figure width.
+
+    Parameters:
+        mineral_map_2d (array-like): (H,W) or (N,) labels.
+        title (str): Axes title text.
+        phases (list[str]|None): Subset of phases to plot (None→auto).
+        normalize (bool): True, plot fraction of total pixels.
+
+    Returns:
+        fig_ax (tuple): (fig, ax) with the bar chart.
+    """
+    labels = _clean_labels_1d(mineral_map_2d)
+    if labels.empty:
+        fig, ax = plt.subplots(figsize=(7, 3))
+        ax.text(0.5, 0.5, "No valid labels", ha="center", va="center")
+        ax.axis("off")
+        return fig, ax
+
+    counts = labels.value_counts()
+
+    if phases is not None:
+        wanted, seen = [], set()
+        for p in phases:
+            if p not in seen:
+                wanted.append(p)
+                seen.add(p)
+        counts = counts.reindex(wanted, fill_value=0)
+        counts = counts.sort_values(ascending=False)
+    else:
+        counts = counts.sort_values(ascending=False)
+
+    if normalize:
+        total = counts.sum()
+        if total > 0:
+            counts = counts / total
+        ylabel = "Fraction of Pixels"
+    else:
+        ylabel = "Pixels"
+
+    fig, ax = plt.subplots(figsize=(_auto_bar_width(len(counts)), 4.5),
+                           constrained_layout=True)
+    counts.plot(kind="bar", ax=ax)
+    ax.set_title(title)
+    ax.set_xlabel("Phase")
+    ax.set_ylabel(ylabel)
+    ax.tick_params(axis='x', rotation=45, pad=1)
+    plt.setp(ax.get_xticklabels(), ha='right', rotation_mode='anchor')
+
+    return fig, ax
+
+
+def plot_probability_histograms(prob_map_2d, mineral_map_2d, prob_threshold,
                                 phases=None, bins=50, share_y=True,
                                 title="Prediction Probabilities"):
     """
@@ -407,7 +461,7 @@ def plot_probability_histograms(prob_map_2d, mineral_map_2d,
     prob_map_2d = np.asarray(prob_map_2d, dtype=float)
     phases = phases or pick_common_phases(mineral_map_2d, min_frac=0.025)
     if not phases:
-        fig, ax = plt.subplots(figsize=(7, 3))
+        fig, ax = plt.subplots(figsize=(6, 3))
         ax.text(0.5, 0.5, "No phases to plot", ha="center", va="center")
         ax.axis("off")
         return fig, ax
@@ -416,9 +470,7 @@ def plot_probability_histograms(prob_map_2d, mineral_map_2d,
     fig, axes = plt.subplots(rows, per_row, figsize=(2.8*per_row, 2.2*rows),
                              sharey=share_y, constrained_layout=True)
     axes = np.atleast_1d(axes).ravel()
-    finite = prob_map_2d[np.isfinite(prob_map_2d)]
-    low = 0.0 if finite.size == 0 else float(np.nanpercentile(finite, 5))
-    ylim = (max(0.0, min(low, 0.95)), 1.0)
+    ylim = (prob_threshold, 1.0)
     total = float(np.isfinite(prob_map_2d).sum() + 1e-12)
     for i, phase in enumerate(phases):
         ax = axes[i]
@@ -430,14 +482,14 @@ def plot_probability_histograms(prob_map_2d, mineral_map_2d,
             continue
         ax.hist(vals, bins=bins, orientation="horizontal")
         ax.set_ylim(ylim)
-        ax.set_title(f"{phase}\n{100.0*vals.size/total:.1f} %", fontsize=9)
-        ax.set_xlabel("Pixels", fontsize=8)
+        ax.set_title(f"{phase}\n{100.0*vals.size/total:.1f} %", fontsize=12)
+        ax.set_xlabel("Pixels", fontsize=12)
         if i % per_row == 0:
-            ax.set_ylabel("Pred. Prob.", fontsize=8)
-        ax.tick_params(axis="both", labelsize=8)
+            ax.set_ylabel("Prediction Probability", fontsize=12)
+        ax.tick_params(axis="both", labelsize=12)
     for j in range(i + 1, len(axes)):
         axes[j].set_axis_off()
-    fig.suptitle(title, y=1.02, fontsize=11)
+    fig.suptitle(title, y=1.04, fontsize=14)
     return fig, axes
 
 
@@ -451,7 +503,7 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
         sample_dir (str): Directory containing element CSV maps.
         n_iterations (int): MC forward passes for prediction.
         prob_threshold (float): Set label to NaN where max probability < threshold.
-        min_frac_to_show (float): Keep phases with fraction ≥ this value.
+        min_frac_to_show (float): phases phases with fraction ≥ this value.
         top_k (int|None): Cap displayed phases after filtering.
         phases (list[str]|None): Explicit phases to plot (None→auto).
         return_everything (bool): If True, return dict of intermediates.
@@ -479,9 +531,9 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
     if not kept:
         raw = df_pred["Predict_Mineral"].to_numpy().reshape(H, W)
         kept = pick_common_phases(raw, min_frac=min_frac_to_show, top_k=top_k)
-    fig_map, _    = plot_phase_map(mineral_map, keep=kept, title=f"Phase Map: {os.path.basename(sample_dir)}")
-    fig_counts, _ = plot_phase_counts(mineral_map, title=f"Mineral Phases: {os.path.basename(sample_dir)}")
-    fig_hists, _  = plot_probability_histograms(prob_map, mineral_map, phases=kept,
+    fig_map, _ = plot_phase_map(mineral_map, phases=kept, title=f"Phase Map: {os.path.basename(sample_dir)}")
+    fig_counts, _ = plot_phase_counts(mineral_map, phases=kept, title=f"Mineral Phases: {os.path.basename(sample_dir)}")
+    fig_hists, _  = plot_probability_histograms(prob_map, mineral_map, phases=kept, prob_threshold=prob_threshold,
                                                 title=f"Prediction Probabilities: {os.path.basename(sample_dir)}")
     if show:
         plt.show()

@@ -22,3 +22,4 @@ dependencies:
         - pyrolite
         - PyIRoGlass
         - hdbscan
+        - python-ternary
