@@ -39,7 +39,7 @@ def load_minclass_nn():
     """
 
     current_dir = os.path.dirname(__file__)
-    filepath = os.path.join(current_dir, "mineral_classes_nn_v0011.npz")
+    filepath = os.path.join(current_dir, "mineral_classes_nn_v0013.npz")
 
     with np.load(filepath, allow_pickle=True) as data:
         min_cat = data["classes"].tolist()
@@ -135,7 +135,7 @@ def norm_data_nn(df):
 
     oxides = OXIDES
     
-    mean, std = load_scaler("scaler_nn_v0011.npz")
+    mean, std = load_scaler("scaler_nn_v0013.npz")
 
     # Ensure that mean and std are Series objects with indices matching the columns
     if not isinstance(mean, pd.Series) or not isinstance(std, pd.Series):
@@ -631,7 +631,7 @@ def predict_class_prob_nn(df, n_iterations=50):
         ).to(device)
         
         optimizer = torch.optim.SGD(model.parameters(), lr=5e-3, weight_decay=1e-3)
-        model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0011.pt")
+        model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0013.pt")
         load_model(model, optimizer, model_path)
         
         # Normalize data
@@ -1073,7 +1073,7 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     ss = StandardScaler().fit(train_df[OXIDES])
     train_x = ss.transform(train_df[OXIDES].fillna(0))
     valid_x = ss.transform(valid_df[OXIDES].fillna(0))
-    scaler_path = os.path.join(path_beg, "parametermatrix_neuralnetwork", "scaler_nn_v001.npz")
+    scaler_path = os.path.join(path_beg, "parametermatrix_neuralnetwork", "scaler_nn_v0013.npz")
     np.savez(scaler_path,
              mean=pd.Series(ss.mean_, index=OXIDES),
              scale=pd.Series(np.sqrt(ss.var_), index=OXIDES))
