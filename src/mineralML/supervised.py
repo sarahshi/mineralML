@@ -164,14 +164,16 @@ def norm_data_nn(df):
 
 def balance(df, n=1000):
     """
+
     Groups to 2000 total:
     - Pyroxene group (clinopyroxene + orthopyroxene -> 'pyroxene'), kmeans for representative sampling
     - Feldspar group (plagioclase + k-feldspar -> 'feldspar'), kmeans for representative sampling
+    - Olivine, kmeans for representative sampling
     - Rhombohedral oxide group (hematite + ilmenite -> 'rhombohedral oxide')
     - Spinel group (magnetite + spinel -> 'spinel')
     - Glass (separate group with 2000 samples), TAS stratified sampling
-    - All other classes get standard n samples (default 1000). If count <1250, shuffle+oversample
-        - Olivine, kmeans for representative sampling
+    - All other classes get standard n samples (default 1000). If count <1250, shuffle+oversample. 
+
     """
 
     from sklearn.preprocessing import StandardScaler
