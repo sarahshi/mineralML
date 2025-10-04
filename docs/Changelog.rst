@@ -3,9 +3,19 @@ Change Log
 ==========
 
 
+Version 0.0.1.3
+===============
+New version of mineralML with sodic pyroxene model added and refined. Follows the Morimoto 1988 and Harlow 1998 pyrxoene classifications. Updated mineral balancing functions to better sample solid solution space. Improved mapping functions. 
+
+
+Version 0.0.1.2
+===============
+Optimize supervised.py prediction for speed. 
+
+
 Version 0.0.1.1
 ===============
-New version of mineralML with sodic pyroxene model added and refined. Follows the Morimoto 1988 and Harlow 1998 pyrxoene classifications. Updated mineral balancing functions to better ssample solid solution space. Improved mapping functions. 
+Remove vectorization to reduce RAM usage. 
 
 
 Version 0.0.1

@@ -101,7 +101,7 @@ class mineralML_supervised(unittest.TestCase):
         self.assertEqual(normalized_data.shape, (len(df_cleaned), len(oxides)))
 
         # Compute expected normalization directly from the scaler
-        mean, std = mm.load_scaler("scaler_nn_v001.npz")
+        mean, std = mm.load_scaler("scaler_nn_v0013.npz")
         # Ensure Series aligned to oxides
         mean = mean.reindex(oxides)
         std = std.reindex(oxides)
