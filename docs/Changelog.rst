@@ -3,6 +3,11 @@ Change Log
 ==========
 
 
+Version 0.0.1.4
+===============
+Removed .set_index() for SampleID in prep_nn_df to mitigate confusion.
+
+
 Version 0.0.1.3
 ===============
 New version of mineralML with sodic pyroxene model added and refined. Follows the Morimoto 1988 and Harlow 1998 pyrxoene classifications. Updated mineral balancing functions to better sample solid solution space. Improved mapping functions. 

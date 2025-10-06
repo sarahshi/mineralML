@@ -111,8 +111,8 @@ def prep_df_nn(df):
     keep_cols = oxides_plus_zr + ["Mineral"] + present_sample_cols
     df = df.loc[:, keep_cols]
 
-    if sample_col:
-        df.set_index(sample_col, inplace=True)
+    # if sample_col:
+    #     df.set_index(sample_col, inplace=True)
 
     return df
 
