@@ -162,6 +162,25 @@ def load_element_maps(path, drop_trailing_blank=False, verbose=True):
     return out
 
 
+def load_dir_to_oxide_maps(path):
+    """
+    Load per-oxide CSV maps from a directory, no conversion needed.
+
+    Parameters
+    ----------
+    path (str): Path to directory containing oxide CSV maps.
+
+    Returns
+    -------
+    ox_maps (dict): Dictionary mapping oxide names (str) to 2D numpy arrays (float).
+    """
+    O = load_element_maps(path)
+    df_ox, shape = _maps_to_df(O)
+    ox_maps = _df_to_maps(df_ox, shape)
+
+    return ox_maps
+
+
 def convert_dir_to_oxide_maps(path):
     """
     Load per-element CSV maps from a directory, convert to oxide wt% maps.
@@ -494,8 +513,9 @@ def plot_probability_histograms(prob_map_2d, mineral_map_2d, prob_threshold,
 
 
 def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
-               min_frac_to_show=0.01, top_k=None, phases=None,
-               return_everything=False, show=True):
+               min_frac_to_show=0.01, units="element_wt%",
+               top_k=None, phases=None,
+               return_everything=True, show=True):
     """
     Load → convert → predict → plot for one folder of CSV maps.
 
@@ -513,7 +533,15 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
         figs (tuple): (fig_map, fig_counts, fig_hists) if return_everything=False.
         data (dict): Full outputs (figs, maps, frames) if return_everything=True.
     """
-    ox_maps = convert_dir_to_oxide_maps(sample_dir)
+    if units == "element_wt%":
+        # expects element-weight% CSVs; converts each to its oxide equivalent
+        ox_maps = convert_dir_to_oxide_maps(sample_dir)
+    elif units == "oxide_wt%":
+        # already oxides; just load
+        ox_maps = load_dir_to_oxide_maps(sample_dir)
+    else:
+        raise ValueError("units must be 'element_wt%' or 'oxide_wt%'")
+
     if not ox_maps:
         raise ValueError(f"No oxide maps found in: {sample_dir}")
     df_ox_flat, shape = _maps_to_df(ox_maps)
@@ -521,7 +549,7 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
 
     df_pred, prob_matrix = predict_class_prob_nn(df_ordered, n_iterations=n_iterations)
     labels = df_pred["Predict_Mineral"].astype(object)
-    probs  = df_pred["Predict_Probability"].astype(float)
+    probs = df_pred["Predict_Probability"].astype(float)
     labels = labels.mask(probs < prob_threshold)
     labels_flat, probs_flat = labels.to_numpy(), probs.to_numpy()
     H, W = shape
@@ -535,6 +563,7 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
     fig_counts, _ = plot_phase_counts(mineral_map, phases=kept, title=f"Mineral Phases: {os.path.basename(sample_dir)}")
     fig_hists, _  = plot_probability_histograms(prob_map, mineral_map, phases=kept, prob_threshold=prob_threshold,
                                                 title=f"Prediction Probabilities: {os.path.basename(sample_dir)}")
+
     if show:
         plt.show()
     if not return_everything:

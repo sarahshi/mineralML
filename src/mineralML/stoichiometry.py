@@ -207,7 +207,7 @@ def oxide_to_element(df):
         'Cr2O3': {'element': 'Cr', 'oxide_mass': 151.99, 'element_mass': 51.996, 'stoich': 2},
         'NiO': {'element': 'Ni', 'oxide_mass': 74.6928, 'element_mass': 58.693, 'stoich': 1},
         'SO2': {'element': 'S', 'oxide_mass': 64.066, 'element_mass': 32.065, 'stoich': 1},
-        'ZrO2':  {'element': 'Zr',  'oxide_mass': 123.218,   'element_mass': 91.224,  'stoich': 1},
+        'ZrO2':  {'element': 'Zr', 'oxide_mass': 123.218, 'element_mass': 91.224, 'stoich': 1},
     }
 
     result = {}
@@ -955,14 +955,19 @@ class FeldsparClassifier(FeldsparCalculator):
 
         # Build a fast lookup for the miscibility gap boundary:
         # The compositional regions are from Thermobar. Plotting has been adapted for mineralML
+        # Modified plagioclase line's Or extent from DHZ 0.05 to 0.075. 50% tolerance given
+        # dependence on temperature. 
         An_plag = np.array([1.00, 0.90, 0.70, 0.50, 0.30, 0.20, 0.15, 0.10, 0.00])
-        Or_plag = np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.10, 0.15, 0.10, 0.10])
+        Or_plag = np.array([0.075, 0.075, 0.075, 0.075, 0.075, 0.10, 0.15, 0.10, 0.10])
+        # Or_plag = np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.10, 0.15, 0.10, 0.10])
         f_plag = interpolate.interp1d(An_plag, Or_plag,
                                       bounds_error=False,
                                       fill_value=(Or_plag[0], Or_plag[-1]))
 
+        # Modified alkali feldspar line's An extent from DHZ 0.05 to 0.075. 50% tolerance given
+        # dependence on temperature. 
         Or_kfeld = np.array([0.1, 0.15, 0.37, 0.95])
-        An_kfeld = np.array([0.1, 0.15, 0.05, 0.05])
+        An_kfeld = np.array([0.1, 0.15, 0.075, 0.075])
         f_kfeld = interpolate.interp1d(Or_kfeld, An_kfeld,
                                        bounds_error=False,
                                        fill_value=(An_kfeld[0], An_kfeld[-1]))
@@ -1039,12 +1044,12 @@ class FeldsparClassifier(FeldsparCalculator):
         tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
 
         # Interpolated curves
-        An = np.array([1.0, 0.9, 0.7, 0.5, 0.3, 0.20, 0.15])
-        Or = np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.1, 0.15])
+        An = np.array([0.975, 0.9, 0.7, 0.5, 0.3, 0.20, 0.15])
+        Or = np.array([0.075, 0.075, 0.075, 0.075, 0.075, 0.1, 0.15])
         f_plag = interpolate.interp1d(An, Or)
-        An_new = np.linspace(0.15, 1, 1000)
+        An_new = np.linspace(An[-1], An[0], 1000)
         Or_new = f_plag(An_new)
-        Ab_new = 1 - An_new
+        Ab_new = 1 - An_new - Or_new
         plag_curve = np.column_stack([An_new, Or_new, Ab_new])
 
         An_kp = np.array([0, 0.15])
@@ -1056,10 +1061,10 @@ class FeldsparClassifier(FeldsparCalculator):
         Ab_kp_new = f_kp(An_kp_new)
         plag_kspar_line = np.column_stack([An_kp_new, Or_kp_new, Ab_kp_new])
 
-        Or_k = np.array([1.0, 0.37, 0.15])
-        An_k = np.array([0.05, 0.05, 0.15])
+        Or_k = np.array([0.975, 0.37, 0.15])
+        An_k = np.array([0.075, 0.075, 0.15])
         f_kspar = interpolate.interp1d(Or_k, An_k)
-        Or_k_new = np.linspace(0.15, 1, 1000)
+        Or_k_new = np.linspace(Or_k[-1], Or_k[0], 1000)
         An_k_new = f_kspar(Or_k_new)
         Ab_k_new = 1 - Or_k_new
         kspar_curve = np.column_stack([An_k_new, Or_k_new, Ab_k_new])
@@ -1088,16 +1093,22 @@ class FeldsparClassifier(FeldsparCalculator):
         # Labels
         if label_set:
             fs = 12
-            lab_z = 120
+            lab_z = 500
             ax = tax.get_axes()
-            ax.text(0.3, 0.5, label_set["Sanidine"], fontsize=fs, rotation=60, zorder=lab_z)
-            ax.text(0.15, 0.2, label_set["Anorthoclase"], fontsize=fs, zorder=lab_z)
-            ax.text(0.075, 0.03, label_set["Albite"], fontsize=fs, ha='center', zorder=lab_z)
-            ax.text(0.2, 0.03, label_set["Oligoclase"], fontsize=fs, ha='center', zorder=lab_z)
-            ax.text(0.4, 0.015, label_set["Andesine"], fontsize=fs, ha='center', zorder=lab_z)
-            ax.text(0.6, 0.015, label_set["Labradorite"], fontsize=fs, ha='center', zorder=lab_z)
-            ax.text(0.8, 0.015, label_set["Bytownite"], fontsize=fs, ha='center', zorder=lab_z)
-            ax.text(0.95, 0.015, label_set["Anorthite"], fontsize=fs, ha='center', zorder=lab_z)
+            bbox_style = dict(
+                facecolor='white',
+                edgecolor='none',
+                alpha=0.6,
+                boxstyle='round,pad=0.05'
+            )
+            ax.text(0.31, 0.5, label_set["Sanidine"], fontsize=fs, rotation=60, zorder=lab_z, bbox=bbox_style)
+            ax.text(0.15, 0.2, label_set["Anorthoclase"], fontsize=fs, zorder=lab_z, bbox=bbox_style)
+            ax.text(0.075, 0.03, label_set["Albite"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
+            ax.text(0.2, 0.03, label_set["Oligoclase"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
+            ax.text(0.4, 0.02, label_set["Andesine"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
+            ax.text(0.6, 0.02, label_set["Labradorite"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
+            ax.text(0.8, 0.02, label_set["Bytownite"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
+            ax.text(0.95, 0.02, label_set["Anorthite"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
 
         pts = list(zip(df_class["An"], df_class["Or"], df_class["Ab"]))
         cmap = plt.get_cmap("tab10")
