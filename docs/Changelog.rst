@@ -3,9 +3,14 @@ Change Log
 ==========
 
 
+Version 0.0.1.7
+===============
+Provide new mapping functions with `mm.plot_component_composite` to allow for internal compositional variability to be calculated and plotted for different mineral groups - most commonly examined olivine, clinopyroxene, orthopyroxene, and plagioclase feldspar, for now. 
+
+
 Version 0.0.1.6
 ===============
-Provide submineral in addition to primary prediction in predict_class_prob_nn. 
+Provide submineral in addition to primary prediction in `mm.predict_class_prob_nn`. 
 
 
 Version 0.0.1.5
@@ -17,7 +22,7 @@ Modify feldspar line bounds to provide 50% tolerance for An and Or, increased fr
 
 Version 0.0.1.4
 ===============
-Removed .set_index() for SampleID in prep_nn_df to mitigate confusion.
+Removed .set_index() for SampleID in `mm.prep_nn_df` to mitigate confusion.
 
 
 Version 0.0.1.3
