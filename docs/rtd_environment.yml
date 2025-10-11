@@ -4,24 +4,32 @@ channels:
     - pytorch
     - defaults
 dependencies:
-    - python
-    - pandoc
+    # Pin compatible versions
+    - python=3.9 # PyTorch on conda-forge has good 3.9 support
     - pip
+    - pandoc
+    
+    # Core scientific stack via conda
+    - numpy
+    - scipy
+    - pandas
+    - matplotlib
+    - scikit-learn
+    - seaborn
+    - hdbscan
+    - openpyxl
+    - ipython
+    - ipykernel
+    
+    # PyTorch from conda-forge (more RTD compatible)
+    - pytorch
+    - cpuonly # Lightweight CPU-only version for docs
+    
+    # Remaining via pip
     - pip:
         - sphinx_rtd_theme>=0.5.0
-        - ipython
         - sphinxcontrib-bibtex>=2.3.0
         - sphinx<=8.1.0
         - nbsphinx==0.9.6
-        - ipykernel
-        - openpyxl
-        - pandas
-        - numpy
-        - matplotlib
-        - scikit-learn
-        - scipy
-        - seaborn
-        - torch
-        - hdbscan
-        - mineralML
         - python-ternary
+        - mineralML
