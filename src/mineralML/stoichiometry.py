@@ -1721,11 +1721,15 @@ class OxideClassifier:
         on_line = dist <= eps
         return t_clip, on_line, dist
 
-    def classify(self, eps=0.1):
+    def classify(self, eps=0.1, subclass=True):
         comps = self.calculate_components()
         df_class = comps.copy()
-        df_class["Submineral"] = None
 
+        if not subclass:
+            return df_class
+
+        df_class["Mineral"] = df_class[self.mineral_col].astype(str)
+        df_class["Submineral"] = None
         required_cols = ["XR3", "XTi", "XR2"]
         has_required_cols = all(col in df_class.columns for col in required_cols)
         rhomb_mask, spinel_mask = self._name_masks(df_class)
@@ -1798,8 +1802,6 @@ class OxideClassifier:
 
         mineral_col = self.mineral_col
         df_class["Submineral"] = df_class["Submineral"].fillna(df_class[mineral_col].astype(str))
-
-        # df_class["Submineral"] = df_class["Submineral"].fillna("Unclassified")
 
         sp_rows = df_class["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
         if sp_rows.any():

@@ -689,32 +689,43 @@ def predict_class_prob_nn(df, n_iterations=50):
     # Process specialized classifiers (unchanged, but could also be optimized)
     oxide_cols = [c for c in result_df.columns if c in OXIDES]
     mineral_col = "Predict_Mineral" if "Predict_Mineral" in result_df.columns else None
-    
     cols = oxide_cols + ([mineral_col] if mineral_col else [])
-    
+
+    def _merge_subclass(mask, Classifier, want_sub=True):
+        if not mask.any():
+            return
+        sub = result_df.loc[mask, cols]
+        clf = Classifier(sub)
+        # Ensure subclass=True to get submineral back by default
+        out = clf.classify(subclass=want_sub)
+        # Expect out to have "Mineral" and (if want_sub) "Submineral"
+        if "Mineral" in out.columns:
+            result_df.loc[mask, "Predict_Mineral"] = out["Mineral"].values
+        if want_sub and "Submineral" in out.columns:
+            result_df.loc[mask, "Submineral"] = out["Submineral"].values
+
     # Pyroxene classification
     px_mask = result_df["Predict_Mineral"] == "Pyroxene"
-    if px_mask.any():
-        sub = result_df.loc[px_mask, cols]
-        classifier = PyroxeneClassifier(sub)
-        df_px_class = classifier.classify(subclass=False)
-        result_df.loc[px_mask, "Predict_Mineral"] = df_px_class["Mineral"].values
+    _merge_subclass(px_mask, PyroxeneClassifier, want_sub=True)
 
     # Feldspar classification
     fspar_mask = result_df["Predict_Mineral"] == "Feldspar"
-    if fspar_mask.any():
-        sub = result_df.loc[fspar_mask, cols]
-        classifier = FeldsparClassifier(sub)
-        df_fspar_class = classifier.classify(subclass=False)
-        result_df.loc[fspar_mask, "Predict_Mineral"] = df_fspar_class["Mineral"].values
+    _merge_subclass(fspar_mask, FeldsparClassifier, want_sub=True)
     
     # Oxide classification
     ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinels"])
-    if ox_mask.any():
-        sub = result_df.loc[ox_mask, cols].reset_index(drop=True)
-        classifier = OxideClassifier(sub)
-        df_ox_class = classifier.classify()
-        result_df.loc[ox_mask, "Predict_Mineral"] = df_ox_class["Submineral"].values
+    _merge_subclass(ox_mask, OxideClassifier, want_sub=True)
+
+    if "Submineral" not in result_df.columns:
+        result_df["Submineral"] = pd.Series(index=result_df.index, dtype="object")
+
+    cols = list(result_df.columns)
+    if "Predict_Mineral" in cols and "Submineral" in cols:
+        # remove and re-insert Submineral right after Predict_Mineral
+        cols.remove("Submineral")
+        insert_at = cols.index("Predict_Mineral") + 1
+        cols.insert(insert_at, "Submineral")
+        result_df = result_df[cols]
 
     return result_df, probability_matrix
 
