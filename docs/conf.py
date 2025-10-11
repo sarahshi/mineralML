@@ -65,12 +65,13 @@ nbsphinx_allow_errors = True
 # Some change in dependencies made us need to replace `var` with
 # `env.config.html_context['var']`.
 nbsphinx_prolog = r"""
-{% set docname = 'docs' / env.doc2path(env.docname, base=None) %}
-{% set git_ref = 'main' if not env.config.html_context['READTHEDOCS'] else
-                 env.config.html_context['github_version']
-                 if '.' not in env.config.html_context['current_version'] else
-                 'v' + env.config.release %}
+{% set docname = 'docs/' ~ env.doc2path(env.docname, base=None) %}
+{% set is_rtd = env.config.html_context.get('READTHEDOCS', False) %}
+{% set current_version = env.config.html_context.get('current_version', '') %}
+{% set github_version = env.config.html_context.get('github_version', 'main') %}
+{% set git_ref = 'main' if not is_rtd else (github_version if '.' not in current_version else 'v' ~ env.config.release) %}
 .. raw:: html
+   ...
 
     <div class="admonition note">
       <p>This page was generated from
