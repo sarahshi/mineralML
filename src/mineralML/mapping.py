@@ -4,12 +4,15 @@ import re, os
 import numpy as np
 import pandas as pd
 
+from scipy.ndimage import gaussian_filter
+
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
+import matplotlib.patches as mpatches
 from matplotlib.colors import ListedColormap
 
 from mineralML.stoichiometry import *
 from mineralML.supervised import *
+from mineralML.constants import *
 
 
 # %% 
@@ -360,7 +363,7 @@ def plot_phase_map(
     ax_map.axis("off")
 
     # draw legend on other axes
-    handles = [Patch(facecolor=phase_colors[p], label=p) for p in phases]
+    handles = [mpatches.Patch(facecolor=phase_colors[p], label=p) for p in phases]
     ax_legend.axis("off")
     # place legend fully inside legend axes; no bbox_to_anchor; no overlap possible
     ax_legend.legend(
@@ -512,20 +515,22 @@ def plot_probability_histograms(prob_map_2d, mineral_map_2d, prob_threshold,
     return fig, axes
 
 
-def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
+def run_sample(sample_input, n_iterations=50, prob_threshold=0.6,
                min_frac_to_show=0.01, units="element_wt%",
                top_k=None, phases=None,
-               return_everything=True, show=True):
+               return_everything=True, show=True, 
+               compute_components=False, components_spec=None):
     """
-    Load → convert → predict → plot for one folder of CSV maps.
+    Load, convert, predict, plot for one folder of CSV maps.
 
     Parameters:
-        sample_dir (str): Directory containing element CSV maps.
+        sample_input (str | Path | dict): Either a directory path containing element CSV maps
+            or a preloaded dict of oxide maps.
         n_iterations (int): MC forward passes for prediction.
         prob_threshold (float): Set label to NaN where max probability < threshold.
         min_frac_to_show (float): phases phases with fraction ≥ this value.
         top_k (int|None): Cap displayed phases after filtering.
-        phases (list[str]|None): Explicit phases to plot (None→auto).
+        phases (list[str]|None): Explicit phases to plot (None->auto).
         return_everything (bool): If True, return dict of intermediates.
         show (bool): If True, call plt.show().
 
@@ -533,17 +538,24 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
         figs (tuple): (fig_map, fig_counts, fig_hists) if return_everything=False.
         data (dict): Full outputs (figs, maps, frames) if return_everything=True.
     """
-    if units == "element_wt%":
-        # expects element-weight% CSVs; converts each to its oxide equivalent
-        ox_maps = convert_dir_to_oxide_maps(sample_dir)
-    elif units == "oxide_wt%":
-        # already oxides; just load
-        ox_maps = load_dir_to_oxide_maps(sample_dir)
+    # Accept either a path or a preloaded oxide map dict
+    if isinstance(sample_input, (str, os.PathLike)):
+        sample_dir = sample_input
+        if units == "element_wt%":
+            ox_maps = convert_dir_to_oxide_maps(sample_dir)
+        elif units == "oxide_wt%":
+            ox_maps = load_dir_to_oxide_maps(sample_dir)
+        else:
+            raise ValueError("units must be 'element_wt%' or 'oxide_wt%'")
+    elif isinstance(sample_input, dict):
+        ox_maps = sample_input
+        sample_dir = "Provided ox_maps"
     else:
-        raise ValueError("units must be 'element_wt%' or 'oxide_wt%'")
+        raise TypeError("sample_input must be a directory path or a dict of oxide maps")
 
     if not ox_maps:
-        raise ValueError(f"No oxide maps found in: {sample_dir}")
+        raise ValueError(f"No oxide maps found or provided in: {sample_dir}")
+
     df_ox_flat, shape = _maps_to_df(ox_maps)
     df_ordered = _ensure_columns(df_ox_flat)
 
@@ -564,11 +576,60 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
     fig_hists, _  = plot_probability_histograms(prob_map, mineral_map, phases=kept, prob_threshold=prob_threshold,
                                                 title=f"Prediction Probabilities: {os.path.basename(sample_dir)}")
 
+    component_maps, component_frames = {}, {}
+    if compute_components:
+        # default spec for feldspar, pyroxene, olivine; extend as needed
+        default_spec = {
+            "Feldspar": {
+                "labels": ["Feldspar", "Plagioclase", "KFeldspar"],
+                "calculator": FeldsparClassifier,
+                "method": "classify",
+                "cols": ["An", "Ab", "Or"],
+                "kwargs": {"subclass": False},
+                "transforms": {}
+            },
+            "Clinopyroxene": {
+                "labels": ["Clinopyroxene"],
+                "calculator": PyroxeneClassifier,
+                "method": "calculate_components",
+                "cols": ["XMg", "En", "Fs", "Wo"],
+                "kwargs": {},
+                "transforms": {}
+            },
+            "Orthopyroxene": {
+                "labels": ["Orthopyroxene"],
+                "calculator": PyroxeneClassifier,
+                "method": "calculate_components",
+                "cols": ["XMg", "En", "Fs", "Wo"],
+                "kwargs": {},
+                "transforms": {}
+            },
+            "Olivine": {
+                "labels": ["Olivine"],
+                "calculator": OlivineCalculator,
+                "method": "calculate_components",
+                "cols": ["XFo"],
+                "kwargs": {},
+                "transforms": {}
+            },
+        }
+
+        spec = components_spec or default_spec
+        component_maps, component_frames = _compute_component_maps(
+            df_ordered=df_ordered,
+            df_pred=df_pred,
+            shape=shape,
+            prob_threshold=prob_threshold,
+            components_spec=spec,
+            oxide_list=OXIDES,
+        )
+
     if show:
         plt.show()
     if not return_everything:
         return fig_map, fig_counts, fig_hists
-    return {
+
+    out = {
         "figs": (fig_map, fig_counts, fig_hists),
         "shape": shape,
         "oxide_maps": ox_maps,
@@ -579,4 +640,252 @@ def run_sample(sample_dir, n_iterations=50, prob_threshold=0.6,
         "prob_map": prob_map,
         "kept_phases": kept,
     }
+    if compute_components:
+        out["component_maps"] = component_maps
+        out["component_frames"] = component_frames
+    return out
 
+
+def _compute_component_maps(df_ordered, df_pred, shape, prob_threshold,
+                            components_spec, oxide_list):
+    """
+    components_spec: dict like
+      {
+        "Feldspar": {
+          "labels": ["Feldspar", "Plagioclase", "KFeldspar"],
+          "calculator": FeldsparClassifier,
+          "method": "classify",                 # or "calculate_components"
+          "cols": ["An", "Ab", "Or"],           # columns to rasterize
+          "kwargs": {"subclass": False},        # optional kwargs for method
+          "transforms": {"An": None}            # optional post transforms per col
+        },
+        "Pyroxene": {
+          "labels": ["Pyroxene","Orthopyroxene","Clinopyroxene","Na-Pyroxene"],
+          "calculator": PyroxeneClassifier,
+          "method": "calculate_components",
+          "cols": ["XMg", "En", "Fs", "Wo"],
+          "kwargs": {},
+          "transforms": {"XMg": None}
+        },
+        ...
+      }
+    """
+    maps = {}
+    frames = {}
+    H, W = shape
+    probs = pd.to_numeric(df_pred["Predict_Probability"], errors="coerce").fillna(0.0).to_numpy()
+    labels = df_pred["Predict_Mineral"].astype(str).to_numpy()
+    valid = probs >= prob_threshold
+
+    oxide_cols = [c for c in df_ordered.columns if c in oxide_list]
+
+    for phase_name, spec in components_spec.items():
+        phase_labels = set(spec["labels"])
+        mask = valid & np.isin(labels, list(phase_labels))
+        if not mask.any():
+            continue
+
+        sub = df_ordered.loc[mask, oxide_cols].copy()
+        sub["Predict_Mineral"] = labels[mask]
+
+        calc = spec["calculator"](sub)
+        method = getattr(calc, spec.get("method", "calculate_components"))
+        out = method(**spec.get("kwargs", {}))  # DataFrame with requested columns
+
+        # stash the full frame for inspection
+        frames[phase_name] = out.copy()
+
+        # rasterize requested columns to image-shaped maps
+        for col in spec["cols"]:
+            if col not in out.columns:
+                continue
+            arr = pd.to_numeric(out[col], errors="coerce").to_numpy(float)
+            # optional post-transform
+            tf = (spec.get("transforms") or {}).get(col)
+            if tf is not None:
+                arr = tf(arr)
+
+            m = np.full((H, W), np.nan, dtype=float)
+            m.reshape(-1)[np.where(mask)[0]] = arr
+            maps[f"{phase_name}.{col}"] = m
+
+    return maps, frames
+
+
+def plot_component_composite(
+    res,
+    name="Composite",
+    save_path=None,
+    # which component maps to draw (keys must exist in res["component_maps"])
+    feld_key="Feldspar.An",
+    cpx_key="Clinopyroxene.XMg",
+    opx_key="Orthopyroxene.XMg",
+    ol_key="Olivine.XFo",
+    glass_labels=("Glass",),
+    spinel_labels=("Spinels",),
+    smooth_sigma=0.0,
+    limits_mode="meanstd",
+    percentile=(2, 98),
+    figsize=(8, 8),
+    dpi=300,
+):
+    """
+    Layer An (plagioclase), XMg (pyroxenes), XFo (olivine) with class masks (glass, spinel).
+    Expects:
+        res["component_maps"]: dict of 2D arrays with NaNs where not present, e.g. "Feldspar.An"
+        res["mineral_map"]: 2D array of predicted coarse labels (strings)
+    """
+
+    comp_maps = res.get("component_maps", {})
+    mineral_map = res.get("mineral_map", None)
+
+    An  = comp_maps.get(feld_key, None)
+    XMg_cpx = comp_maps.get(cpx_key, None)
+    XMg_opx = comp_maps.get(opx_key, None)
+    XFo = comp_maps.get(ol_key, None)
+    glass = mineral_map == glass_labels
+    spinel = mineral_map == spinel_labels
+
+    if An is None and XMg_cpx is None and XMg_opx is None and XFo is None:
+        raise ValueError("No component maps found. Check your keys in res['component_maps'].")
+
+    H, W = None, None
+    for a in (An, XMg_cpx, XMg_opx, XFo):
+        if a is not None:
+            H, W = a.shape
+            break
+
+    def _nanmasked(arr):
+        """Return a masked array with NaNs masked (transparent under imshow with set_bad)."""
+        return np.ma.masked_invalid(arr.astype(float))
+
+    def _auto_limits(a, mode="meanstd", p=(2, 98)):
+        """Compute display range for imshow."""
+        a = a[np.isfinite(a)]
+        if a.size == 0:
+            return 0.0, 1.0
+        if mode == "percentile":
+            return np.percentile(a, p[0]), np.percentile(a, p[1])
+        mu, sigma = np.mean(a), np.std(a)
+        return (mu - 2*sigma, mu + 2*sigma)
+
+    # custom colormaps (transparent NaNs)
+    N = 256
+    glasscmap = ListedColormap(['#FFFFFF00', '#F9C300'])
+    spinelcmap = ListedColormap(['#FFFFFF00', '#2E2DCE'])
+
+    # teal plag blend
+    plag_cmap_arr = np.ones((N, 4))
+    plag_cmap_arr[:, 0] = np.linspace(204/256, 0/256, N)
+    plag_cmap_arr[:, 1] = np.linspace(238/256, 153/256, N)
+    plag_cmap_arr[:, 2] = np.linspace(255/256, 136/256, N)
+    plag_cmap = ListedColormap(plag_cmap_arr)
+
+    # light red clinopyroxene
+    cpx_cmap_arr = np.ones((N, 4))
+    cpx_cmap_arr[:, 0] = np.linspace(255/256, 200/256, N) 
+    cpx_cmap_arr[:, 1] = np.linspace(230/256, 60/256, N)
+    cpx_cmap_arr[:, 2] = np.linspace(230/256, 80/256, N)
+    cpx_cmap = ListedColormap(cpx_cmap_arr)
+
+    # maroon for orthopyroxene
+    opx_cmap_arr = np.ones((N, 4))
+    opx_cmap_arr[:, 0] = np.linspace(180/256, 90/256, N)
+    opx_cmap_arr[:, 1] = np.linspace(50/256, 0/256, N)
+    opx_cmap_arr[:, 2] = np.linspace(50/256, 0/256, N)
+    opx_cmap = ListedColormap(opx_cmap_arr)
+
+    # green ol blend
+    ol_cmap_arr = np.ones((N, 4))
+    ol_cmap_arr[:, 0] = np.linspace(239/256, 102/256, N)
+    ol_cmap_arr[:, 1] = np.linspace(238/256, 102/256, N)
+    ol_cmap_arr[:, 2] = np.linspace(187/256, 51/256, N)
+    ol_cmap = ListedColormap(ol_cmap_arr)
+
+    # Make NaNs fully transparent
+    plag_cmap.set_bad(color='white', alpha=0)
+    cpx_cmap.set_bad(color='white', alpha=0)
+    opx_cmap.set_bad(color='white', alpha=0)
+    ol_cmap.set_bad(color='white', alpha=0)
+    glasscmap.set_bad(color='white', alpha=0)
+    spinelcmap.set_bad(color='white', alpha=0)
+
+    # optional smoothing (on masked data -> preserve NaNs)
+    def _smooth(m):
+        if m is None or not smooth_sigma or smooth_sigma <= 0:
+            return m
+        data = m.copy()
+        mask = ~np.isfinite(data)
+        data[mask] = 0.0
+        w = (~mask).astype(float)
+        data_s = gaussian_filter(data, smooth_sigma, mode="nearest")
+        w_s = gaussian_filter(w, smooth_sigma, mode="nearest")
+        with np.errstate(invalid='ignore'):
+            out = data_s / np.maximum(w_s, 1e-12)
+        out[mask] = np.nan
+        return out
+
+    An_s = _smooth(An)
+    XMg_s_cpx = _smooth(XMg_cpx)
+    XMg_s_opx = _smooth(XMg_opx)
+    XFo_s = _smooth(XFo)
+
+    vmin_plag, vmax_plag = _auto_limits(An_s, limits_mode, percentile) if An_s is not None else (0, 1)
+    vmin_cpx, vmax_cpx = _auto_limits(XMg_s_cpx, limits_mode, percentile) if XMg_s_cpx is not None else (0, 1)
+    vmin_opx, vmax_opx = _auto_limits(XMg_s_opx, limits_mode, percentile) if XMg_s_opx is not None else (0, 1)
+    vmin_ol, vmax_ol = _auto_limits(XFo_s, limits_mode, percentile) if XFo_s is not None else (0, 1)
+
+    # plot
+    n_legend = sum(x is not None for x in (An, XMg_cpx, XMg_opx, XFo, glass, spinel))
+    fig_w, fig_h = _auto_figsize_from_array((H, W), n_legend=n_legend, legend_side="right")
+
+    fig = plt.figure(figsize=(fig_w, fig_h), constrained_layout=True, dpi=dpi)
+    ax = fig.add_subplot(1, 1, 1)
+    if An_s is not None:
+        ax.imshow(_nanmasked(An_s), cmap=plag_cmap, interpolation='None',
+                  vmin=vmin_plag, vmax=vmax_plag)
+    if XMg_s_cpx is not None:
+        ax.imshow(_nanmasked(XMg_s_cpx), cmap=cpx_cmap, interpolation='None',
+                  vmin=vmin_cpx, vmax=vmax_cpx)
+    if XMg_s_opx is not None:
+        ax.imshow(_nanmasked(XMg_s_opx), cmap=opx_cmap, interpolation='None',
+                  vmin=vmin_opx, vmax=vmax_opx)
+    if XFo_s is not None:
+        ax.imshow(_nanmasked(XFo_s), cmap=ol_cmap, interpolation='None',
+                  vmin=vmin_ol, vmax=vmax_ol)
+    if glass is not None:
+        ax.imshow(_nanmasked(glass), cmap=glasscmap, interpolation='None')
+    if spinel is not None:
+        ax.imshow(_nanmasked(spinel), cmap=spinelcmap, interpolation='None')
+
+    ax.set_title(name)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # legend patches (colors match your “solid” swatches)
+    patches = []
+    if An is not None: 
+        patches.append(mpatches.Patch(color='#009988', label='Plagioclase (higher An darker)'))
+    if XMg_cpx is not None:
+        patches.append(mpatches.Patch(color='#E57A7A', label='Clinopyroxene (higher Mg# lighter)'))
+    if XMg_opx is not None:
+        patches.append(mpatches.Patch(color='#5A0F0F', label='Orthopyroxene (higher Mg# darker)'))
+    if XFo is not None: 
+        patches.append(mpatches.Patch(color='#666633', label='Olivine (higher Fo darker)'))
+    if glass is not None:
+        patches.append(mpatches.Patch(color='#F9C300', label='Glass'))
+    if spinel is not None:
+        patches.append(mpatches.Patch(color='#2E2DCE', label='Spinel'))
+    if patches:
+        ax.legend(handles=patches, frameon=True, fontsize=8)
+    ax.set_frame_on(False)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    if save_path:
+        fig.savefig(save_path, bbox_inches='tight')
+    return fig, ax
+
+
+# %%

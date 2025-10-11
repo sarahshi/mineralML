@@ -31,9 +31,16 @@ Welcome to mineralML's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Applying Supervised ML Model
+   :caption: Supervised ML Predictions for Data
 
    examples/mineralML_supervised
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Supervised ML Predictions for Mapped Data
+
+   examples/mineralML_mapping
 
 
 .. toctree::
