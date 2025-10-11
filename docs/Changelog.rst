@@ -3,6 +3,12 @@ Change Log
 ==========
 
 
+Version 0.0.1.5
+===============
+Push updates to mapping to account for different input units (wt% vs. ox%), return all outputs by default. 
+
+Modify feldspar line bounds to provide 50% tolerance for An and Or, increased from DHZ 0.05 to 0.075.
+
 Version 0.0.1.4
 ===============
 Removed .set_index() for SampleID in prep_nn_df to mitigate confusion.
