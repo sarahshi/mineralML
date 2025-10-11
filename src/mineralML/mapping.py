@@ -726,8 +726,9 @@ def plot_component_composite(
     smooth_sigma=0.0,
     limits_mode="meanstd",
     percentile=(2, 98),
-    figsize=(8, 8),
-    dpi=300,
+    legend_side="right", 
+    legend_cols=1,
+    dpi=100,
 ):
     """
     Layer An (plagioclase), XMg (pyroxenes), XFo (olivine) with class masks (glass, spinel).
@@ -836,56 +837,102 @@ def plot_component_composite(
     vmin_ol, vmax_ol = _auto_limits(XFo_s, limits_mode, percentile) if XFo_s is not None else (0, 1)
 
     # plot
-    n_legend = sum(x is not None for x in (An, XMg_cpx, XMg_opx, XFo, glass, spinel))
-    fig_w, fig_h = _auto_figsize_from_array((H, W), n_legend=n_legend, legend_side="right")
-
-    fig = plt.figure(figsize=(fig_w, fig_h), constrained_layout=True, dpi=dpi)
-    ax = fig.add_subplot(1, 1, 1)
-    if An_s is not None:
-        ax.imshow(_nanmasked(An_s), cmap=plag_cmap, interpolation='None',
-                  vmin=vmin_plag, vmax=vmax_plag)
-    if XMg_s_cpx is not None:
-        ax.imshow(_nanmasked(XMg_s_cpx), cmap=cpx_cmap, interpolation='None',
-                  vmin=vmin_cpx, vmax=vmax_cpx)
-    if XMg_s_opx is not None:
-        ax.imshow(_nanmasked(XMg_s_opx), cmap=opx_cmap, interpolation='None',
-                  vmin=vmin_opx, vmax=vmax_opx)
-    if XFo_s is not None:
-        ax.imshow(_nanmasked(XFo_s), cmap=ol_cmap, interpolation='None',
-                  vmin=vmin_ol, vmax=vmax_ol)
-    if glass is not None:
-        ax.imshow(_nanmasked(glass), cmap=glasscmap, interpolation='None')
-    if spinel is not None:
-        ax.imshow(_nanmasked(spinel), cmap=spinelcmap, interpolation='None')
-
-    ax.set_title(name)
-    ax.set_aspect('equal', adjustable='box')
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    # legend patches (colors match your “solid” swatches)
-    patches = []
+    legend_entries = []
     if An is not None: 
-        patches.append(mpatches.Patch(color='#009988', label='Plagioclase (higher An darker)'))
-    if XMg_cpx is not None:
-        patches.append(mpatches.Patch(color='#E57A7A', label='Clinopyroxene (higher Mg# lighter)'))
-    if XMg_opx is not None:
-        patches.append(mpatches.Patch(color='#5A0F0F', label='Orthopyroxene (higher Mg# darker)'))
+        legend_entries.append(("Plagioclase (higher An darker)", "#009988"))
+    if XMg_cpx is not None: 
+        legend_entries.append(("Clinopyroxene (higher Mg# darker)","#E57A7A"))
+    if XMg_opx is not None: 
+        legend_entries.append(("Orthopyroxene (higher Mg# darker)","#5A0F0F"))
     if XFo is not None: 
-        patches.append(mpatches.Patch(color='#666633', label='Olivine (higher Fo darker)'))
-    if glass is not None:
-        patches.append(mpatches.Patch(color='#F9C300', label='Glass'))
+        legend_entries.append(("Olivine (higher Fo darker)", "#666633"))
+    if glass is not None: 
+        legend_entries.append(("Glass", "#F9C300"))
     if spinel is not None:
-        patches.append(mpatches.Patch(color='#2E2DCE', label='Spinel'))
-    if patches:
-        ax.legend(handles=patches, frameon=True, fontsize=8)
-    ax.set_frame_on(False)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
+        legend_entries.append(("Spinel", "#2E2DCE"))
+
+    n_legend = len(legend_entries)
+
+    # figure size computed once; same helper as phase map
+    fig_w, fig_h = _auto_figsize_from_array(
+        mineral_map.shape,
+        n_legend=n_legend,
+        legend_side=legend_side,
+        legend_cols=legend_cols
+    )
+
+    # consistent legend sizing
+    per_item_h = 0.22  # in
+    per_col_w = 1.20  # in
+    ncols = max(1, int(legend_cols))
+    nrows = int(np.ceil(max(n_legend,1) / ncols))
+
+    if legend_side in ("right", "left"):
+        legend_w_in = ncols * per_col_w
+        map_w_in = max(1e-6, fig_w - legend_w_in)
+        width_ratios = [map_w_in, legend_w_in] if legend_side == "right" else [legend_w_in, map_w_in]
+        fig = plt.figure(figsize=(map_w_in + legend_w_in, fig_h), dpi=dpi, layout="constrained")
+        gs = fig.add_gridspec(nrows=1, ncols=2, width_ratios=width_ratios, wspace=0.02)
+        ax_map = fig.add_subplot(gs[0, 0] if legend_side == "right" else gs[0, 1])
+        ax_legend = fig.add_subplot(gs[0, 1] if legend_side == "right" else gs[0, 0])
+    elif legend_side in ("top", "bottom"):
+        legend_h_in = max(per_item_h * nrows, 0.5)
+        map_h_in = max(1e-6, fig_h - legend_h_in)
+        height_ratios = [legend_h_in, map_h_in] if legend_side == "top" else [map_h_in, legend_h_in]
+        fig = plt.figure(figsize=(fig_w, map_h_in + legend_h_in), dpi=dpi, layout="constrained")
+        gs  = fig.add_gridspec(nrows=2, ncols=1, height_ratios=height_ratios, hspace=0.02)
+        ax_legend = fig.add_subplot(gs[0, 0] if legend_side == "top" else gs[1, 0])
+        ax_map = fig.add_subplot(gs[1, 0] if legend_side == "top" else gs[0, 0])
+    else: # default right
+        legend_w_in = ncols * per_col_w
+        map_w_in = max(1e-6, fig_w - legend_w_in)
+        fig = plt.figure(figsize=(map_w_in + legend_w_in, fig_h), dpi=dpi, layout="constrained")
+        gs  = fig.add_gridspec(nrows=1, ncols=2, width_ratios=[map_w_in, legend_w_in], wspace=0.02)
+        ax_map = fig.add_subplot(gs[0, 0])
+        ax_legend = fig.add_subplot(gs[0, 1])
+
+    if An_s is not None:
+        ax_map.imshow(_nanmasked(An_s), cmap=plag_cmap, interpolation="none",
+                      vmin=vmin_plag, vmax=vmax_plag)
+    if XMg_s_cpx is not None:
+        ax_map.imshow(_nanmasked(XMg_s_cpx), cmap=cpx_cmap, interpolation="none",
+                      vmin=vmin_cpx, vmax=vmax_cpx)
+    if XMg_s_opx is not None:
+        ax_map.imshow(_nanmasked(XMg_s_opx), cmap=opx_cmap, interpolation="none",
+                      vmin=vmin_opx, vmax=vmax_opx)
+    if XFo_s is not None:
+        ax_map.imshow(_nanmasked(XFo_s), cmap=ol_cmap, interpolation="none",
+                      vmin=vmin_ol, vmax=vmax_ol)
+    if glass is not None:
+        ax_map.imshow(_nanmasked(glass), cmap=glasscmap, interpolation="none")
+    if spinel is not None:
+        ax_map.imshow(_nanmasked(spinel), cmap=spinelcmap, interpolation="none")
+
+    ax_map.set_title(name, pad=8)
+    ax_map.set_aspect('equal', adjustable='box')
+    ax_map.set_xticks([]); ax_map.set_yticks([])
+    ax_map.set_frame_on(False)
+    for sp in ax_map.spines.values():
+        sp.set_visible(False)
+
+    ax_legend.axis("off")
+    handles = [mpatches.Patch(facecolor=c, label=lab) for lab, c in legend_entries]
+    ax_legend.legend(
+        handles=handles,
+        loc="upper left",
+        frameon=False,
+        title="Layers",
+        ncol=ncols,
+        borderaxespad=0.0,
+        handlelength=1.2,
+        handletextpad=0.6,
+        columnspacing=1.0,
+    )
 
     if save_path:
         fig.savefig(save_path, bbox_inches='tight')
-    return fig, ax
+
+    return fig
 
 
 # %%
