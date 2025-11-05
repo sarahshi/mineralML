@@ -39,7 +39,7 @@ def load_minclass_nn():
     """
 
     current_dir = os.path.dirname(__file__)
-    filepath = os.path.join(current_dir, "mineral_classes_nn_v0013.npz")
+    filepath = os.path.join(current_dir, "mineral_classes_nn_v0019.npz")
 
     with np.load(filepath, allow_pickle=True) as data:
         min_cat = data["classes"].tolist()
@@ -133,9 +133,9 @@ def norm_data_nn(df):
 
     """
 
-    oxides = OXIDES
-    
-    mean, std = load_scaler("scaler_nn_v0013.npz")
+    oxides = OXIDES    
+    # mean, std = load_scaler("scaler_nn_v0013.npz")
+    mean, std = load_scaler("scaler_nn_v0019.npz")
 
     # Ensure that mean and std are Series objects with indices matching the columns
     if not isinstance(mean, pd.Series) or not isinstance(std, pd.Series):
@@ -169,6 +169,7 @@ def balance(df, n=1000):
     - Pyroxene group (clinopyroxene + orthopyroxene -> 'pyroxene'), kmeans for representative sampling
     - Feldspar group (plagioclase + k-feldspar -> 'feldspar'), kmeans for representative sampling
     - Olivine, kmeans for representative sampling
+    - Amphibole, kmeans for representative sampling to capture tremolite and actinolite
     - Rhombohedral oxide group (hematite + ilmenite -> 'rhombohedral oxide')
     - Spinel group (magnetite + spinel -> 'spinel')
     - Glass (separate group with 2000 samples), TAS stratified sampling
@@ -184,14 +185,26 @@ def balance(df, n=1000):
     feldspar_classes = ['Plagioclase', 'KFeldspar']
     rhombohedral_oxide_classes = ['Hematite', 'Ilmenite']
     spinel_classes = ['Magnetite', 'Spinel']
+    amphibole_class = ['Amphibole']
     glass_class = ['Glass']
     lower_threshold = 1250
     random_seed = 42
 
+    oxides = OXIDES
+    oxides_plus_zr = oxides + ["ZrO2"]
+
+    sample_cols = ["SampleID", "Sample", "Sample Name"]
+    present_sample_cols = [c for c in sample_cols if c in df.columns]
+
+    # ensure required columns exist
+    for col in oxides_plus_zr + ["Mineral"] + present_sample_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
     # Helpers
     def kmeans_multi_sample(member_df,
                             n_target,
-                            n_clusters=10,
+                            n_clusters=5,
                             min_per_cluster=1):
         """Cluster into 10 groups and sample multiple per cluster to total n_target."""
         n_rows = len(member_df)
@@ -201,7 +214,7 @@ def balance(df, n=1000):
             return member_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
         C = int(max(2, min(n_clusters, n_rows, n_target)))
-        X = member_df[OXIDES].fillna(0.0).to_numpy()
+        X = member_df[oxides_plus_zr].fillna(0.0).to_numpy()
         Xs = StandardScaler().fit_transform(X)
 
         km = KMeans(n_clusters=C, random_state=random_seed, n_init=10)
@@ -282,8 +295,14 @@ def balance(df, n=1000):
     # Olivine: kmeans to n
     oli_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
     if 'Olivine' in df["Mineral"].unique():
-        oli_df = kmeans_multi_sample(df[df.Mineral == 'Olivine'], n_target=n)
+        oli_df = kmeans_multi_sample(df[df.Mineral == 'Olivine'], n_target=n,
+                                     n_clusters=2)
         oli_df["Mineral"] = 'Olivine'
+
+    amph_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
+    if 'Amphibole' in df["Mineral"].unique():
+        amph_df = kmeans_multi_sample(df[df.Mineral == 'Amphibole'], n_target=n)
+        amph_df["Mineral"] = 'Amphibole'
 
     # Pyroxene: Cpx kmeans->n + Opx kmeans->n  => total 2n
     pyroxene_df = process_group_per_member(pyroxene_classes, 
@@ -331,7 +350,7 @@ def balance(df, n=1000):
 
     # Other classes: if <1250 -> shuffle+oversample to n; else cap to n
     special_flat = set(olivine_classes + pyroxene_classes + feldspar_classes +
-                       rhombohedral_oxide_classes + spinel_classes + glass_class)
+                       rhombohedral_oxide_classes + spinel_classes + amphibole_class + glass_class)
     other_classes = [c for c in df["Mineral"].unique() if c not in special_flat]
 
     other_dfs = []
@@ -344,11 +363,10 @@ def balance(df, n=1000):
     other_df = pd.concat(other_dfs, ignore_index=True) if other_dfs else pd.DataFrame(columns=OXIDES+["Mineral"])
 
     df_balanced = pd.concat(
-        [oli_df, pyroxene_df, feldspar_df, rhombohedral_oxide_df, spinel_df, glass_df, other_df],
+        [oli_df, pyroxene_df, feldspar_df, rhombohedral_oxide_df, spinel_df, amph_df, glass_df, other_df],
         ignore_index=True
     )
     return df_balanced
-
 
 
 class VariationalLayer(nn.Module):
@@ -485,7 +503,7 @@ class MultiClassClassifier(nn.Module):
     def __init__(
         self,
         input_dim=11,
-        classes=24,
+        classes=23, #24,
         dropout_rate=0.1,
         hidden_layer_sizes=[64, 32, 16],
     ):
@@ -633,12 +651,30 @@ def predict_class_prob_nn(df, n_iterations=50):
         ).to(device)
         
         optimizer = torch.optim.SGD(model.parameters(), lr=5e-3, weight_decay=1e-3)
-        model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0013.pt")
+        # model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0013.pt")
+        model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0019.pt")
         load_model(model, optimizer, model_path)
         
         # Normalize data
         norm_wt = norm_data_nn(non_za_df).astype(np.float32, copy=False)
         input_data = torch.Tensor(norm_wt).to(device)
+
+        # print("=== PREDICTION FUNCTION DEBUG ===")
+        # print(f"Model classes: {model.classes}")
+        # print(f"Input data shape: {input_data.shape}")
+        # print(f"Probability matrix shape: {probability_matrix.shape}")
+
+        # # Check if the mapping matches
+        # min_cat, mapping = load_minclass_nn()
+        # print(f"Loaded classes: {len(min_cat)}")
+
+        # print("=== NORMALIZATION CHECK ===")
+        # print(f"Input data stats - min: {input_data.min()}, max: {input_data.max()}")
+        # print(f"Input data mean: {input_data.mean()}, std: {input_data.std()}")
+
+        # # Compare with what was used in training
+        # print("Expected range should be roughly: mean ~0, std ~1 (StandardScaler output)")
+
 
         model.eval()
         with torch.inference_mode():
@@ -748,9 +784,9 @@ def unique_mapping_nn(pred_class):
     """
 
     _, mapping = load_minclass_nn()
-    unique = np.unique(pred_class)
-    valid_mapping = {key: mapping[key] for key in unique}
-    if -1 in unique:
+    unique = np.unique(len(mapping))
+    valid_mapping = mapping #{key: mapping[key] for key in unique}
+    if -1 in np.unique(pred_class):
         valid_mapping[-1] = "Unknown"
 
     return unique, valid_mapping
@@ -772,8 +808,9 @@ def class2mineral_nn(pred_class):
     """
 
     _, valid_mapping = unique_mapping_nn(pred_class)
+    print("Sample predictions:", pred_class[:10])
+    print("Mapping used:", valid_mapping)
     pred_mineral = np.array([valid_mapping[x] for x in pred_class])
-
     return pred_mineral
 
 
@@ -1051,19 +1088,32 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    all_cats_init = pd.Categorical(df["Mineral"])
-    df["_code"] = all_cats_init.codes
-
     # Split the dataset into train and test sets
-    train_df, valid_df = train_test_split(
-        df, test_size=n, stratify=df["_code"], random_state=42
-    )
+    train_df, valid_df = train_test_split(df, test_size=n, random_state=42)
     if balanced == True:
         train_df = balance(train_df, n=1000)
     train_df.to_csv('train_df_nn.csv', index=False)
 
-    all_cats = pd.Categorical(train_df["Mineral"])
+    for _df in (train_df, valid_df):
+        _df['Mineral'] = (
+            _df['Mineral'].astype(str)
+            .replace(['Clinopyroxene', 'Orthopyroxene'], 'Pyroxene')
+            .replace(['Plagioclase', 'KFeldspar'], 'Feldspar')
+            .replace(['Hematite', 'Ilmenite'], 'Rhombohedral_Oxides')
+            .replace(['Magnetite', 'Spinel'], 'Spinels')
+    )
+    
+    train_df_nozirc = train_df[train_df['Mineral'] != 'Zircon'].copy()
+    valid_df_nozirc = valid_df[valid_df['Mineral'] != 'Zircon'].copy()
+
+    # print("=== TRAINING DATA CLASS DISTRIBUTION ===")
+    # class_dist = train_df_nozirc["Mineral"].value_counts()
+    # print(class_dist)
+    # print(f"Total classes: {len(class_dist)}")
+            
+    all_cats = pd.Categorical(train_df_nozirc["Mineral"])
     mapping = dict(enumerate(all_cats.categories))
+
     inv_mapping = {cat: idx for idx, cat in mapping.items()}
     sort_mapping = dict(sorted(mapping.items(), key=lambda item: item[0]))
     # min_cat = list(all_cats.categories)
@@ -1071,29 +1121,21 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     #          classes=np.array(min_cat, dtype=object))
     # print("Saved class list:", min_cat)
 
-    valid_df['Mineral'] = (
-      valid_df['Mineral'].astype(str)\
-        .replace(['Clinopyroxene', 'Orthopyroxene'], 'Pyroxene')
-        .replace(['Plagioclase', 'KFeldspar'], 'Feldspar')
-        .replace(['Hematite', 'Ilmenite'], 'Rhombohedral_Oxides')
-        .replace(['Magnetite', 'Spinel'], 'Spinels')
-    )
-
-    train_df["_code"] = train_df["Mineral"].map(inv_mapping).astype(int)
-    valid_df["_code"] = valid_df["Mineral"].map(inv_mapping).astype(int)
+    train_df_nozirc["_code"] = train_df_nozirc["Mineral"].map(inv_mapping).astype(int)
+    valid_df_nozirc["_code"] = valid_df_nozirc["Mineral"].map(inv_mapping).astype(int)
 
     # scale
-    ss = StandardScaler().fit(train_df[OXIDES])
-    train_x = ss.transform(train_df[OXIDES].fillna(0))
-    valid_x = ss.transform(valid_df[OXIDES].fillna(0))
-    scaler_path = os.path.join(path_beg, "parametermatrix_neuralnetwork", "scaler_nn_v0013.npz")
+    ss = StandardScaler().fit(train_df_nozirc[OXIDES].fillna(0))
+    train_x = ss.transform(train_df_nozirc[OXIDES].fillna(0))
+    valid_x = ss.transform(valid_df_nozirc[OXIDES].fillna(0))
+    scaler_path = os.path.join(path_beg, "parametermatrix_neuralnetwork", "scaler_nn_v0019.npz")
     np.savez(scaler_path,
              mean=pd.Series(ss.mean_, index=OXIDES),
              scale=pd.Series(np.sqrt(ss.var_), index=OXIDES))
 
     # encode labels
-    train_y = train_df["_code"].to_numpy()
-    valid_y = valid_df["_code"].to_numpy()
+    train_y = train_df_nozirc["_code"].to_numpy()
+    valid_y = valid_df_nozirc["_code"].to_numpy()
 
     # Define datasets to be used with PyTorch - see autoencoder file for details
     feature_dataset = LabelDataset(train_x, train_y)

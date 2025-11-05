@@ -3,6 +3,16 @@ Change Log
 ==========
 
 
+Version 0.0.1.9
+===============
+Update mineralML calibration for specific amphiboles (tremolite and actinolite).
+
+
+Version 0.0.1.8
+===============
+Fix small bits of `mm.plot_component_composite`.
+
+
 Version 0.0.1.7
 ===============
 Provide new mapping functions with `mm.plot_component_composite` to allow for internal compositional variability to be calculated and plotted for different mineral groups - most commonly examined olivine, clinopyroxene, orthopyroxene, and plagioclase feldspar, for now. 

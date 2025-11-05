@@ -68,17 +68,6 @@ class mineralML_supervised(unittest.TestCase):
         required = {"Amphibole", "Pyroxene", "Garnet", "Olivine", "Spinels"}
         self.assertTrue(required.issubset(set(min_cat)))
 
-        # If you want to **freeze** the exact mapping, uncomment and paste your mapping here:
-        # expected_mapping = {
-        #     0: 'Amphibole', 1: 'Apatite', 2: 'Biotite', 3: 'Calcite', 4: 'Chlorite',
-        #     5: 'Epidote', 6: 'Feldspar', 7: 'Garnet', 8: 'Glass', 9: 'Kalsilite',
-        #     10: 'Leucite', 11: 'Melilite', 12: 'Muscovite', 13: 'Nepheline',
-        #     14: 'Olivine', 15: 'Pyroxene', 16: 'Quartz', 17: 'Rhombohedral_Oxides',
-        #     18: 'Rutile', 19: 'Serpentine', 20: 'Spinels', 21: 'Titanite',
-        #     22: 'Tourmaline', 23: 'Zircon'
-        # }
-        # self.assertEqual(mapping, expected_mapping)
-
     def test_prep_df_nn(self):
         df_cleaned = mm.prep_df_nn(self.df.copy())
 
