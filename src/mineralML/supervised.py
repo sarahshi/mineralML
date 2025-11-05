@@ -785,12 +785,10 @@ def unique_mapping_nn(pred_class):
 
     _, mapping = load_minclass_nn()
     unique = np.unique(pred_class)
-    valid_mapping = {}
-    for key in unique:
-        if key == -1:
-            valid_mapping[key] = "Unknown"
-        elif key in mapping:  # Safety check
-            valid_mapping[key] = mapping[key]
+    valid_mapping = {key: mapping[key] for key in unique}
+    if -1 in unique:
+        valid_mapping[-1] = "Unknown"
+
     return unique, valid_mapping
 
 
@@ -810,8 +808,8 @@ def class2mineral_nn(pred_class):
     """
 
     _, valid_mapping = unique_mapping_nn(pred_class)
-    print("Sample predictions:", pred_class[:10])
-    print("Mapping used:", valid_mapping)
+    # print("Sample predictions:", pred_class[:10])
+    # print("Mapping used:", valid_mapping)
     pred_mineral = np.array([valid_mapping[x] for x in pred_class])
     return pred_mineral
 
