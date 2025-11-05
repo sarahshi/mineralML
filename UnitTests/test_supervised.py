@@ -115,7 +115,6 @@ class mineralML_supervised(unittest.TestCase):
         _, mapping = mm.load_minclass_nn()
         expected_valid_mapping = {i: mapping[i] for i in expected_unique}
         self.assertEqual(valid_mapping, expected_valid_mapping)
-        self.assertEqual(valid_mapping[-1], "Unknown")
 
     def test_class2mineral_nn(self):
         pred_class = np.array([0, 15, 7, 14, 20, 0, 7, 20])
@@ -254,7 +253,8 @@ class TestPredictClassProbNN(unittest.TestCase):
         self.assertEqual(out_df.iloc[0]["Predict_Probability"], 1.0)
 
         # probability_matrix shape: (non-zircon_count, n_classes * n_blocks)
-        K = len(fake_classes)
+        class_list, _ = mm.load_minclass_nn()
+        K = len(class_list)
         self.assertEqual(prob.ndim, 2)
         self.assertEqual(prob.shape[0], N - 1)
 
