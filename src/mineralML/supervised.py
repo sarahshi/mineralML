@@ -785,10 +785,12 @@ def unique_mapping_nn(pred_class):
 
     _, mapping = load_minclass_nn()
     unique = np.unique(pred_class)
-    valid_mapping = {key: mapping[key] for key in unique}
-    if -1 in np.unique(pred_class):
-        valid_mapping[-1] = "Unknown"
-
+    valid_mapping = {}
+    for key in unique:
+        if key == -1:
+            valid_mapping[key] = "Unknown"
+        elif key in mapping:  # Safety check
+            valid_mapping[key] = mapping[key]
     return unique, valid_mapping
 
 

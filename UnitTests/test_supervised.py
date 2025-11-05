@@ -103,18 +103,19 @@ class mineralML_supervised(unittest.TestCase):
     def test_unique_mapping_nn(self):
         # Use indices that exist in the CURRENT mapping (no more Clinopyroxene/Spinel)
         # Choose a small set: Amphibole(0), Pyroxene(15), Garnet(7), Olivine(14), Spinels(20)
-        pred_class = np.array([0, 15, 7, 14, 20, 0, 7, 20])
+        pred_class = np.array([0, 15, 7, 14, 20, 0, 7, 20, -1])
 
         unique, valid_mapping = mm.unique_mapping_nn(pred_class)
 
         # Expected unique set (order not guaranteed)
-        expected_unique = np.array(sorted({0, 7, 14, 15, 20}))
-        np.testing.assert_array_equal(np.sort(unique), expected_unique)
+        expected_unique = np.array([-1, 0, 7, 14, 15, 20])
+        np.testing.assert_array_equal(np.sort(unique), np.sort(expected_unique))
 
         # Names from the **loaded** mapping (robust to future reorderings)
         _, mapping = mm.load_minclass_nn()
         expected_valid_mapping = {i: mapping[i] for i in expected_unique}
         self.assertEqual(valid_mapping, expected_valid_mapping)
+        self.assertEqual(valid_mapping[-1], "Unknown")
 
     def test_class2mineral_nn(self):
         pred_class = np.array([0, 15, 7, 14, 20, 0, 7, 20])
