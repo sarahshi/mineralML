@@ -1630,12 +1630,25 @@ class OxideClassifier:
         )
         return rhomb_mask, spinel_mask
 
+    def _coerce_string_to_object(df):
+        # Pandas StringDtype ("string") will raise if you assign np.nan into it via mixed ops.
+        str_cols = df.select_dtypes(include=["string"]).columns
+        if len(str_cols):
+            df[str_cols] = df[str_cols].astype(object)
+
+    def _assign_numeric(out_df, idx, res_df):
+        # Only assign columns that are numeric in the result and exist in out
+        cols = [c for c in res_df.columns if c in out_df.columns and pd.api.types.is_numeric_dtype(res_df[c])]
+        if cols:
+            out_df.loc[idx, cols] = res_df.loc[idx, cols]
+
     def calculate_components(self, Fe_correction="Droop"):
         """
         Route rhombohedral oxides and spinels to the appropriate calculator and
         write results back into a copy of the original df.
         """
         out = self.df.copy()
+        self._coerce_string_to_object(out)
         rhomb_mask, spinel_mask = self._name_masks(out)
 
         # Rhombohedral oxides
@@ -1656,22 +1669,22 @@ class OxideClassifier:
                 hematite_res = RhombohedralOxideCalculator(hematite_df).calculate_components(
                     Fe_correction="All_Fe3"
                 )
-                cols = [c for c in hematite_res.columns if c in out.columns]
-                cols_num = [c for c in cols if pd.api.types.is_numeric_dtype(hematite_res[c])]
-                out.loc[hematite_df.index, cols_num] = hematite_res.loc[hematite_df.index, cols_num]
-                
+                self._assign_numeric(out, hematite_df.index, hematite_res)
+
             # Process others with default Fe_correction
             if not other_df.empty:
                 other_res = RhombohedralOxideCalculator(other_df).calculate_components(
                     Fe_correction=Fe_correction
                 )
-                out.loc[other_df.index, other_res.columns] = other_res
+                self._assign_numeric(out, other_df.index, other_res)
+                # out.loc[other_df.index, other_res.columns] = other_res
 
         # Spinels
         if spinel_mask.any():
             sp_df  = out.loc[spinel_mask]
             sp_res = SpinelCalculator(sp_df).calculate_components(Fe_correction=Fe_correction)
-            out.loc[sp_df.index, sp_res.columns] = sp_res
+            self._assign_numeric(out, sp_df.index, sp_res)
+            # out.loc[sp_df.index, sp_res.columns] = sp_res
 
         return out
 
