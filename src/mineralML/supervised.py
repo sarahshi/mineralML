@@ -1067,7 +1067,6 @@ def train_nn(
     best_valid_loss = float("inf")
     best_model_state = None
     patience_counter = 0
-    scheduler=None
 
     kl_weight = 0.0  # Initial kl_weight
 
@@ -1107,8 +1106,6 @@ def train_nn(
                 valid_output = model(x)
                 loss = criterion(valid_output, y)
                 valid_loss.append(loss.detach().item())
-
-        scheduler.step(valid_loss)
 
         # Logging
         avg_train = sum(train_loss) / len(train_loss)

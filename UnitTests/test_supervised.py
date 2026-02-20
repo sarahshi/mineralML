@@ -236,7 +236,9 @@ class TestPredictClassProbNN(unittest.TestCase):
         N = 5
 
         df = pd.DataFrame(0.0, columns=list(ox) + ["ZrO2"], index=[f"S{i}" for i in range(N)])
-        df.iloc[0, df.columns.get_loc("ZrO2")] = 60.0  # one zircon row
+        df.iloc[0, df.columns.get_loc("ZrO2")] = 60.0 # one zircon row
+        df.iloc[0, df.columns.get_loc("SiO2")] = 30.0
+        df.iloc[0, df.columns.get_loc("TiO2")] = 0.05
 
         # Mock scaler to return zeros with matching row count to the INPUT it receives
         p_norm.side_effect = lambda d: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
