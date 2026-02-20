@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 
-from hdbscan.flat import (HDBSCAN_flat, approximate_predict_flat)
+# from hdbscan.flat import (HDBSCAN_flat, approximate_predict_flat)
 
 # %% 
 
@@ -82,24 +82,37 @@ class LabelDataset(Dataset):
         return self.x[n], self.labels[n]
     
 
-def load_df(filepath):
+def load_df(filepath, index_col=0, **kwargs):
 
     """
 
-    Loads a DataFrame from a CSV file specified by the given file path. The first column 
-    of the CSV is set as the index of the DataFrame.
+    Loads a DataFrame from a CSV/Excel file specified by the given file path. The first 
+    column of the CSV is set as the index of the DataFrame.
 
     Parameters:
         filepath (str): The path to the CSV file to be loaded.
+        index_col : int | str | None, default 0
+            Column to use as the row labels of the DataFrame.
+        **kwargs
+            Passed through to pandas reader:
+            - pd.read_csv for CSV
+            - pd.read_excel for Excel
 
     Returns:
         df (DataFrame): Pandas DataFrame containing the data from the CSV file.
 
     """
 
-    df = pd.read_csv(filepath, index_col=0)
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == ".csv":
+        return pd.read_csv(filepath, index_col=index_col, **kwargs)
 
-    return df
+    if ext in {".xlsx", ".xls", ".xlsm", ".xlsb"}:
+        return pd.read_excel(filepath, index_col=index_col, **kwargs)
+    
+    raise ValueError(
+        f"Unsupported file extension '{ext}'. Expected .csv or an Excel file (.xlsx/.xls/.xlsm/.xlsb)."
+    )
 
 
 def load_scaler(scaler_path):
@@ -283,3 +296,30 @@ def mineral_supergroup(df):
     return df
 
 
+def export_predictions_to_excel(results_df, filename="prediction_results.xlsx"):
+    """
+    Export prediction results to an Excel workbook with one sheet called "All"
+    containing all rows, and additional sheets for each predicted mineral.
+
+    Parameters:
+        results_df (pd.DataFrame): The results DataFrame returned by predict_class_prob_nn.
+        filename (str): The name of the Excel file to write.
+
+    Returns:
+        str: Path to the saved Excel file.
+    """
+    # check if Predict_Mineral column exists
+    if "Predict_Mineral" not in results_df.columns:
+        raise ValueError("results_df must contain a 'Predict_Mineral' column")
+
+    with pd.ExcelWriter(filename, engine="openpyxl") as writer:
+        # Write all results
+        results_df.to_excel(writer, sheet_name="All", index=False)
+
+        # write separate sheets for each mineral
+        for mineral, group in results_df.groupby("Predict_Mineral"):
+            sheet_name = str(mineral)[:31].replace("/", "-").replace("\\", "-")
+            group.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    return filename
+ 

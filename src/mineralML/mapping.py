@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from scipy.ndimage import gaussian_filter
+from skimage.morphology import remove_small_objects
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -13,17 +14,12 @@ from matplotlib.colors import ListedColormap
 from mineralML.stoichiometry import *
 from mineralML.supervised import *
 from mineralML.constants import *
-
+from .constants import OXIDES
 
 # %% 
 
-# standard oxides for mineralML
-EXPECTED_OXIDES = [
-    "SiO2","TiO2","Al2O3","FeOt","MnO","MgO","CaO","Na2O","K2O","P2O5","Cr2O3"
-]
 
-
-def _ensure_columns(df, expected=EXPECTED_OXIDES):
+def _ensure_columns(df, expected=OXIDES):
     out = df.copy().rename(columns={"FeO":"FeOt"})
     for col in expected:
         if col not in out.columns:
@@ -294,6 +290,22 @@ def _auto_bar_width(n, min_w=6.0, max_w=22.0, per_cat=0.45):
     return float(np.clip(min_w + per_cat * max(n, 1), min_w, max_w))
 
 
+def remove_small_components_per_phase(ids, min_size=2, connectivity=2):
+    """
+    ids: 2D int array, 0 = background
+    min_size: remove connected components smaller than this (per phase)
+    connectivity: 1=4-connected, 2=8-connected (2D)
+    """
+    ids = ids.copy()
+    for pid in np.unique(ids):
+        if pid == 0:
+            continue
+        mask = (ids == pid)
+        cleaned = remove_small_objects(mask, min_size=min_size, connectivity=connectivity)
+        ids[mask & ~cleaned] = 0
+    return ids
+
+
 def plot_phase_map(
     mineral_map_2d,
     phases=None,
@@ -311,6 +323,7 @@ def plot_phase_map(
     phases = phases or pick_common_phases(mineral_map_2d, min_frac=0.025)
     phase_to_id = {p: i + 1 for i, p in enumerate(phases)}
     ids = np.zeros(mineral_map_2d.shape, dtype=int)
+    ids = remove_small_components_per_phase(ids, min_size=2, connectivity=2)  # islands removed
     for p, pid in phase_to_id.items():
         ids[mineral_map_2d == p] = pid
 
@@ -379,33 +392,6 @@ def plot_phase_map(
     )
 
     return fig, ax_map
-
-
-def plot_phase_counts(mineral_map_2d, title="Mineral Phases (count)"):
-    """
-    Bar chart of pixel counts per phase with auto figure width.
-
-    Parameters:
-        mineral_map_2d (array-like): (H,W) or (N,) labels.
-        title (str): Axes title text.
-
-    Returns:
-        fig_ax (tuple): (fig, ax) with the bar chart.
-    """
-    labels = _clean_labels_1d(mineral_map_2d)
-    if labels.empty:
-        fig, ax = plt.subplots(figsize=(7, 3))
-        ax.text(0.5, 0.5, "No valid labels", ha="center", va="center")
-        ax.axis("off")
-        return fig, ax
-    counts = labels.value_counts().sort_values(ascending=False)
-    fig, ax = plt.subplots(figsize=(_auto_bar_width(len(counts)), 4.5), constrained_layout=True)
-    counts.plot(kind="bar", ax=ax)
-    ax.set_title(title)
-    ax.set_xlabel("Phase")
-    ax.set_ylabel("Pixels")
-    ax.tick_params(axis='x', rotation=90)
-    return fig, ax
 
 
 def plot_phase_counts(mineral_map_2d, title="Mineral Phases (count)",
@@ -559,7 +545,10 @@ def run_sample(sample_input, n_iterations=50, prob_threshold=0.6,
     df_ox_flat, shape = _maps_to_df(ox_maps)
     df_ordered = _ensure_columns(df_ox_flat)
 
-    df_pred, prob_matrix = predict_class_prob_nn(df_ordered, n_iterations=n_iterations)
+    df_pred, prob_matrix = predict_class_prob_mtl_2d(df_ordered, n_iterations=n_iterations,
+                                                     model_path="parametermatrix_neuralnetwork/mtl_test_01_16_3L_32dimdecoder_new1_best_mtl2d_model.pt",
+                                                     preprocess_path="parametermatrix_neuralnetwork/mtl_scaler_nn_v001.npz")
+    # df_pred, prob_matrix = predict_class_prob_nn(df_ordered, n_iterations=n_iterations)
     labels = df_pred["Predict_Mineral"].astype(object)
     probs = df_pred["Predict_Probability"].astype(float)
     labels = labels.mask(probs < prob_threshold)
@@ -710,6 +699,7 @@ def _compute_component_maps(df_ordered, df_pred, shape, prob_threshold,
             maps[f"{phase_name}.{col}"] = m
 
     return maps, frames
+
 
 
 def plot_component_composite(
