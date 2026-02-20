@@ -1656,8 +1656,10 @@ class OxideClassifier:
                 hematite_res = RhombohedralOxideCalculator(hematite_df).calculate_components(
                     Fe_correction="All_Fe3"
                 )
-                out.loc[hematite_df.index, hematite_res.columns] = hematite_res
-
+                cols = [c for c in hematite_res.columns if c in out.columns]
+                cols_num = [c for c in cols if pd.api.types.is_numeric_dtype(hematite_res[c])]
+                out.loc[hematite_df.index, cols_num] = hematite_res.loc[hematite_df.index, cols_num]
+                
             # Process others with default Fe_correction
             if not other_df.empty:
                 other_res = RhombohedralOxideCalculator(other_df).calculate_components(
