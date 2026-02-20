@@ -1637,10 +1637,18 @@ class OxideClassifier:
             df[str_cols] = df[str_cols].astype(object)
 
     def _assign_numeric(self, out_df, idx, res_df):
-        # Only assign columns that are numeric in the result and exist in out
-        cols = [c for c in res_df.columns if c in out_df.columns and pd.api.types.is_numeric_dtype(res_df[c])]
-        if cols:
-            out_df.loc[idx, cols] = res_df.loc[idx, cols]
+        if res_df is None or res_df.empty:
+            return
+        # numeric columns produced by calculators (includes XR2/XR3/XTi)
+        num_cols = [c for c in res_df.columns if pd.api.types.is_numeric_dtype(res_df[c])]
+        if not num_cols:
+            return
+        # Ensure columns exist in out_df (create if missing)
+        missing = [c for c in num_cols if c not in out_df.columns]
+        for c in missing:
+            out_df[c] = np.nan
+        # Now assign
+        out_df.loc[idx, num_cols] = res_df.loc[idx, num_cols]
 
     def calculate_components(self, Fe_correction="Droop"):
         """
