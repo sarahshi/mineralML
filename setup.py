@@ -36,7 +36,7 @@ setup(
             'torch',
             # 'hdbscan', 
             'python-ternary',
-            'skimage'
+            'scikit-image'
             ],
 
     classifiers=[
