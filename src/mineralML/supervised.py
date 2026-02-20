@@ -204,7 +204,7 @@ def prep_df_nn(df):
     return df
 
 
-def norm_data_nn(df, scaler_path="mtl_scaler_nn_v002.npz"):
+def norm_data_nn(df, scaler_path="scaler_nn_v0019.npz"):
     """
 
     Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
@@ -433,6 +433,7 @@ def balance(df, n=1000):
         )
         to_drop = [c for c in ["Na2O + K2O", "TAS"] if c in resampled.columns]
         resampled = resampled.drop(columns=to_drop)
+        resampled = resampled.copy()
         resampled['Mineral'] = 'Glass'
         glass_df = resampled
     else:
@@ -741,7 +742,7 @@ def predict_class_prob_nn(df, n_iterations=50):
     result_df.loc[zircon_mask, "Second_Predict_Probability"] = np.nan
 
     # Process non-zircon samples
-    non_zircon_mask = ~zircon_mask
+    non_zircon_mask = (~zircon_mask) & (~all_zero_mask)
     probability_matrix = np.array([])
 
     if non_zircon_mask.any():
@@ -1066,6 +1067,7 @@ def train_nn(
     best_valid_loss = float("inf")
     best_model_state = None
     patience_counter = 0
+    scheduler=None
 
     kl_weight = 0.0  # Initial kl_weight
 
@@ -1392,6 +1394,6 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     )
 
     return best_model_state
- 
+
 
 # %% 
