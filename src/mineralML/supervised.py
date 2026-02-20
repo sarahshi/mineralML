@@ -1,9 +1,12 @@
 # %%
 
+__author__ = "Sarah Shi"
+
 import os
 import math
 import time
 import copy
+import pickle
 import warnings
 
 import numpy as np
@@ -22,8 +25,92 @@ from .core import *
 from .stoichiometry import *
 from .constants import OXIDES
 
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import matplotlib.cm as mcm
+from sklearn.decomposition import PCA
+
+# from .supervised_mtl_testing import *
+# from .m2_multitask_model import MultiClassClassifierWithAE_M2_Contrastive
+
 
 # %%
+
+from sklearn.base import BaseEstimator, TransformerMixin
+
+class CLRTransformer(BaseEstimator, TransformerMixin):
+    """
+    Proper CLR:
+      - optional row renormalization to a constant sum
+      - eps-clipping to avoid log(0)
+      - per-sample (row-wise) log-centering
+      - preserves column names and can return a DataFrame
+    """
+    def __init__(self, eps=1e-5, renorm_to=100.0, clip=True, return_dataframe=True):
+        self.eps = eps
+        self.renorm_to = renorm_to
+        self.clip = clip
+        self.return_dataframe = return_dataframe
+        self.feature_names_in_ = None
+        self.output_feature_names_ = None
+
+    def fit(self, X, y=None):
+        if isinstance(X, pd.DataFrame):
+            self.feature_names_in_ = X.columns.tolist()
+        else:
+            self.feature_names_in_ = None
+        # CLR has no learned parameters
+        if self.feature_names_in_ is not None:
+            self.output_feature_names_ = [f"CLR({c}/G)" for c in self.feature_names_in_]
+        return self
+
+    def transform(self, X):
+        is_df = isinstance(X, pd.DataFrame)
+        cols = self.feature_names_in_ if (is_df and self.feature_names_in_ is not None) else (
+            X.columns.tolist() if is_df else None
+        )
+        A = X.values if is_df else np.asarray(X, dtype=float)
+
+        # optional renormalization to constant sum
+        if self.renorm_to is not None:
+            row_sums = A.sum(axis=1, keepdims=True)
+            row_sums[row_sums == 0] = np.nan
+            A = (A / row_sums) * self.renorm_to
+
+        # strictly positive
+        if self.clip:
+            A = np.clip(A, self.eps, None)
+        else:
+            if np.any(A <= 0):
+                raise ValueError("CLR requires strictly positive inputs. Set clip=True or pre-clean zeros.")
+
+        logA = np.log(A)
+        clrA = logA - logA.mean(axis=1, keepdims=True)  # <-- row-wise geometric-mean centering
+
+        if self.return_dataframe and cols is not None:
+            out_cols = self.output_feature_names_ or [f"CLR({c}/G)" for c in cols]
+            return pd.DataFrame(clrA, index=(X.index if is_df else None), columns=out_cols)
+        return clrA
+
+    def save(self, filepath):
+        with open(filepath, 'wb') as f:
+            pickle.dump({
+                'eps': self.eps,
+                'renorm_to': self.renorm_to,
+                'clip': self.clip,
+                'return_dataframe': self.return_dataframe,
+                'feature_names_in_': self.feature_names_in_,
+            }, f)
+
+    def load(cls, filepath):
+        with open(filepath, 'rb') as f:
+            d = pickle.load(f)
+        obj = cls(eps=d['eps'], renorm_to=d['renorm_to'], clip=d['clip'],
+                  return_dataframe=d['return_dataframe'])
+        obj.feature_names_in_ = d['feature_names_in_']
+        if obj.feature_names_in_ is not None:
+            obj.output_feature_names_ = [f"CLR({c}/G)" for c in obj.feature_names_in_]
+        return obj
 
 
 def load_minclass_nn():
@@ -117,7 +204,7 @@ def prep_df_nn(df):
     return df
 
 
-def norm_data_nn(df):
+def norm_data_nn(df, scaler_path="mtl_scaler_nn_v002.npz"):
     """
 
     Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
@@ -135,7 +222,8 @@ def norm_data_nn(df):
 
     oxides = OXIDES    
     # mean, std = load_scaler("scaler_nn_v0013.npz")
-    mean, std = load_scaler("scaler_nn_v0019.npz")
+    # mean, std = load_scaler("scaler_nn_v0019.npz")
+    mean, std = load_scaler(scaler_path)
 
     # Ensure that mean and std are Series objects with indices matching the columns
     if not isinstance(mean, pd.Series) or not isinstance(std, pd.Series):
@@ -161,6 +249,7 @@ def norm_data_nn(df):
     array_x = scaled_df.to_numpy()
 
     return array_x
+
 
 def balance(df, n=1000):
     """
@@ -342,7 +431,8 @@ def balance(df, n=1000):
             .sample(n=2*n, random_state=random_seed)
             .reset_index(drop=True)
         )
-        resampled = resampled.drop(columns=['Na2O + K2O', 'TAS'])
+        to_drop = [c for c in ["Na2O + K2O", "TAS"] if c in resampled.columns]
+        resampled = resampled.drop(columns=to_drop)
         resampled['Mineral'] = 'Glass'
         glass_df = resampled
     else:
@@ -503,7 +593,7 @@ class MultiClassClassifier(nn.Module):
     def __init__(
         self,
         input_dim=11,
-        classes=23, #24,
+        classes=23,
         dropout_rate=0.1,
         hidden_layer_sizes=[64, 32, 16],
     ):
@@ -517,9 +607,9 @@ class MultiClassClassifier(nn.Module):
             if not is_last:
                 layers = [
                     nn.Linear(in_channel, out_channel),
-                    nn.BatchNorm1d(out_channel),  # Add batch normalization
+                    nn.BatchNorm1d(out_channel), # Add batch normalization
                     nn.LeakyReLU(0.02),
-                    nn.Dropout(self.dropout_rate),  # Add dropout
+                    nn.Dropout(self.dropout_rate), # Add dropout
                 ]
             else:
                 layers = [VariationalLayer(in_channel, out_channel)]
@@ -556,7 +646,7 @@ class MultiClassClassifier(nn.Module):
         return class_indices
 
 
-def predict_class_prob_nn_train(model, input_data, n_iterations=100):
+def predict_class_prob_nn_train(model, input_data, n_iterations=50):
     """
 
     Computes the predicted class probabilities for the given input data using the model by
@@ -626,8 +716,25 @@ def predict_class_prob_nn(df, n_iterations=50):
     result_df["Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
     result_df["Second_Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
 
+    # --- detect rows where *every* input oxide value is 0 ---
+    oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
+    if oxide_cols_in_df:
+        # treat NaN as 0 for this check so [0, NaN, 0] counts as "all zero"
+        all_zero_mask = (df[oxide_cols_in_df].fillna(0).to_numpy() == 0).all(axis=1)
+        all_zero_mask = pd.Series(all_zero_mask, index=df.index)
+    else:
+        all_zero_mask = pd.Series(False, index=df.index)
+
+    # explicitly set outputs (minerals already NaN, but make it explicit)
+    result_df.loc[all_zero_mask, "Predict_Mineral"] = np.nan
+    result_df.loc[all_zero_mask, "Second_Predict_Mineral"] = np.nan
+    result_df.loc[all_zero_mask, "Predict_Probability"] = np.nan
+    result_df.loc[all_zero_mask, "Second_Predict_Probability"] = np.nan
+    # ------------------------------------------------------------
+
     # Identify and classify zircons
     zircon_mask = (df['ZrO2'] > 50) if 'ZrO2' in df.columns else pd.Series(False, index=df.index)
+    zircon_mask = zircon_mask & ~all_zero_mask
     result_df.loc[zircon_mask, "Predict_Mineral"] = "Zircon"
     result_df.loc[zircon_mask, "Predict_Probability"] = 1.0
     result_df.loc[zircon_mask, "Second_Predict_Mineral"] = np.nan
@@ -650,38 +757,21 @@ def predict_class_prob_nn(df, n_iterations=50):
             hidden_layer_sizes=[64, 32, 16]
         ).to(device)
         
-        optimizer = torch.optim.SGD(model.parameters(), lr=5e-3, weight_decay=1e-3)
-        # model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0013.pt")
+        # set optimizer to None for inference
+        optimizer = None # torch.optim.SGD(model.parameters(), lr=5e-3, weight_decay=1e-3)
         model_path = os.path.join(os.path.dirname(__file__), "nn_best_model_v0019.pt")
         load_model(model, optimizer, model_path)
         
         # Normalize data
         norm_wt = norm_data_nn(non_za_df).astype(np.float32, copy=False)
-        input_data = torch.Tensor(norm_wt).to(device)
-
-        # print("=== PREDICTION FUNCTION DEBUG ===")
-        # print(f"Model classes: {model.classes}")
-        # print(f"Input data shape: {input_data.shape}")
-        # print(f"Probability matrix shape: {probability_matrix.shape}")
-
-        # # Check if the mapping matches
-        # min_cat, mapping = load_minclass_nn()
-        # print(f"Loaded classes: {len(min_cat)}")
-
-        # print("=== NORMALIZATION CHECK ===")
-        # print(f"Input data stats - min: {input_data.min()}, max: {input_data.max()}")
-        # print(f"Input data mean: {input_data.mean()}, std: {input_data.std()}")
-
-        # # Compare with what was used in training
-        # print("Expected range should be roughly: mean ~0, std ~1 (StandardScaler output)")
-
+        input_data = torch.from_numpy(norm_wt).to(device) # torch.from_numpy better than torch.Tensor
 
         model.eval()
         with torch.inference_mode():
             device = next(model.parameters()).device
             N = len(input_data)
             C = model.classes
-            BATCH = 2**13 # bump this as high as memory allows
+            BATCH = 2**13 
             K = 8 # MC passes per batch chunk (grouped to cut Python overhead)
 
             probs_mean = torch.empty((N, C), device=device, dtype=torch.float32)
@@ -1016,6 +1106,8 @@ def train_nn(
                 loss = criterion(valid_output, y)
                 valid_loss.append(loss.detach().item())
 
+        scheduler.step(valid_loss)
+
         # Logging
         avg_train = sum(train_loss) / len(train_loss)
         avg_valid = sum(valid_loss) / len(valid_loss)
@@ -1105,24 +1197,43 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     
     train_df_nozirc = train_df[train_df['Mineral'] != 'Zircon'].copy()
     valid_df_nozirc = valid_df[valid_df['Mineral'] != 'Zircon'].copy()
-
-    # print("=== TRAINING DATA CLASS DISTRIBUTION ===")
-    # class_dist = train_df_nozirc["Mineral"].value_counts()
-    # print(class_dist)
-    # print(f"Total classes: {len(class_dist)}")
             
     all_cats = pd.Categorical(train_df_nozirc["Mineral"])
     mapping = dict(enumerate(all_cats.categories))
 
     inv_mapping = {cat: idx for idx, cat in mapping.items()}
     sort_mapping = dict(sorted(mapping.items(), key=lambda item: item[0]))
-    # min_cat = list(all_cats.categories)
-    # np.savez(os.path.join(path_beg, "parametermatrix_neuralnetwork", "mineral_classes_nn_v001.npz"),
-    #          classes=np.array(min_cat, dtype=object))
-    # print("Saved class list:", min_cat)
 
     train_df_nozirc["_code"] = train_df_nozirc["Mineral"].map(inv_mapping).astype(int)
     valid_df_nozirc["_code"] = valid_df_nozirc["Mineral"].map(inv_mapping).astype(int)
+
+
+    # ========== CORRECTED CLR IMPLEMENTATION ==========
+    # Use CLRTransformer
+    # clr = CLRTransformer(eps=1e-6, renorm_to=None, clip=True, return_dataframe=False)
+    
+    # Fill NaNs with 0 first (CLR will clip them to eps)
+    # train_filled = train_df_nozirc[OXIDES].fillna(0)
+    # valid_filled = valid_df_nozirc[OXIDES].fillna(0)
+    
+    # Apply CLR transformation
+    # train_x_clr = clr.fit_transform(train_filled)
+    # valid_x_clr = clr.transform(valid_filled)
+    
+    # Optional: Scale the CLR-transformed data
+    # ss = StandardScaler().fit(train_x_clr)
+    # train_x = ss.transform(train_x_clr)
+    # valid_x = ss.transform(valid_x_clr)
+
+    # Save both transformers
+    # clr_path = os.path.join(path_beg, "parametermatrix_neuralnetwork", "clr_transformer_v001.pkl")
+    # clr.save(clr_path)
+    
+    # scaler_path = os.path.join(path_beg, "parametermatrix_neuralnetwork", "clr_scaler_nn_v001.npz")
+    # np.savez(scaler_path,
+    #          mean=ss.mean_,
+    #          scale=ss.scale_,
+    #          feature_names=OXIDES)
 
     # scale
     ss = StandardScaler().fit(train_df_nozirc[OXIDES].fillna(0))
@@ -1156,9 +1267,9 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
 
     # Define data loaders
     feature_loader = DataLoader(feature_dataset, batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size) #, shuffle=True)
     np.savez(
-        "parametermatrix_neuralnetwork/" + str(lr) + "_" + str(wd) + "_" + str(dr) + "_" + str(ep) + "_best_model_nn_features.npz",
+        "parametermatrix_neuralnetwork/" + str(lr) + "_" + str(wd) + "_" + str(dr) + "_" + str(ep) + "_best_model_nn_features_clr.npz",
         feature_loader=feature_loader,
         valid_loader=valid_loader,
     )
@@ -1236,7 +1347,7 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
         target_names=list(sort_mapping.values()),
         zero_division=0,
         output_dict=True,
-    )  # output_dict=True
+    )
 
     # Print the best kl_weight_decay value and test report
     print("Best kl_weight_decay:", best_kl_weight_decay)
@@ -1281,34 +1392,6 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     )
 
     return best_model_state
+ 
 
-
-def export_predictions_to_excel(results_df, filename="prediction_results.xlsx"):
-    """
-    Export prediction results to an Excel workbook with one sheet called "All"
-    containing all rows, and additional sheets for each predicted mineral.
-
-    Parameters:
-        results_df (pd.DataFrame): The results DataFrame returned by predict_class_prob_nn.
-        filename (str): The name of the Excel file to write.
-
-    Returns:
-        str: Path to the saved Excel file.
-    """
-    # check if Predict_Mineral column exists
-    if "Predict_Mineral" not in results_df.columns:
-        raise ValueError("results_df must contain a 'Predict_Mineral' column")
-
-    with pd.ExcelWriter(filename, engine="openpyxl") as writer:
-        # Write all results
-        results_df.to_excel(writer, sheet_name="All", index=False)
-
-        # write separate sheets for each mineral
-        for mineral, group in results_df.groupby("Predict_Mineral"):
-            sheet_name = str(mineral)[:31].replace("/", "-").replace("\\", "-")
-            group.to_excel(writer, sheet_name=sheet_name, index=False)
-
-    return filename
-
-
-# %%
+# %% 
