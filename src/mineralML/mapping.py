@@ -290,11 +290,14 @@ def _auto_bar_width(n, min_w=6.0, max_w=22.0, per_cat=0.45):
     return float(np.clip(min_w + per_cat * max(n, 1), min_w, max_w))
 
 
-def remove_small_components_per_phase(ids, min_size=2, connectivity=2):
+def remove_small_components_per_phase(ids, min_size=2, connectivity=1):
     """
-    ids: 2D int array, 0 = background
-    min_size: remove connected components smaller than this (per phase)
-    connectivity: 1=4-connected, 2=8-connected (2D)
+    Remove isolated pixels from phase maps. 
+
+    Parameters: 
+        ids: 2D int array, 0 = background
+        min_size: remove connected components smaller than this (per phase)
+        connectivity: 1=4-connected, 2=8-connected (2D)
     """
     ids = ids.copy()
     for pid in np.unique(ids):
@@ -323,7 +326,7 @@ def plot_phase_map(
     phases = phases or pick_common_phases(mineral_map_2d, min_frac=0.025)
     phase_to_id = {p: i + 1 for i, p in enumerate(phases)}
     ids = np.zeros(mineral_map_2d.shape, dtype=int)
-    ids = remove_small_components_per_phase(ids, min_size=2, connectivity=2)  # islands removed
+    ids = remove_small_components_per_phase(ids)  # islands removed
     for p, pid in phase_to_id.items():
         ids[mineral_map_2d == p] = pid
 
@@ -722,7 +725,8 @@ def plot_component_composite(
 ):
     """
     Layer An (plagioclase), XMg (pyroxenes), XFo (olivine) with class masks (glass, spinel).
-    Expects:
+
+    Parameters:
         res["component_maps"]: dict of 2D arrays with NaNs where not present, e.g. "Feldspar.An"
         res["mineral_map"]: 2D array of predicted coarse labels (strings)
     """
