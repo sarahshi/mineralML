@@ -1656,20 +1656,20 @@ class OxideClassifier:
                 hematite_res = RhombohedralOxideCalculator(hematite_df).calculate_components(
                     Fe_correction="All_Fe3"
                 )
-                out.loc[hematite_df.index, hematite_res.columns] = hematite_res.values
+                out.loc[hematite_df.index, hematite_res.columns] = hematite_res
 
             # Process others with default Fe_correction
             if not other_df.empty:
                 other_res = RhombohedralOxideCalculator(other_df).calculate_components(
                     Fe_correction=Fe_correction
                 )
-                out.loc[other_df.index, other_res.columns] = other_res.values
+                out.loc[other_df.index, other_res.columns] = other_res
 
         # Spinels
         if spinel_mask.any():
             sp_df  = out.loc[spinel_mask]
             sp_res = SpinelCalculator(sp_df).calculate_components(Fe_correction=Fe_correction)
-            out.loc[sp_df.index, sp_res.columns] = sp_res.values
+            out.loc[sp_df.index, sp_res.columns] = sp_res
 
         return out
 
