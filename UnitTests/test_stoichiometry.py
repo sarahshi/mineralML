@@ -410,6 +410,18 @@ class TestOxideClassifier(unittest.TestCase):
             dict(R["Spinel"],   Predict_Mineral="Spinels"),
         ]
         df = pd.DataFrame(rows)
+        
+        # Fill missing text/object values with an empty string
+        string_cols = df.select_dtypes(include=['object', 'string']).columns
+        df[string_cols] = df[string_cols].fillna("")
+        
+        # Modify to objects for safe insertion of np.nan later
+        df[string_cols] = df[string_cols].astype(object)
+
+        # Fill missing numeric oxides with 0.0
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        df[numeric_cols] = df[numeric_cols].fillna(0.0)
+
         out = mm.OxideClassifier(df).calculate_components()
         _assert_cols(self, out, ["XR2","XR3","XTi"])
         s = (out.loc[:, ["XR2","XR3","XTi"]].sum(axis=1)).to_numpy()

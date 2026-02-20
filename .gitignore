@@ -19,6 +19,7 @@ __pycache__
 /Hematite_Data/
 /mineralML_Cluster/
 /src/mineralML/old/
+/src/mineralML/ignore
 Cascades_in_prep.ipynb
 Train_CovMatch.ipynb
 Validate_AE.ipynb

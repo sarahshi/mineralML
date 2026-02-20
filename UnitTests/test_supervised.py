@@ -285,6 +285,7 @@ class TestBalance(unittest.TestCase):
         df.loc[is_glass, "SiO2"] = 50.0      # passes SiO2 > 40 filter
         df.loc[is_glass, "Na2O"] = 5.0       # optional, used in TAS features
         df.loc[is_glass, "K2O"]  = 5.0
+        df["TAS"] = "mock"
 
         # --- mock imblearn + pyrolite so balance() doesn't require those deps ---
         fake_imblearn = types.ModuleType("imblearn")

@@ -240,7 +240,7 @@ def config_cell_text_and_colors(
         else:
             per_ok = per_err = 0
 
-        per_ok_s = ["%.1f%%" % (per_ok), "100%"][per_ok == 100]
+        per_ok_s = "100%" if per_ok == 100 else f"{per_ok:.1f}%"
 
         # text to DEL
         text_del.append(oText)
@@ -256,7 +256,7 @@ def config_cell_text_and_colors(
             gid="sum",
             fontproperties=font_prop,
         )
-        lis_txt = ["%d" % (cell_val), per_ok_s, "%.1f%%" % (per_err)]
+        lis_txt = [f"{int(cell_val)}", per_ok_s, f"{per_err:.1f}%"]
         lis_kwa = [text_kwargs]
         dic = text_kwargs.copy()
         dic["color"] = "g"
