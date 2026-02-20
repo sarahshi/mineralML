@@ -1617,7 +1617,7 @@ class OxideClassifier:
                 "Dataframe must contain a 'Predict_Mineral' column"
             )
 
-    def _name_masks(self, frame: pd.DataFrame):
+    def _name_masks(self, frame):
         names = frame[self.mineral_col].astype(str).str.lower()
         rhomb_mask = (
             names.str.contains("rhombohedral_oxides", case=False, regex=False) |
@@ -1630,13 +1630,13 @@ class OxideClassifier:
         )
         return rhomb_mask, spinel_mask
 
-    def _coerce_string_to_object(df):
+    def _coerce_string_to_object(self, df):
         # Pandas StringDtype ("string") will raise if you assign np.nan into it via mixed ops.
         str_cols = df.select_dtypes(include=["string"]).columns
         if len(str_cols):
             df[str_cols] = df[str_cols].astype(object)
 
-    def _assign_numeric(out_df, idx, res_df):
+    def _assign_numeric(self, out_df, idx, res_df):
         # Only assign columns that are numeric in the result and exist in out
         cols = [c for c in res_df.columns if c in out_df.columns and pd.api.types.is_numeric_dtype(res_df[c])]
         if cols:
