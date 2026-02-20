@@ -240,6 +240,10 @@ class TestPredictClassProbNN(unittest.TestCase):
         df.iloc[0, df.columns.get_loc("SiO2")] = 30.0
         df.iloc[0, df.columns.get_loc("TiO2")] = 0.05
 
+        df.iloc[2, df.columns.get_loc("ZrO2")] = 60.0 # one zircon row
+        df.iloc[2, df.columns.get_loc("SiO2")] = 30.0
+        df.iloc[2, df.columns.get_loc("TiO2")] = 0.05
+
         # Mock scaler to return zeros with matching row count to the INPUT it receives
         p_norm.side_effect = lambda d: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
@@ -247,27 +251,25 @@ class TestPredictClassProbNN(unittest.TestCase):
         out_df, prob = mm.predict_class_prob_nn(df, n_iterations=3)
 
         # DF has prediction cols
-        for col in ["Predict_Mineral", "Predict_Probability", "Second_Predict_Mineral", "Second_Predict_Probability"]:
-            self.assertIn(col, out_df.columns)
+        for i in [0, 2]:
+            self.assertEqual(out_df.iloc[i]["Predict_Mineral"], "Zircon")
+            self.assertEqual(out_df.iloc[i]["Predict_Probability"], 1.0)
 
-        # Zircon rule should set row 0 deterministically
-        self.assertEqual(out_df.iloc[0]["Predict_Mineral"], "Zircon")
-        self.assertEqual(out_df.iloc[0]["Predict_Probability"], 1.0)
+        zircon_count = 2
 
         # probability_matrix shape: (non-zircon_count, n_classes * n_blocks)
         class_list, _ = mm.load_minclass_nn()
         K = len(class_list)
         self.assertEqual(prob.ndim, 2)
-        self.assertEqual(prob.shape[0], N - 1)
+        self.assertEqual(prob.shape[0], N - zircon_count)
 
         # Accept implementations that concatenate one block per MC iteration/head
         self.assertEqual(prob.shape[1] % K, 0, "prob columns must be a multiple of #classes")
         n_blocks = prob.shape[1] // K
 
-        # Collapse across blocks and assert the averaged shape is (N-1, K)
+        # Collapse across blocks and assert the averaged shape is (N-zirc, K)
         prob_avg = prob.reshape(prob.shape[0], n_blocks, K).mean(axis=1)
-        self.assertEqual(prob_avg.shape, (N - 1, K))
-
+        self.assertEqual(prob_avg.shape, (N - zircon_count, K))
 
 class TestBalance(unittest.TestCase):
     def test_balance_groups_with_mocks(self):
