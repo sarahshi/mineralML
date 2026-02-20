@@ -28,14 +28,15 @@ setup(
     },
     install_requires=[
             'pandas',
-            'numpy<2',
+            'numpy',
             'scipy',
             'seaborn', 
             'matplotlib',
             'scikit-learn',
             'torch',
-            'hdbscan', 
+            # 'hdbscan', 
             'python-ternary',
+            'skimage'
             ],
 
     classifiers=[
