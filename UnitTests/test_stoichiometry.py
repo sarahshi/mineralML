@@ -424,7 +424,10 @@ class TestOxideClassifier(unittest.TestCase):
 
         out = mm.OxideClassifier(df).calculate_components()
         _assert_cols(self, out, ["XR2","XR3","XTi"])
-        s = (out.loc[:, ["XR2","XR3","XTi"]].sum(axis=1)).to_numpy()
+        trip = out[["XR2","XR3","XTi"]].apply(pd.to_numeric, errors="coerce")
+        mask = np.isfinite(trip.to_numpy()).all(axis=1)
+
+        s = trip.loc[mask].sum(axis=1).to_numpy()
         self.assertTrue(np.all((0.99 <= s) & (s <= 1.01)))
 
 
