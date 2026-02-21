@@ -268,6 +268,50 @@ def element_to_oxide(df):
     return pd.DataFrame(result, index=df.index), pd.Series(factors)
 
 
+def oxide_to_oxide(df):
+    """
+    Convert oxide wt% to oxide wt%, and return the conversion factors used.
+    Use this to work with mapped EDS data, when data are returned in Ox% already.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame with elemental wt% columns.
+
+    Returns:
+        Tuple[pd.DataFrame, pd.Series]: 
+            - DataFrame with oxide wt% columns.
+            - Series mapping each oxide to its conversion factor from element wt%.
+    """
+    oxide_data = {
+        'SiO2': {'element': 'Si', 'oxide_mass': 60.0843, 'element_mass': 28.0855, 'stoich': 1},
+        'TiO2': {'element': 'Ti', 'oxide_mass': 79.866,  'element_mass': 47.867,  'stoich': 1},
+        'Al2O3': {'element': 'Al', 'oxide_mass': 101.961, 'element_mass': 26.9815, 'stoich': 2},
+        'FeOt': {'element': 'Fe', 'oxide_mass': 71.844,   'element_mass': 55.845,  'stoich': 1},
+        'MnO':  {'element': 'Mn', 'oxide_mass': 70.9374,  'element_mass': 54.938,  'stoich': 1},
+        'MgO':  {'element': 'Mg', 'oxide_mass': 40.3044,  'element_mass': 24.305,  'stoich': 1},
+        'CaO':  {'element': 'Ca', 'oxide_mass': 56.0774,  'element_mass': 40.078,  'stoich': 1},
+        'Na2O': {'element': 'Na', 'oxide_mass': 61.9789,  'element_mass': 22.989,  'stoich': 2},
+        'K2O':  {'element': 'K',  'oxide_mass': 94.196,   'element_mass': 39.0983, 'stoich': 2},
+        'P2O5': {'element': 'P',  'oxide_mass': 141.944,  'element_mass': 30.974,  'stoich': 2},
+        'Cr2O3':{'element': 'Cr', 'oxide_mass': 151.99,   'element_mass': 51.996,  'stoich': 2},
+        'NiO':  {'element': 'Ni', 'oxide_mass': 74.6928,  'element_mass': 58.693,  'stoich': 1},
+        'SO2':  {'element': 'S',  'oxide_mass': 64.066,   'element_mass': 32.065,  'stoich': 1},
+        'ZrO2':  {'element': 'Zr',  'oxide_mass': 123.218,   'element_mass': 91.224,  'stoich': 1},
+    }
+
+    result = {}
+    factors = {}
+
+    for oxide, info in oxide_data.items():
+        element = info['element']
+        if element in df.columns:
+            conversion_factor = 1
+            result[oxide] = df[element] * conversion_factor + result.get(oxide, 0)
+            factors[oxide] = conversion_factor
+
+    return pd.DataFrame(result, index=df.index), pd.Series(factors)
+
+
+
 # %%
 
 
@@ -1013,7 +1057,7 @@ class FeldsparClassifier(FeldsparCalculator):
         return df
 
     def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 8), 
-             ticks=True, **kwargs):
+             ticks=True, ax=None, **kwargs):
 
         import ternary
         import matplotlib.pyplot as plt
@@ -1035,7 +1079,15 @@ class FeldsparClassifier(FeldsparCalculator):
             label_set = None
 
         # Plot setup
-        fig, tax = ternary.figure()
+        # fig, tax = ternary.figure()
+        if ax is None:
+            fig, tax = ternary.figure(scale=1)
+            fig.set_size_inches(figsize)
+        else:
+            # create ternary axes on an existing matplotlib subplot axis
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            fig, tax = ternary.figure(ax=ax, scale=1)
         fig.set_size_inches(figsize)
         tax.boundary(linewidth=1.5, zorder=0)
         tax.right_corner_label("An", fontsize=14)
@@ -2252,7 +2304,7 @@ class PyroxeneClassifier(BaseMineralCalculator):
         return df_class
 
     def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 5), 
-             **kw):
+             ax=None, **kw):
 
         """
         Plot pyroxene compositions on the DHZ quadrilateral.
@@ -2300,7 +2352,14 @@ class PyroxeneClassifier(BaseMineralCalculator):
                            non_sodic_px["En"].to_numpy(float)))
 
             # set up ternary
-            fig, tax = ternary.figure(scale=1.0)
+            if ax is None:
+                fig, tax = ternary.figure(scale=1)
+                fig.set_size_inches(figsize)
+            else:
+                # create ternary axes on an existing matplotlib subplot axis
+                ax.get_xaxis().set_visible(False)
+                ax.get_yaxis().set_visible(False)
+                fig, tax = ternary.figure(ax=ax, scale=1)  # <-- critical line
             fig.set_size_inches(figsize)
             tax.boundary(linewidth=1.5, zorder=0)
             tax.get_axes().set_ylim(-0.035, 0.43375)

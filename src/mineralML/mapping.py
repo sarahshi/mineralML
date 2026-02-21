@@ -6,6 +6,7 @@ import pandas as pd
 
 from scipy.ndimage import gaussian_filter
 from skimage.morphology import remove_small_objects
+from scipy.ndimage import binary_fill_holes, generate_binary_structure
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -175,6 +176,7 @@ def load_dir_to_oxide_maps(path):
     """
     O = load_element_maps(path)
     df_ox, shape = _maps_to_df(O)
+    df_ox, _ = oxide_to_oxide(df_ox)
     ox_maps = _df_to_maps(df_ox, shape)
 
     return ox_maps
@@ -290,7 +292,7 @@ def _auto_bar_width(n, min_w=6.0, max_w=22.0, per_cat=0.45):
     return float(np.clip(min_w + per_cat * max(n, 1), min_w, max_w))
 
 
-def remove_small_components_per_phase(ids, min_size=2, connectivity=1):
+def remove_islands(ids, min_size=2, connectivity=1):
     """
     Remove isolated pixels from phase maps. 
 
@@ -309,16 +311,38 @@ def remove_small_components_per_phase(ids, min_size=2, connectivity=1):
     return ids
 
 
+def fill_islands(ids, connectivity=1):
+    """
+    Fill enclosed 0-regions (holes) inside each phase mask.
+
+    connectivity=1 -> 4-connected in 2D
+    connectivity=2 -> 8-connected in 2D
+    """
+    ids = ids.copy()
+    structure = generate_binary_structure(2, connectivity)
+
+    for pid in np.unique(ids):
+        if pid == 0:
+            continue
+        mask = (ids == pid)
+        filled = binary_fill_holes(mask, structure=structure)
+        ids[filled & ~mask] = pid
+
+    return ids
+
+
 def plot_phase_map(
     mineral_map_2d,
     phases=None,
     title="Phase Map",
     bg_color=(0.08, 0.08, 0.08),
     cmap_name="tab20",
-    legend_side="right", 
+    legend_side="right",
     legend_cols=1,
     ax=None,
-    dpi=100
+    dpi=100,
+    remove_islands_flag=True,
+    fill_islands_flag=True
 ):
     mineral_map_2d = np.asarray(mineral_map_2d, dtype=object)
 
@@ -326,9 +350,15 @@ def plot_phase_map(
     phases = phases or pick_common_phases(mineral_map_2d, min_frac=0.025)
     phase_to_id = {p: i + 1 for i, p in enumerate(phases)}
     ids = np.zeros(mineral_map_2d.shape, dtype=int)
-    ids = remove_small_components_per_phase(ids)  # islands removed
+
     for p, pid in phase_to_id.items():
         ids[mineral_map_2d == p] = pid
+
+    # now islands removed
+    if remove_islands_flag:
+        ids = remove_islands(ids, min_size=2, connectivity=1)
+    if fill_islands_flag:
+        ids = fill_islands(ids)
 
     # palette & cmap
     phase_colors = _make_palette(phases, cmap_name=cmap_name)
@@ -391,7 +421,8 @@ def plot_phase_map(
         borderaxespad=0.0,
         handlelength=1.2,
         handletextpad=0.6,
-        columnspacing=1.0
+        columnspacing=1.0,
+        fontsize=8
     )
 
     return fig, ax_map
@@ -548,9 +579,7 @@ def run_sample(sample_input, n_iterations=50, prob_threshold=0.6,
     df_ox_flat, shape = _maps_to_df(ox_maps)
     df_ordered = _ensure_columns(df_ox_flat)
 
-    df_pred, prob_matrix = predict_class_prob_mtl_2d(df_ordered, n_iterations=n_iterations,
-                                                     model_path="parametermatrix_neuralnetwork/mtl_test_01_16_3L_32dimdecoder_new1_best_mtl2d_model.pt",
-                                                     preprocess_path="parametermatrix_neuralnetwork/mtl_scaler_nn_v001.npz")
+    df_pred, prob_matrix = predict_class_prob_nnwr(df_ordered, n_iterations=n_iterations,)
     # df_pred, prob_matrix = predict_class_prob_nn(df_ordered, n_iterations=n_iterations)
     labels = df_pred["Predict_Mineral"].astype(object)
     probs = df_pred["Predict_Probability"].astype(float)
@@ -921,12 +950,13 @@ def plot_component_composite(
         handlelength=1.2,
         handletextpad=0.6,
         columnspacing=1.0,
+        fontsize=8
     )
 
     if save_path:
         fig.savefig(save_path, bbox_inches='tight')
 
-    return fig
+    # return fig
 
 
 # %%

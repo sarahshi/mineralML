@@ -31,6 +31,14 @@ Unsupervised Machine Learning Functions
    :exclude-members: forward
 
 
+Hybrid Machine Learning Functions
+=======================================
+
+.. automodule:: mineralML.hybrid
+   :members:
+   :exclude-members: forward
+
+
 Stoichiometric Functions
 ========================
 

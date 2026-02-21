@@ -30,9 +30,6 @@ import matplotlib.colors as mcolors
 import matplotlib.cm as mcm
 from sklearn.decomposition import PCA
 
-# from .supervised_mtl_testing import *
-# from .m2_multitask_model import MultiClassClassifierWithAE_M2_Contrastive
-
 
 # %%
 
@@ -1392,5 +1389,3 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
 
     return best_model_state
 
-
-# %% 
