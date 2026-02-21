@@ -1242,3 +1242,6 @@ def enable_mc_sampling(model, *, enable_dropout: bool):
 
     return model
 
+
+# %% 
+

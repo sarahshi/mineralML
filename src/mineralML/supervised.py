@@ -194,9 +194,7 @@ def prep_df_nn(df):
     # Ensure only oxides, 'Mineral', and 'SampleID' columns are kept
     keep_cols = oxides_plus_zr + ["Mineral"] + present_sample_cols
     df = df.loc[:, keep_cols]
-
-    # if sample_col:
-    #     df.set_index(sample_col, inplace=True)
+    df = df.reset_index(drop=True)
 
     return df
 
