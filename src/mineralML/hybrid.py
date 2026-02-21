@@ -1359,11 +1359,9 @@ def compute_z2_from_df(
 
     return Z2_out, Preds_out
 
-
 def plot_z2_overlay(
     df,
-    labels_new=None,  # Pass truth if you want to override
-    label_names=None,
+    labels_new=None,
     model_name='nn2d',
     title="Latent Space (z2) Overlay",
     ref_kws=None, 
@@ -1371,7 +1369,11 @@ def plot_z2_overlay(
     max_points=250_000,
     filename=None,
 ):
-    # Load Training Background
+    """
+    Plots a 2D latent space overlaying new data on top of reference (training) data.
+    Uses a custom combined colormap to independently color up to 40 distinct classes.
+    """
+    # 1. Load Training Background
     latent_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_latent_data.npz")
     if os.path.exists(latent_path):
         with np.load(latent_path) as data:
@@ -1380,73 +1382,80 @@ def plot_z2_overlay(
     else:
         raise FileNotFoundError(f"Could not find {latent_path}. Please provide Z_ref manually.")
 
-    # Compute Foregound Z2 AND auto-predictions
+    # Compute Foreground Z2 and predictions
     wrapper, _ = load_nnwr_wrapper_for_latents()
     Z_new, auto_labels_new = compute_z2_from_df(df, wrapper)
     
-    # If user didn't explicitly provide labels, use the model's predictions!
     if labels_new is None:
         labels_new = auto_labels_new
 
-    _, label_names = unique_mapping_nn(labels_new)
+    # Build mapping strictly from the REFERENCE labels
+    _, label_names = unique_mapping_nn(labels_ref)
 
     # Downsample    
     Zr, yr = _downsample(np.asarray(Z_ref), labels_ref, max_points)
     Zn, yn = _downsample(np.asarray(Z_new), labels_new, max_points)
 
-    
     # Set up axes
     fig, ax = plt.subplots(figsize=(10, 8), constrained_layout=True)
 
-    # Configure style parameters
-    default_ref = {"s": 8, "alpha": 0.2, "marker": "x", "edgecolors": "none", "c": "gray"}
-    default_new = {"s": 25, "alpha": 0.85, "marker": "o", "edgecolors": "black", "linewidths": 0.4, "cmap": "tab20"}
+    # Configure style parameters (removed 'cmap' from default_new)
+    default_ref = {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}
+    default_new = {"s": 25, "alpha": 0.85, "marker": "o", "edgecolors": "black", "linewidths": 0.4}
     
     ref_kws = {**default_ref, **(ref_kws or {})}
     new_kws = {**default_new, **(new_kws or {})}
 
-    # Color normalization (ensures classes are the same color in both datasets)
-    cmap = plt.get_cmap(new_kws.pop("cmap"))
+    # --- Create Custom Combined Colormap ---
+    tab20 = plt.get_cmap("tab20")
+    tab20b = plt.get_cmap("tab20b")
+    combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
+    cmap = mcolors.ListedColormap(combined_colors)
+
+    # Color normalization 
     norm = None
     if yr is not None or yn is not None:
         all_labels = np.concatenate([y for y in (yr, yn) if y is not None]).astype(int)
         norm = mcolors.Normalize(vmin=all_labels.min(), vmax=all_labels.max())
 
-    # Plot Reference Data (Background)
+    # Plot Reference Data (Background) and create dummy legend markers
     if yr is None:
         ax.scatter(Zr[:, 0], Zr[:, 1], **ref_kws)
     else:
-        ref_kws.pop("c", None) # Remove default gray if we have labels
-        ax.scatter(Zr[:, 0], Zr[:, 1], c=yr, cmap=cmap, norm=norm, **ref_kws)
+        ref_kws.pop("c", None) # Remove default gray
+        uniq_ref_classes = np.unique(yr).astype(int)
+        
+        for cls in uniq_ref_classes:
+            mask = (yr == cls)
+            name = label_names.get(cls, f"Class {cls}")
+            color = cmap(norm(cls)) if norm else cmap(cls)
+            
+            # A) Plot the actual background points without a label
+            ax.scatter(Zr[mask, 0], Zr[mask, 1], color=color, **ref_kws)
+            
+            # B) Plot an empty dummy point to generate a perfect circle for the legend
+            ax.scatter([], [], s=40, marker='o', color=color, ec='k', lw=0.5, alpha=1.0, label=name)
 
     # Plot new data in foreground
     if yn is None:
         ax.scatter(Zn[:, 0], Zn[:, 1], color="red", **new_kws) 
     else:
-        uniq_classes = np.unique(yn).astype(int)
-        for cls in uniq_classes:
+        uniq_new_classes = np.unique(yn).astype(int)
+        for cls in uniq_new_classes:
             mask = (yn == cls)
-            name = (
-                str(label_names[cls]) if (label_names and cls < len(label_names)) 
-                else f"Class {cls}"
-            )
             color = cmap(norm(cls)) if norm else cmap(cls)
+            ax.scatter(Zn[mask, 0], Zn[mask, 1], color=color, **new_kws)
             
-            ax.scatter(
-                Zn[mask, 0], Zn[mask, 1],
-                label=name, facecolor=color, **new_kws
-            )
-            
-        if len(uniq_classes) <= 30:
-            ax.legend(
-                bbox_to_anchor=(1.02, 1.0), 
-                loc="upper left", 
-                frameon=False, 
-                markerscale=1.5,
-                prop={"size": 9}
-            )
+    # Final formatting and legend
+    # Increased limit to 40 so all your 23 classes display in the legend
+    if yr is not None and len(uniq_ref_classes) <= 40:
+        ax.legend(
+            bbox_to_anchor=(1.015, 1.01), 
+            loc="upper left", 
+            frameon=False, 
+            prop={"size": 9}
+        )
 
-    # Final Formatting
     ax.set_xlabel("z2_1")
     ax.set_ylabel("z2_2")
     ax.set_title(title)
@@ -1457,6 +1466,5 @@ def plot_z2_overlay(
         plt.close(fig)
     else:
         plt.show()
-
 
 # %% 
