@@ -22,6 +22,8 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
 from .core import *
+# from .core import same_seeds
+# same_seeds(42)
 from .stoichiometry import *
 from .constants import OXIDES
 

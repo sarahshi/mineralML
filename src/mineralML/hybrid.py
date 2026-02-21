@@ -13,10 +13,12 @@ from sklearn.model_selection import train_test_split
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 import torch.nn.functional as F
 
 from .core import *
+# from .core import same_seeds
+# same_seeds(42)
 from .stoichiometry import *
 from .constants import OXIDES
 from .supervised import *
@@ -1242,6 +1244,219 @@ def enable_mc_sampling(model, *, enable_dropout: bool):
 
     return model
 
-
 # %% 
 
+def _downsample(Z, labels=None, max_points=250_000):
+    """Helper function to cleanly downsample large arrays."""
+    if Z is None or Z.shape[0] <= max_points:
+        return Z, labels
+    idx = np.random.choice(Z.shape[0], size=max_points, replace=False)
+    return Z[idx], labels[idx] if labels is not None else None
+
+
+def load_nnwr_wrapper_for_latents(
+    model_path=None, 
+    device=None
+):
+    """
+    Loads the trained NNWRReconstructionWrapper, along with configuration.
+    
+    Returns:
+        wrapper (nn.Module): The loaded model in evaluation mode.
+        model_config (dict): The configuration dictionary from the checkpoint.
+    """
+    # Device Setup
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device)
+
+    # Load Checkpoint
+    if model_path is None:
+        model_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_best_model.pt")
+        
+    ckpt = torch.load(model_path, map_location=device)
+    sd = ckpt["model_state_dict"]
+    cfg = ckpt.get("model_config", {})
+
+    # Extract Configuration with Fallbacks
+    input_dim = int(cfg["input_dim"])
+    
+    # Initialize Submodules 
+    classifier = NNWRFeatureExtractor(
+        input_dim=input_dim,
+        classes=int(cfg.get("classes", 23)),
+        hidden_layer_sizes=cfg["hidden_layer_sizes"],
+        dropout_rate=float(cfg.get("dropout_rate", 0.0)),
+        use_bayesian_feature_layer=bool(cfg.get("use_bayesian_feature_layer", True)),
+        use_bayesian_classifier=bool(cfg.get("use_bayesian_classifier", False)),
+    )
+
+    mapper2d = NNWRLatentProjector(
+        feat_dim=int(cfg["feat_dim"]),
+        hidden=int(cfg.get("mapper_hidden", 16)),
+        dropout_rate=0.0,
+        nonlinear=bool(cfg.get("mapper_nonlinear", True)),
+    )
+
+    decoder = NNWRReconstructionDecoder(
+        z_dim=2,
+        output_dim=input_dim,
+        decoder_hidden_sizes=list(cfg.get("decoder_hidden_sizes", [64, 32])),
+        dropout_rate=0.0,
+    )
+
+    # Wrap, Load Weights, Transfer to Device, and set to Eval Mode
+    wrapper = NNWRReconstructionWrapper(classifier, mapper2d, decoder).to(device)
+    wrapper.load_state_dict(sd, strict=False)
+    wrapper.eval()
+
+    return wrapper, cfg
+
+
+@torch.inference_mode()
+def compute_z2_from_df(
+    df,
+    wrapper, 
+    batch_size=8192, 
+    device=None
+):
+    """
+    Computes 2D latent representations (z2) AND predicted labels for a dataframe.
+    """
+    device = torch.device(device) if device else next(wrapper.parameters()).device
+    wrapper.eval()
+
+    X_df = df[OXIDES].fillna(0.0)
+    X_norm = norm_data_nn(X_df)
+    
+    if isinstance(X_norm, pd.DataFrame):
+        X_norm = X_norm.to_numpy(dtype=np.float32)
+    else:
+        X_norm = X_norm.astype(np.float32, copy=False)
+
+    dataset = TensorDataset(torch.from_numpy(X_norm))
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    N = len(dataset)
+    Z2_out = np.empty((N, 2), dtype=np.float32)
+    Preds_out = np.empty(N, dtype=np.int32) # <-- Pre-allocate predictions array
+
+    idx = 0
+    for (x_batch,) in dataloader:
+        x_batch = x_batch.to(device)
+        
+        # Grab logits as well as z2
+        logits, _, z2 = wrapper(x_batch)
+        
+        # Get the predicted class index (highest logit)
+        preds = logits.argmax(dim=1)
+        
+        batch_len = x_batch.size(0)
+        Z2_out[idx : idx + batch_len] = z2.cpu().numpy()
+        Preds_out[idx : idx + batch_len] = preds.cpu().numpy() # <-- Save predictions
+        idx += batch_len
+
+    return Z2_out, Preds_out
+
+
+def plot_z2_overlay(
+    df,
+    labels_new=None,  # Pass truth if you want to override
+    label_names=None,
+    model_name='nn2d',
+    title="Latent Space (z2) Overlay",
+    ref_kws=None, 
+    new_kws=None, 
+    max_points=250_000,
+    filename=None,
+):
+    # Load Training Background
+    latent_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_latent_data.npz")
+    if os.path.exists(latent_path):
+        with np.load(latent_path) as data:
+            Z_ref = data["train_latents"]
+            labels_ref = data["train_labels"]
+    else:
+        raise FileNotFoundError(f"Could not find {latent_path}. Please provide Z_ref manually.")
+
+    # Compute Foregound Z2 AND auto-predictions
+    wrapper, _ = load_nnwr_wrapper_for_latents()
+    Z_new, auto_labels_new = compute_z2_from_df(df, wrapper)
+    
+    # If user didn't explicitly provide labels, use the model's predictions!
+    if labels_new is None:
+        labels_new = auto_labels_new
+
+    _, label_names = unique_mapping_nn(labels_new)
+
+    # Downsample    
+    Zr, yr = _downsample(np.asarray(Z_ref), labels_ref, max_points)
+    Zn, yn = _downsample(np.asarray(Z_new), labels_new, max_points)
+
+    
+    # Set up axes
+    fig, ax = plt.subplots(figsize=(10, 8), constrained_layout=True)
+
+    # Configure style parameters
+    default_ref = {"s": 8, "alpha": 0.2, "marker": "x", "edgecolors": "none", "c": "gray"}
+    default_new = {"s": 25, "alpha": 0.85, "marker": "o", "edgecolors": "black", "linewidths": 0.4, "cmap": "tab20"}
+    
+    ref_kws = {**default_ref, **(ref_kws or {})}
+    new_kws = {**default_new, **(new_kws or {})}
+
+    # Color normalization (ensures classes are the same color in both datasets)
+    cmap = plt.get_cmap(new_kws.pop("cmap"))
+    norm = None
+    if yr is not None or yn is not None:
+        all_labels = np.concatenate([y for y in (yr, yn) if y is not None]).astype(int)
+        norm = mcolors.Normalize(vmin=all_labels.min(), vmax=all_labels.max())
+
+    # Plot Reference Data (Background)
+    if yr is None:
+        ax.scatter(Zr[:, 0], Zr[:, 1], **ref_kws)
+    else:
+        ref_kws.pop("c", None) # Remove default gray if we have labels
+        ax.scatter(Zr[:, 0], Zr[:, 1], c=yr, cmap=cmap, norm=norm, **ref_kws)
+
+    # Plot new data in foreground
+    if yn is None:
+        ax.scatter(Zn[:, 0], Zn[:, 1], color="red", **new_kws) 
+    else:
+        uniq_classes = np.unique(yn).astype(int)
+        for cls in uniq_classes:
+            mask = (yn == cls)
+            name = (
+                str(label_names[cls]) if (label_names and cls < len(label_names)) 
+                else f"Class {cls}"
+            )
+            color = cmap(norm(cls)) if norm else cmap(cls)
+            
+            ax.scatter(
+                Zn[mask, 0], Zn[mask, 1],
+                label=name, facecolor=color, **new_kws
+            )
+            
+        if len(uniq_classes) <= 30:
+            ax.legend(
+                bbox_to_anchor=(1.02, 1.0), 
+                loc="upper left", 
+                frameon=False, 
+                markerscale=1.5,
+                prop={"size": 9}
+            )
+
+    # Final Formatting
+    ax.set_xlabel("z2_1")
+    ax.set_ylabel("z2_2")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.15, linestyle="--")
+
+    if filename:
+        fig.savefig(filename, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+# %% 
