@@ -953,7 +953,7 @@ def predict_class_prob_nnwr(
     n_iterations : int
         Number of MC forward passes for probability averaging.
     model_path : str | None
-        Path to *_best_model.pt
+        Path to _best_model.pt
         If None, defaults to a file in the same directory as this module.
     hidden_layer_sizes : list[int] | None
         Usually leave None (use checkpoint config). Only override if matches.
@@ -984,7 +984,7 @@ def predict_class_prob_nnwr(
     result_df["Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
     result_df["Second_Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
 
-    # --- detect rows where *every* input oxide value is 0 ---
+    # --- detect rows where every input oxide value is 0 ---
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
     if oxide_cols_in_df:
         # treat NaN as 0
@@ -1209,9 +1209,9 @@ def predict_class_prob_nnwr(
         cols.insert(insert_at, "Submineral")
         result_df = result_df[cols]
 
-    if return_recon_oxides:
-        result_df = pd.concat([result_df, recon_df], axis=1)
-
+    if return_recon_oxides and recon_df is not None:
+            result_df = pd.concat([result_df, recon_df], axis=1)
+    
     return result_df, probability_matrix
 
 
