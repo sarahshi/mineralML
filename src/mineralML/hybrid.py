@@ -1359,10 +1359,10 @@ def compute_z2_from_df(
 
     return Z2_out, Preds_out
 
+
 def plot_z2_overlay(
     df,
     labels_new=None,
-    model_name='nn2d',
     title="Latent Space (z2) Overlay",
     ref_kws=None, 
     new_kws=None, 
@@ -1371,8 +1371,39 @@ def plot_z2_overlay(
 ):
     """
     Plots a 2D latent space overlaying new data on top of reference (training) data.
-    Uses a custom combined colormap to independently color up to 40 distinct classes.
+
+    This function loads pre-computed training latents as a background reference and 
+    plots the provided dataframe samples as a foreground overlay. It supports 
+    custom styling for both layers and handles up to 40 distinct classes using a 
+    combined 'tab20' and 'tab20b' colormap.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The input data to be projected into the latent space.
+    labels_new : array-like, optional
+        Ground truth or custom labels for `df`. If None, labels are 
+        automatically inferred using the model's internal classifier.
+    title : str, default="Latent Space (z2) Overlay"
+        The title displayed at the top of the plot.
+    ref_kws : dict, optional
+        Keyword arguments passed to `ax.scatter` for the background (training) 
+        data. Useful for adjusting 's' (size), 'marker', and 'alpha'.
+        Defaults to: {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}.
+    new_kws : dict, optional
+        Keyword arguments passed to `ax.scatter` for the foreground (new) 
+        data. Useful for highlighting specific points.
+    max_points : int, default=250,000
+        The maximum number of points to plot for both reference and new data 
+        combined to prevent memory issues and slow rendering.
+    filename : str, optional
+        The path/filename to save the figure. If None, the plot is shown 
+        interactively via `plt.show()`.
+    Returns
+    -------
+    None: Displays the plot or saves it to disk if `filename` is provided.
     """
+
     # 1. Load Training Background
     latent_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_latent_data.npz")
     if os.path.exists(latent_path):
@@ -1400,11 +1431,11 @@ def plot_z2_overlay(
     fig, ax = plt.subplots(figsize=(10, 8), constrained_layout=True)
 
     # Configure style parameters (removed 'cmap' from default_new)
-    default_ref = {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}
-    default_new = {"s": 25, "alpha": 0.85, "marker": "o", "edgecolors": "black", "linewidths": 0.4}
+    default_train = {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}
+    default_df = {"s": 25, "alpha": 0.85, "marker": "o", "edgecolors": "black", "linewidths": 0.4}
     
-    ref_kws = {**default_ref, **(ref_kws or {})}
-    new_kws = {**default_new, **(new_kws or {})}
+    ref_kws = {**default_train, **(ref_kws or {})}
+    new_kws = {**default_df, **(new_kws or {})}
 
     # --- Create Custom Combined Colormap ---
     tab20 = plt.get_cmap("tab20")
@@ -1467,4 +1498,101 @@ def plot_z2_overlay(
     else:
         plt.show()
 
+
 # %% 
+
+
+def plot_harker(
+    df_train,
+    train_minerals,
+    overlay_datasets,
+    oxides,
+    x_oxide="SiO2",
+    extra_pairs=None,
+    plot_totals=False,
+    train_mineral_col="Mineral"
+):
+    """
+    Dynamically plots Harker diagrams for training data and overlays study datasets.
+
+    Parameters:
+    -----------
+    df_train : pd.DataFrame
+        The primary dataset containing training geochemical data.
+    train_minerals : list
+        Specific mineral phases to filter and plot as background points.
+    overlay_datasets : dict
+        {study_name: DataFrame} for datasets plotted at full opacity.
+    oxides : list
+        Oxide names to be plotted on the Y-axes against the x_oxide.
+    x_oxide : str, optional
+        Independent variable on the X-axis. Defaults to "SiO2".
+    extra_pairs : list of tuples, optional
+        Additional specific plots, e.g., [("CaO", "Na2O")].
+    plot_totals : bool, optional
+        If True, calculates and plots x_oxide vs. the sum of all oxides.
+    train_mineral_col : str, optional
+        Column name identifying mineral types. Defaults to "Mineral".
+    """
+    
+    # Prepare Dataframes (Copy to avoid modifying originals)
+    df_train_plot = df_train.copy()
+    overlay_plots = {name: df.copy() for name, df in overlay_datasets.items()}
+
+    # Build the plotting pairs
+    pairs = [(x_oxide, ox) for ox in oxides if ox != x_oxide]
+    
+    if extra_pairs:
+        pairs.extend(extra_pairs)
+        
+    if plot_totals:
+        # Calculate totals dynamically based on the oxides list provided
+        df_train_plot['Total'] = df_train_plot[oxides].sum(axis=1)
+        for name in overlay_plots:
+            overlay_plots[name]['Total'] = overlay_plots[name][oxides].sum(axis=1)
+        
+        pairs.append((x_oxide, "Total"))
+
+    # Setup figure grid
+    cols = 4
+    n = len(pairs)
+    rows = (n + cols - 1) // cols
+    
+    fig, axes = plt.subplots(rows, cols, figsize=(4*cols, 4*rows))
+    if n == 1: axes = np.array([axes])
+    axes = axes.ravel()
+    
+    overlay_colors = ['magenta', 'cyan', 'lime', 'yellow', 'orange']
+    overlay_markers = ['s', '^', 'D', 'o', 'v']
+    
+    # Iterative Plotting Loop
+    for ax, (x, y) in zip(axes, pairs):
+        # Background Training Data
+        for min_name in train_minerals:
+            df_sub = df_train_plot[df_train_plot[train_mineral_col] == min_name]
+            if not df_sub.empty and x in df_sub.columns and y in df_sub.columns:
+                ax.scatter(df_sub[x], df_sub[y], s=20, alpha=0.1, ec='k', lw=0.25, label=f'Train: {min_name}')
+                
+        # Overlay Datasets
+        for i, (study_name, df_overlay) in enumerate(overlay_plots.items()):
+            c = overlay_colors[i % len(overlay_colors)]
+            m = overlay_markers[i % len(overlay_markers)]
+            
+            if x in df_overlay.columns and y in df_overlay.columns:
+                ax.scatter(df_overlay[x], df_overlay[y], s=60, c=c, alpha=1, marker=m, ec='k', lw=1, label=study_name)
+
+        ax.set_xlabel(x)
+        ax.set_ylabel(y)
+        
+    # Legend & Formatting
+    handles, labels = axes[0].get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    fig.legend(by_label.values(), by_label.keys(), loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=True)
+
+    for ax in axes[n:]:
+        ax.set_visible(False)
+
+    plt.tight_layout()
+    plt.show()
+
+# %%
