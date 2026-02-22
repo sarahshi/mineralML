@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import numpy as np
 
-import os
+import os, re
 import warnings
 warnings.simplefilter('ignore', category=FutureWarning)
 
@@ -85,6 +85,140 @@ titanites = titanites[~titanites.applymap(str).apply(lambda x: x.str.contains(r'
 
 zircons = pd.read_csv('../GEOROC_minerals/2024-12-SGFTFN_ZIRCONS.csv', encoding='latin-1')
 zircons = zircons[~zircons.applymap(str).apply(lambda x: x.str.contains(r'\\')).any(axis=1)]
+
+# %% 
+
+# def extract_citations_from_georoc_df(df: pd.DataFrame, first_col: str | None = None):
+#     """
+#     GEOROC-style: citation rows have ONLY col0 populated (all other cols NaN/empty).
+#     Return:
+#       - df_data: rows before the citation block
+#       - citations_df: citation block (as rows)
+#       - citations: list[str] of citation strings (from col0)
+#     """
+#     if first_col is None:
+#         col0 = df.columns[0]
+#     else:
+#         col0 = first_col
+
+#     # Treat empty strings as missing to make the "only col0 has value" test work
+#     d = df.replace(r"^\s*$", np.nan, regex=True)
+
+#     # Citation rows: col0 not-null AND all other columns null
+#     other_cols = [c for c in d.columns if c != col0]
+#     is_citation_row = d[col0].notna() & d[other_cols].isna().all(axis=1)
+
+#     if not is_citation_row.any():
+#         return df.copy(), df.iloc[0:0].copy(), []
+
+#     # Citation block starts at first citation row and goes to end of sheet
+#     start = np.where(is_citation_row.to_numpy())[0].min()
+
+#     df_data = df.iloc[:start].copy()
+#     citations_df = df.iloc[start:].copy()
+
+#     citations = (
+#         citations_df[col0]
+#         .dropna()
+#         .astype(str)
+#         .str.strip()
+#         .tolist()
+#     )
+
+#     return df_data, citations_df, citations
+
+
+# def merge_citations_across_loaded(dfs: dict[str, pd.DataFrame]):
+#     """
+#     dfs: {"amphiboles": amphiboles, "apatites": apatites, ...}
+#     Returns:
+#       - citations_all: list[str] merged (order preserved by file order)
+#       - citations_unique: list[str] unique, preserving first-seen order
+#       - citation_id_map: dict[int,str] mapping [ID] -> citation text (last wins if repeated)
+#       - data_dfs: dict[str, pd.DataFrame] with citation blocks removed
+#     """
+#     citations_all = []
+#     data_dfs = {}
+#     citation_id_map = {}
+
+#     id_pat = re.compile(r"^\[(\d+)\]\s*(.*)$")
+
+#     for name, df in dfs.items():
+#         df_data, _, cites = extract_citations_from_georoc_df(df)
+#         data_dfs[name] = df_data
+#         citations_all.extend(cites)
+
+#         # optional: build [id] -> citation mapping
+#         for c in cites:
+#             m = id_pat.match(c)
+#             if m:
+#                 citation_id_map[int(m.group(1))] = m.group(2).strip()
+
+#     # unique list preserving order
+#     seen = set()
+#     citations_unique = []
+#     for c in citations_all:
+#         if c not in seen:
+#             seen.add(c)
+#             citations_unique.append(c)
+
+#     return citations_all, citations_unique, citation_id_map, data_dfs
+
+
+# dfs = {
+#     "amphiboles": amphiboles,
+#     "apatites": apatites,
+#     "carbonates": carbonates,
+#     "chalcogenides": chalcogenides,
+#     "clays": clays,
+#     "clinopyroxenes": clinopyroxenes,
+#     "feldspars": feldspars,
+#     "feldspathoids": feldspathoids,
+#     "garnets": garnets,
+#     "ilmenites": ilmenites,
+#     "micas": micas,
+#     "olivines": olivines,
+#     "orthopyroxenes": orthopyroxenes,
+#     "perovskites": perovskites,
+#     "pyroxenes": pyroxenes,
+#     "quartz": quartz,
+#     "spinels": spinels,
+#     "titanites": titanites,
+#     "zircons": zircons,
+# }
+
+# citations_all, citations_unique, citation_id_map, data_dfs = merge_citations_across_loaded(dfs)
+
+# # examples
+# len(citations_all), len(citations_unique), len(citation_id_map)
+
+# citations_out = pd.DataFrame({"citation": citations_unique})
+
+
+# # %% 
+# # keep the bracketed form in a separate column
+# split = citations_out["citation"].astype(str).str.extract(r"^\s*\[(\d+)\]\s*(.*)\s*$")
+
+# # citations_out["citation_id_int"] = split[0].astype("Int64")                 # optional numeric id
+# citations_out["citation_id"] = "[" + split[0].astype(str) + "]"             # bracketed id as text
+# citations_out["citation_text"] = split[1].astype(str).str.strip()
+
+# # if you don't want the numeric helper column:
+# # citations_out = citations_out.drop(columns=["citation_id_int"])
+
+# # map with bracketed keys: {"[46]": "SPENGLER ..."}
+# citation_id_map = (
+#     citations_out.dropna(subset=["citation_id"])
+#     .set_index("citation_id")["citation_text"]
+#     .to_dict()
+# )
+
+# citations_out.head()
+# citations_out.to_csv("GEOROC_citations_merged.csv", index=False)
+
+
+# %% 
+
 
 # %%
 
@@ -179,7 +313,7 @@ apatites_sub['MINERAL'] = 'Apatite'
 carbonates_sub = carbonates_lim.dropna(subset=subset_ox, thresh=2)
 clays_sub = clays_lim.dropna(subset=subset_ox, thresh=4)
 clinopyroxenes_sub = clinopyroxenes_lim.dropna(subset=subset_ox, thresh=4)
-clinopyroxenes_sub['MINERAL'] = 'Pyroxene'
+clinopyroxenes_sub['MINERAL'] = 'Clinopyroxene'
 feldspars_sub = feldspars_lim.dropna(subset=subset_ox, thresh=4)
 feldspars_sub['MINERAL'] = 'Feldspar'
 feldspathoids_sub = feldspathoids_lim.dropna(subset=subset_ox, thresh=4)
@@ -191,7 +325,7 @@ micas_sub = micas_lim.dropna(subset=subset_ox, thresh=4)
 olivines_sub = olivines_lim.dropna(subset=subset_ox, thresh=4)
 olivines_sub['MINERAL'] = 'Olivine'
 orthopyroxenes_sub = orthopyroxenes_lim.dropna(subset=subset_ox, thresh=4)
-orthopyroxenes_sub['MINERAL'] = 'Pyroxene'
+orthopyroxenes_sub['MINERAL'] = 'Orthopyroxene'
 pyroxenes_sub = pyroxenes_lim.dropna(subset=subset_ox, thresh=4)
 pyroxenes_sub['MINERAL'] = 'Pyroxene'
 quartz_sub = quartz_lim.dropna(subset=subset_ox, thresh=4)
@@ -281,6 +415,6 @@ min_df_fe_lim = min_df_fe[['CITATION', 'SAMPLE NAME', 'Mineral', 'SiO2', 'TiO2',
 
 # %% 
 
-min_df_fe_lim.to_csv('../Validation_Data/GEOROC_validationdata_Fe_2025.csv')
+min_df_fe_lim.to_csv('../Validation_Data/GEOROC_validationdata_Fe_202602.csv')
 
 # %% 
