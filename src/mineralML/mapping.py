@@ -959,4 +959,126 @@ def plot_component_composite(
     # return fig
 
 
-# %%
+# %% EBSD mapping
+
+def parse_ctf_header(filepath: str):
+    """
+    Parses the header of a .ctf file to extract grid dimensions and phase mappings.
+    The file is expected to contain 'XCells', 'YCells', 'Phases', and a data table 
+    starting with 'Phase\\tX\\tY'.
+
+    Args:
+        filepath (str): The path to the .ctf file.
+
+    Returns:
+        x_cells (int): The number of cells in the X direction.
+        y_cells (int): The number of cells in the Y direction.
+        data_start (int): The line index where the actual data table begins.
+        phase_mapping (dict): A dictionary that maps each integer ID to its phase name.
+    """
+    x_cells = y_cells = n_phases = data_start = None
+    phase_mapping = {0: "Unindexed"}
+
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    for i, line in enumerate(lines):
+        line = line.strip()
+
+        if line.startswith("XCells"):
+            x_cells = int(line.split("\t")[1])
+        elif line.startswith("YCells"):
+            y_cells = int(line.split("\t")[1])
+        elif line.startswith("Phases"):
+            n_phases = int(line.split("\t")[1])
+            
+            # Extract phase names immediately using the n_phases count
+            for j in range(1, n_phases + 1):
+                parts = lines[i + j].strip().split("\t")
+                if len(parts) >= 3 and parts[2].strip():
+                    phase_mapping[j] = parts[2].strip()
+                else:
+                    phase_mapping[j] = f"Phase{j}"
+                    
+        elif line.startswith("Phase\tX\tY"):
+            data_start = i
+            break
+
+    # Verify all required header components were found
+    if None in (x_cells, y_cells, n_phases, data_start):
+        raise ValueError("Missing required header information in CTF file.")
+
+    return x_cells, y_cells, data_start, phase_mapping
+
+
+def plot_ctf_phases(filepath: str, max_legend=25):
+    """
+    Loads phase data from a .ctf file and generates a 2D categorical phase map.
+    It maps raw phase IDs to their corresponding names and orders the legend 
+    by phase abundance.
+
+    Args:
+        filepath (str): The path to the .ctf file.
+        max_legend (int, optional): The maximum number of phases to display in 
+        the legend. Defaults to 25.
+
+    Returns:
+        phase_map_ids (ndarray): A 2D array of the raw numeric phase IDs.
+        phase_mapping (dict): A dictionary mapping raw IDs to phase names.
+        code_map (ndarray): A 2D array of the categorical codes used for plotting.
+        unique_names (ndarray): An array of the unique phase names sorted by abundance.
+    """
+    x_cells, y_cells, data_start, phase_mapping = parse_ctf_header(filepath)
+
+    # Read only the Phase column to save memory
+    df = pd.read_csv(filepath, sep="\t", skiprows=data_start, usecols=["Phase"])
+    phase_ids = df["Phase"].values
+
+    if len(phase_ids) != (x_cells * y_cells):
+        raise ValueError("Mismatch between header grid size and data points.")
+
+    # Map integer IDs to phase names 
+    phase_names = df["Phase"].map(phase_mapping).fillna(df["Phase"].astype(str) + "_Unknown").values
+
+    # Get unique names and their frequencies
+    unique_names, counts = np.unique(phase_names, return_counts=True)
+
+    # Sort arrays descending by abundance
+    order = np.argsort(counts)[::-1]
+    unique_names = unique_names[order]
+    counts = counts[order]
+
+    # Create a 2D map of categorical codes for plotting
+    name_to_code = {name: i for i, name in enumerate(unique_names)}
+    code_map = np.array([name_to_code[name] for name in phase_names]).reshape((y_cells, x_cells))
+
+    # Set up the colormap, repeating base colors if there are more phases than colors
+    base_colors = plt.get_cmap("tab20").colors
+    reps = int(np.ceil(len(unique_names) / len(base_colors)))
+    colors = (list(base_colors) * reps)[:len(unique_names)]
+    cmap = ListedColormap(colors)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(code_map, cmap=cmap, interpolation="none")
+    ax.set_title(f"Phase Map — {x_cells} x {y_cells}")
+    ax.axis("off")
+
+    # Build the legend handles and labels
+    n_show = min(max_legend, len(unique_names))
+    handles = [
+        plt.Line2D([0], [0], marker="s", linestyle="", markersize=10, color=cmap(name_to_code[name]))
+        for name in unique_names[:n_show]
+    ]
+    labels = [f"{name} ({count})" for name, count in zip(unique_names[:n_show], counts[:n_show])]
+
+    # Add a catch-all label if the phase count exceeds max_legend
+    if len(unique_names) > n_show:
+        handles.append(plt.Line2D([0], [0], linestyle=""))
+        labels.append(f"... +{len(unique_names) - n_show} more")
+
+    ax.legend(handles, labels, loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
+    plt.tight_layout()
+    plt.show()
+
+    return phase_ids.reshape((y_cells, x_cells)), phase_mapping, code_map, unique_names
+

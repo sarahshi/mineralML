@@ -3,7 +3,9 @@
 __author__ = "Sarah Shi"
 
 import os
+import re
 import copy
+import random 
 
 import numpy as np
 import pandas as pd
@@ -17,8 +19,8 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn.functional as F
 
 from .core import *
-# from .core import same_seeds
-# same_seeds(42)
+from .core import same_seeds
+same_seeds(42)
 from .stoichiometry import *
 from .constants import OXIDES
 from .supervised import *
@@ -30,6 +32,22 @@ from sklearn.decomposition import PCA
 
 
 # %% 
+
+
+def format_oxide_label(label):
+    """
+    Converts 'SiO2' -> '$\mathregular{SiO_2}$'
+    Converts 'FeOt' -> '$\mathregular{FeO_t}$'
+    Converts 'Al2O3' -> '$\mathregular{Al_2O_3}$'
+    """
+    if label == "Total":
+        return label
+    
+    # Subscript digits and the lowercase 't'
+    # The pattern (\d+|t) matches one or more digits OR the letter 't'
+    formatted = re.sub(r'(\d+|t)', r'_\1', label)
+    
+    return f"$\mathregular{{{formatted}}}$"
 
 
 class NNWRFeatureExtractor(nn.Module):
@@ -1362,7 +1380,7 @@ def compute_z2_from_df(
 
 def plot_z2_overlay(
     df,
-    labels_new=None,
+    label_column="Predict_Mineral",
     title="Latent Space (z2) Overlay",
     ref_kws=None, 
     new_kws=None, 
@@ -1381,9 +1399,8 @@ def plot_z2_overlay(
     ----------
     df : pandas.DataFrame
         The input data to be projected into the latent space.
-    labels_new : array-like, optional
-        Ground truth or custom labels for `df`. If None, labels are 
-        automatically inferred using the model's internal classifier.
+    label_column : str, default="Predict_Mineral"
+        The column name in `df` representing the pre-computed labels.
     title : str, default="Latent Space (z2) Overlay"
         The title displayed at the top of the plot.
     ref_kws : dict, optional
@@ -1404,7 +1421,7 @@ def plot_z2_overlay(
     None: Displays the plot or saves it to disk if `filename` is provided.
     """
 
-    # 1. Load Training Background
+    # Load Training Background
     latent_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_latent_data.npz")
     if os.path.exists(latent_path):
         with np.load(latent_path) as data:
@@ -1415,17 +1432,24 @@ def plot_z2_overlay(
 
     # Compute Foreground Z2 and predictions
     wrapper, _ = load_nnwr_wrapper_for_latents()
-    Z_new, auto_labels_new = compute_z2_from_df(df, wrapper)
+    Z_new, _ = compute_z2_from_df(df, wrapper)
     
-    if labels_new is None:
-        labels_new = auto_labels_new
+    if label_column not in df.columns:
+            raise KeyError(f"Dataframe must contain '{label_column}' column for pre-classified plotting.")
+    labels_new = df[label_column].values
 
     # Build mapping strictly from the REFERENCE labels
     _, label_names = unique_mapping_nn(labels_ref)
+    name_to_id = {v: k for k, v in label_names.items()}
 
-    # Downsample    
+# Convert df labels from strings to ints if they aren't already
+    if isinstance(labels_new[0], str):
+            yn_ints = np.array([name_to_id.get(label, -1) for label in labels_new])
+    else:
+        yn_ints = labels_new
+
     Zr, yr = _downsample(np.asarray(Z_ref), labels_ref, max_points)
-    Zn, yn = _downsample(np.asarray(Z_new), labels_new, max_points)
+    Zn, yn = _downsample(np.asarray(Z_new), yn_ints, max_points)
 
     # Set up axes
     fig, ax = plt.subplots(figsize=(10, 8), constrained_layout=True)
@@ -1437,56 +1461,46 @@ def plot_z2_overlay(
     ref_kws = {**default_train, **(ref_kws or {})}
     new_kws = {**default_df, **(new_kws or {})}
 
-    # --- Create Custom Combined Colormap ---
+    # Create Custom Combined Colormap
+    all_labels = np.concatenate([y for y in (yr, yn) if y is not None])
+    valid_labels = all_labels[all_labels >= 0].astype(int)
+
     tab20 = plt.get_cmap("tab20")
     tab20b = plt.get_cmap("tab20b")
     combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
-    cmap = mcolors.ListedColormap(combined_colors)
 
-    # Color normalization 
-    norm = None
-    if yr is not None or yn is not None:
-        all_labels = np.concatenate([y for y in (yr, yn) if y is not None]).astype(int)
-        norm = mcolors.Normalize(vmin=all_labels.min(), vmax=all_labels.max())
+    # Shuffle with a fixed seed to maximize visual distance
+    random.seed(42) 
+    random.shuffle(combined_colors)
+
+    #Create the cmap and set a fixed normalization range
+    cmap = mcolors.ListedColormap(combined_colors)
+    norm = mcolors.Normalize(vmin=0, vmax=39)
 
     # Plot Reference Data (Background) and create dummy legend markers
-    if yr is None:
-        ax.scatter(Zr[:, 0], Zr[:, 1], **ref_kws)
-    else:
-        ref_kws.pop("c", None) # Remove default gray
-        uniq_ref_classes = np.unique(yr).astype(int)
-        
-        for cls in uniq_ref_classes:
-            mask = (yr == cls)
-            name = label_names.get(cls, f"Class {cls}")
-            color = cmap(norm(cls)) if norm else cmap(cls)
-            
-            # A) Plot the actual background points without a label
-            ax.scatter(Zr[mask, 0], Zr[mask, 1], color=color, **ref_kws)
-            
-            # B) Plot an empty dummy point to generate a perfect circle for the legend
-            ax.scatter([], [], s=40, marker='o', color=color, ec='k', lw=0.5, alpha=1.0, label=name)
-
+    uniq_ref_classes = np.unique(yr).astype(int)
+    ref_kws.pop("c", None) 
+    for cls in uniq_ref_classes:
+        if cls < 0: continue # Skip unmapped
+        mask = (yr == cls)
+        name = label_names.get(cls, f"Class {cls}")
+        color = cmap(norm(cls))
+        ax.scatter(Zr[mask, 0], Zr[mask, 1], color=color, **ref_kws)
+        ax.scatter([], [], s=40, marker='o', color=color, ec='k', lw=0.5, label=name)
+    
     # Plot new data in foreground
-    if yn is None:
-        ax.scatter(Zn[:, 0], Zn[:, 1], color="red", **new_kws) 
-    else:
-        uniq_new_classes = np.unique(yn).astype(int)
-        for cls in uniq_new_classes:
-            mask = (yn == cls)
-            color = cmap(norm(cls)) if norm else cmap(cls)
-            ax.scatter(Zn[mask, 0], Zn[mask, 1], color=color, **new_kws)
-            
-    # Final formatting and legend
-    # Increased limit to 40 so all your 23 classes display in the legend
-    if yr is not None and len(uniq_ref_classes) <= 40:
-        ax.legend(
-            bbox_to_anchor=(1.015, 1.01), 
-            loc="upper left", 
-            frameon=False, 
-            prop={"size": 9}
-        )
+    uniq_new_classes = np.unique(yn).astype(int)
+    for cls in uniq_new_classes:
+        if cls < 0: 
+            continue
+        mask = (yn == cls)
+        color = cmap(norm(cls))
+        ax.scatter(Zn[mask, 0], Zn[mask, 1], color=color, **new_kws)
 
+    # Final formatting and legend
+    if len(uniq_ref_classes) <= 30:
+            ax.legend(bbox_to_anchor=(1.015, 1.01), loc="upper left", 
+                      frameon=False, prop={"size": 9})
     ax.set_xlabel("z2_1")
     ax.set_ylabel("z2_2")
     ax.set_title(title)
@@ -1503,10 +1517,10 @@ def plot_z2_overlay(
 
 
 def plot_harker(
-    df_train,
-    train_minerals,
-    overlay_datasets,
-    oxides,
+    df_train=None,
+    train_minerals=None,
+    overlay_datasets=None,
+    oxides=OXIDES,
     x_oxide="SiO2",
     extra_pairs=None,
     plot_totals=False,
@@ -1534,9 +1548,12 @@ def plot_harker(
     train_mineral_col : str, optional
         Column name identifying mineral types. Defaults to "Mineral".
     """
-    
+
+    overlay_datasets = overlay_datasets or {}
+    train_minerals = train_minerals or []
+
     # Prepare Dataframes (Copy to avoid modifying originals)
-    df_train_plot = df_train.copy()
+    df_train_plot = df_train.copy() if df_train is not None else None
     overlay_plots = {name: df.copy() for name, df in overlay_datasets.items()}
 
     # Build the plotting pairs
@@ -1546,8 +1563,11 @@ def plot_harker(
         pairs.extend(extra_pairs)
         
     if plot_totals:
-        # Calculate totals dynamically based on the oxides list provided
-        df_train_plot['Total'] = df_train_plot[oxides].sum(axis=1)
+        # Only calculate if df_train_plot is not None
+        if df_train_plot is not None:
+            df_train_plot['Total'] = df_train_plot[oxides].sum(axis=1)
+        
+        # Calculate for overlays (these are guaranteed to be a dict)
         for name in overlay_plots:
             overlay_plots[name]['Total'] = overlay_plots[name][oxides].sum(axis=1)
         
@@ -1559,7 +1579,8 @@ def plot_harker(
     rows = (n + cols - 1) // cols
     
     fig, axes = plt.subplots(rows, cols, figsize=(4*cols, 4*rows))
-    if n == 1: axes = np.array([axes])
+    if n == 1:
+        axes = np.array([axes])
     axes = axes.ravel()
     
     overlay_colors = ['magenta', 'cyan', 'lime', 'yellow', 'orange']
@@ -1581,14 +1602,36 @@ def plot_harker(
             if x in df_overlay.columns and y in df_overlay.columns:
                 ax.scatter(df_overlay[x], df_overlay[y], s=60, c=c, alpha=1, marker=m, ec='k', lw=1, label=study_name)
 
-        ax.set_xlabel(x)
-        ax.set_ylabel(y)
-        
-    # Legend & Formatting
-    handles, labels = axes[0].get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    fig.legend(by_label.values(), by_label.keys(), loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=True)
+        ax.set_xlabel(format_oxide_label(x))
+        ax.set_ylabel(format_oxide_label(y))
 
+    # Legend & Formatting
+    handles, labels = [], []
+    for ax in axes[:n]: # Collect from all active plots
+        h, l = ax.get_legend_handles_labels()
+        handles.extend(h)
+        labels.extend(l)
+    
+    by_label = dict(zip(labels, handles))
+    
+    if by_label:
+        # Determine position
+        has_empty_slot = (n % cols) != 0
+        leg_loc, leg_bbox = ("center left", (0.775, 0.2)) if has_empty_slot else ("center left", (1.0, 0.5))
+
+        leg = fig.legend(
+            by_label.values(), 
+            by_label.keys(), 
+            loc=leg_loc, 
+            bbox_to_anchor=leg_bbox, 
+            frameon=True
+        )
+        
+        # Force legend symbols to be fully opaque
+        for lh in leg.legend_handles: 
+            lh.set_alpha(1.0)
+
+    # Clean up empty axes
     for ax in axes[n:]:
         ax.set_visible(False)
 
