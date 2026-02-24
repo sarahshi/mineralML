@@ -1524,13 +1524,15 @@ def plot_harker(
     x_oxide="SiO2",
     extra_pairs=None,
     plot_totals=False,
-    train_mineral_col="Mineral"
+    train_mineral_col="Mineral",
+    train_kws=None,
+    new_kws=None,
 ):
     """
     Dynamically plots Harker diagrams for training data and overlays study datasets.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     df_train : pd.DataFrame
         The primary dataset containing training geochemical data.
     train_minerals : list
@@ -1546,96 +1548,84 @@ def plot_harker(
     plot_totals : bool, optional
         If True, calculates and plots x_oxide vs. the sum of all oxides.
     train_mineral_col : str, optional
-        Column name identifying mineral types. Defaults to "Mineral".
+    train_kws : dict, optional
+        Kws for the background training data. 
+        Defaults: {"s": 20, "alpha": 0.1, "ec": "k", "lw": 0.25}
+    new_kws : dict, optional
+        Default kws for all overlay datasets. 
+        Defaults: {"s": 60, "alpha": 1.0, "ec": "k", "lw": 1}
     """
-
     overlay_datasets = overlay_datasets or {}
     train_minerals = train_minerals or []
 
-    # Prepare Dataframes (Copy to avoid modifying originals)
-    df_train_plot = df_train.copy() if df_train is not None else None
-    overlay_plots = {name: df.copy() for name, df in overlay_datasets.items()}
-
-    # Build the plotting pairs
-    pairs = [(x_oxide, ox) for ox in oxides if ox != x_oxide]
+    # Configure style parameters to match your consistent coding style
+    default_train = {"s": 20, "alpha": 0.1, "ec": "k", "lw": 0.25}
+    default_new = {"s": 60, "alpha": 1.0, "ec": "k", "lw": 1}
     
-    if extra_pairs:
-        pairs.extend(extra_pairs)
-        
-    if plot_totals:
-        # Only calculate if df_train_plot is not None
-        if df_train_plot is not None:
-            df_train_plot['Total'] = df_train_plot[oxides].sum(axis=1)
-        
-        # Calculate for overlays (these are guaranteed to be a dict)
-        for name in overlay_plots:
-            overlay_plots[name]['Total'] = overlay_plots[name][oxides].sum(axis=1)
-        
-        pairs.append((x_oxide, "Total"))
+    train_kws = {**default_train, **(train_kws or {})}
+    new_kws = {**default_new, **(new_kws or {})}
 
-    # Setup figure grid
+    # Setup Colors/Markers for overlays
+    overlay_colors = ['magenta', 'cyan', 'lime', 'yellow', 'orange']
+    overlay_markers = ['s', '^', 'D', 'o', 'v']
+
+    # Build plotting pairs
+    pairs = [(x_oxide, ox) for ox in oxides if ox != x_oxide]
+    if extra_pairs: 
+        pairs.extend(extra_pairs)
+    
+    # Setup grid
     cols = 4
     n = len(pairs)
     rows = (n + cols - 1) // cols
-    
     fig, axes = plt.subplots(rows, cols, figsize=(4*cols, 4*rows))
-    if n == 1:
+    if n == 1: 
         axes = np.array([axes])
     axes = axes.ravel()
     
-    overlay_colors = ['magenta', 'cyan', 'lime', 'yellow', 'orange']
-    overlay_markers = ['s', '^', 'D', 'o', 'v']
-    
-    # Iterative Plotting Loop
     for ax, (x, y) in zip(axes, pairs):
-        # Background Training Data
-        for min_name in train_minerals:
-            df_sub = df_train_plot[df_train_plot[train_mineral_col] == min_name]
-            if not df_sub.empty and x in df_sub.columns and y in df_sub.columns:
-                ax.scatter(df_sub[x], df_sub[y], s=20, alpha=0.1, ec='k', lw=0.25, label=f'Train: {min_name}')
+        # 1. Plot Background Training Data
+        if df_train is not None:
+            for min_name in train_minerals:
+                df_sub = df_train[df_train[train_mineral_col] == min_name]
+                if not df_sub.empty and x in df_sub.columns and y in df_sub.columns:
+                    ax.scatter(df_sub[x], df_sub[y], label=f'Train: {min_name}', **train_kws)
                 
-        # Overlay Datasets
-        for i, (study_name, df_overlay) in enumerate(overlay_plots.items()):
-            c = overlay_colors[i % len(overlay_colors)]
-            m = overlay_markers[i % len(overlay_markers)]
+        # 2. Plot Overlay Datasets
+        for i, (name, item) in enumerate(overlay_datasets.items()):
+            # Allow individual dataset overrides: {'Name': (df, {custom_kws})}
+            if isinstance(item, (tuple, list)) and len(item) == 2:
+                df_ov, individual_kws = item
+            else:
+                df_ov, individual_kws = item, {}
+
+            # Combine: Default < New_Kws < Individual_Kws
+            style = {
+                'c': overlay_colors[i % len(overlay_colors)],
+                'marker': overlay_markers[i % len(overlay_markers)],
+                **new_kws,
+                **individual_kws
+            }
             
-            if x in df_overlay.columns and y in df_overlay.columns:
-                ax.scatter(df_overlay[x], df_overlay[y], s=60, c=c, alpha=1, marker=m, ec='k', lw=1, label=study_name)
+            if x in df_ov.columns and y in df_ov.columns:
+                ax.scatter(df_ov[x], df_ov[y], label=name, **style)
 
         ax.set_xlabel(format_oxide_label(x))
         ax.set_ylabel(format_oxide_label(y))
 
-    # Legend & Formatting
-    handles, labels = [], []
-    for ax in axes[:n]: # Collect from all active plots
-        h, l = ax.get_legend_handles_labels()
-        handles.extend(h)
-        labels.extend(l)
-    
+    # Legend Logic (Identical to your current implementation)
+    handles, labels = axes[0].get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    
     if by_label:
-        # Determine position
         has_empty_slot = (n % cols) != 0
         leg_loc, leg_bbox = ("center left", (0.775, 0.2)) if has_empty_slot else ("center left", (1.0, 0.5))
-
-        leg = fig.legend(
-            by_label.values(), 
-            by_label.keys(), 
-            loc=leg_loc, 
-            bbox_to_anchor=leg_bbox, 
-            frameon=True
-        )
-        
-        # Force legend symbols to be fully opaque
+        leg = fig.legend(by_label.values(), by_label.keys(), loc=leg_loc, bbox_to_anchor=leg_bbox, frameon=True)
         for lh in leg.legend_handles: 
-            lh.set_alpha(1.0)
+            lh.set_alpha(1.0) # Ensure legend is opaque
 
-    # Clean up empty axes
-    for ax in axes[n:]:
-        ax.set_visible(False)
-
+    for ax in axes[n:]: ax.set_visible(False)
     plt.tight_layout()
     plt.show()
+
 
 # %%

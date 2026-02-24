@@ -123,7 +123,7 @@ def load_element_maps(path, drop_trailing_blank=False, verbose=True):
     if not os.path.isdir(path):
         raise NotADirectoryError(path)
 
-    ELEMENTS = {"Na","Mg","Al","Si","P","K","Ca","Ti","Cr","Mn","Fe","Ni"}
+    ELEMENTS = {"Na","Mg","Al","Si","P","K","Ca","Ti","Cr","Mn","Fe","Ni","Zr"}
     files = [f for f in os.listdir(path) if f.lower().endswith(".csv")]
     out = {}
 
@@ -325,7 +325,7 @@ def remove_islands(mineral_map, min_size=2, connectivity=1, fill_val="nan"):
         fill_val: the background string to replace removed pixels with.
     """
     # Copy the map so we don't alter the original array in memory
-    cleaned_map = mineral_map.copy()
+    cleaned_map = mineral_map.astype(object)
     
     # Define background values we DO NOT want to process
     bad_vals = {"nan", "NaN"}
@@ -350,17 +350,33 @@ def remove_islands(mineral_map, min_size=2, connectivity=1, fill_val="nan"):
     return cleaned_map
 
 
-def fill_islands(mineral_map):
-    """Fills enclosed topological islands with the nearest valid neighbor."""
+def fill_islands(mineral_map, fill_val="nan"):
+    """
+    Fills enclosed topological islands with the nearest valid neighbor.
+    
+    Parameters:
+        mineral_map: 2D array of mineral IDs or strings.
+        fill_val: The background value representing holes/islands to be filled.
+    """
     filled_map = mineral_map.copy()
-    bad_vals = {"nan", "NaN"}
-    invalid_mask = np.isin(filled_map.astype(str), list(bad_vals))
+    
+    # Safely identify invalid/background pixels regardless of data type
+    if str(fill_val).lower() == "nan" or pd.isna(fill_val):
+        # Catches string "nan", "NaN", and actual float np.nan
+        is_string_nan = np.isin(filled_map.astype(str), ["nan", "NaN"])
+        is_actual_nan = pd.isna(filled_map)
+        invalid_mask = is_string_nan | is_actual_nan
+    else:
+        # Catches specific integers (e.g., -1) or specific strings
+        invalid_mask = (filled_map == fill_val)
+        
     valid_mask = ~invalid_mask
     
     # Identify topological holes
     filled_valid_mask = binary_fill_holes(valid_mask)
     islands_mask = filled_valid_mask & invalid_mask
     
+    # Fill the islands with the nearest valid neighbor
     if np.any(islands_mask):
         _, indices = distance_transform_edt(invalid_mask, return_indices=True)
         nearest_y = indices[0, islands_mask]
@@ -402,9 +418,9 @@ def plot_phase_map(
 
     # Apply morphology cleanup to the IDs
     if remove_islands_flag:
-        ids = remove_islands(ids, min_size=2, connectivity=1)
+        ids = remove_islands(ids, min_size=1, connectivity=1, fill_val=-1)
     if fill_islands_flag:
-        ids = fill_islands(ids)
+        ids = fill_islands(ids, fill_val=-1)
 
     # REVERSE MAP: Update the string map so the data matches the visual!
     cleaned_mineral_map = np.vectorize(id_to_phase.get)(ids)
@@ -592,7 +608,7 @@ def plot_probability_histograms(prob_map_2d, mineral_map_2d, prob_threshold,
 def run_sample(sample_input, 
                n_iterations=50, 
                prob_threshold=0.6,
-               min_frac_to_show=0.0001,
+            #    min_frac_to_show=0.0001,
                units="element_wt%",
                top_k=None, 
                phases=None, 
@@ -641,7 +657,9 @@ def run_sample(sample_input,
         raise ValueError(f"No oxide maps found or provided in: {sample_dir}")
 
     df_ox_flat, shape = _maps_to_df(ox_maps)
-    df_ordered = _ensure_columns(df_ox_flat)
+    expected_with_zr = list(OXIDES) + ["ZrO2"]
+    df_ordered = _ensure_columns(df_ox_flat, expected=expected_with_zr)
+    # df_ordered = _ensure_columns(df_ox_flat)
 
     # Prediction logic
     df_pred, prob_matrix = predict_class_prob_nnwr(df_ordered, n_iterations=n_iterations)
@@ -841,6 +859,7 @@ def plot_component_composite(res,
                              legend_cols=1,
                              ax=None,
                              scalebar_um=None,
+                             scalebar_loc="lower left",
                              pixel_size_um=1.0,
                              scalebar_color="black",
                              dpi=300,
@@ -855,12 +874,18 @@ def plot_component_composite(res,
     
     comp_maps = res.get("component_maps", {})
     # Use .copy() so we don't destructively modify the original dictionary data
-    mineral_map = np.asarray(res.get("mineral_map", None), dtype=object).copy()
-
-    if mineral_map is None:
+    raw_mineral_map = res.get("mineral_map")
+    if raw_mineral_map is None:
         raise ValueError("mineral_map is required in res.")
 
-    bad_vals = {"nan", "None", "Unknown", "NaN", "null", "", "unindexed"}
+    # 2. Now it is safe to cast to an object array and copy
+    mineral_map = np.asarray(raw_mineral_map, dtype=object).copy()
+
+    bad_vals = {"nan", "NaN"}
+
+    # 3. Standardize NaNs
+    is_actual_nan = pd.isna(mineral_map)
+    mineral_map[is_actual_nan] = "nan"
 
     # =====================
     # Remove small speckles
@@ -1054,7 +1079,7 @@ def plot_component_composite(res,
         scalebar_pixels = scalebar_um / pixel_size_um
         fontprops = fm.FontProperties(size=12, weight='bold')
         scalebar = AnchoredSizeBar(
-            ax_map.transData, scalebar_pixels, f'{scalebar_um} µm', 'lower left',                 
+            ax_map.transData, scalebar_pixels, f'{scalebar_um} µm', loc=scalebar_loc,                 
             pad=0.5, color=scalebar_color, frameon=False, size_vertical=1, 
             sep=3, label_top=True, fontproperties=fontprops
         )
@@ -1121,7 +1146,7 @@ def parse_ctf_header(filepath: str):
 
 
 def plot_ctf_phases(filepath: str, max_legend=25, rename_dict=None, phase_colors=None,
-                    ax=None, title="default", scalebar_um=None, legend_on=True):
+                    ax=None, title="default", scalebar_um=None, scalebar_loc="lower left", legend_on=True):
     """
     Loads phase data from a .ctf file and generates a 2D categorical phase map.
     It maps raw phase IDs to their corresponding names, optionally renames them,
@@ -1232,7 +1257,7 @@ def plot_ctf_phases(filepath: str, max_legend=25, rename_dict=None, phase_colors
             ax.transData,
             scalebar_pixels,
             f'{scalebar_um} µm',
-            'lower left',
+            loc=scalebar_loc,
             pad=0.5,
             color='black',
             frameon=False,

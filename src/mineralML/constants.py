@@ -44,11 +44,11 @@ OXIDE_TO_CATION_MAP = {
 
 # Cation to oxide symbol mappings
 CATION_TO_OXIDE_MAP = {
-    'Si': 'SiO2', 'Ti': 'TiO2', 'Al': 'Al2O3',
-    'Fe2t': 'FeOt', 'Fe3t': 'Fe2O3t',
-    'Fe2': 'FeO', 'Fe3': 'Fe2O3',
-    'Mn': 'MnO', 'Mg': 'MgO', 'Ca': 'CaO', 'Na': 'Na2O',
-    'K': 'K2O', 'P': 'P2O5', 'Cr': 'Cr2O3',
+    "Si": "SiO2", "Ti": "TiO2", "Al": "Al2O3",
+    "Fe2t": "FeOt", "Fe3t": "Fe2O3t",
+    "Fe2": "FeO", "Fe3": "Fe2O3",
+    "Mn": "MnO", "Mg": "MgO", "Ca": "CaO", "Na": "Na2O",
+    "K": "K2O", "P": "P2O5", "Cr": "Cr2O3",
 }
 
 VALENCES = {
