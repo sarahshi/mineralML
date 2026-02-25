@@ -2303,7 +2303,8 @@ class PyroxeneClassifier(BaseMineralCalculator):
 
         return df_class
 
-    def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 5), 
+    def plot(self, df_class=None, subclass=True, labels="short", 
+             figsize=(8, 5), quad_only=True,
              ax=None, **kw):
 
         """
@@ -2352,20 +2353,36 @@ class PyroxeneClassifier(BaseMineralCalculator):
                            non_sodic_px["En"].to_numpy(float)))
 
             # set up ternary
-            if ax is None:
-                fig, tax = ternary.figure(scale=1)
+            if quad_only: 
+                if ax is None:
+                    fig, tax = ternary.figure(scale=1.0)
+                    fig.set_size_inches(figsize)
+                else:
+                    # create ternary axes on an existing matplotlib subplot axis
+                    ax.get_xaxis().set_visible(False)
+                    ax.get_yaxis().set_visible(False)
+                    fig, tax = ternary.figure(ax=ax, scale=1)
                 fig.set_size_inches(figsize)
-            else:
-                # create ternary axes on an existing matplotlib subplot axis
-                ax.get_xaxis().set_visible(False)
-                ax.get_yaxis().set_visible(False)
-                fig, tax = ternary.figure(ax=ax, scale=1)  # <-- critical line
-            fig.set_size_inches(figsize)
-            tax.boundary(linewidth=1.5, zorder=0)
-            tax.get_axes().set_ylim(-0.035, 0.43375)
-            tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$", fontsize=14, offset=-0.2)
-            tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$", fontsize=14, offset=-0.2)
-            tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$", fontsize=14)
+                tax.boundary(linewidth=1.5, zorder=0)
+                tax.get_axes().set_ylim(-0.035, 0.434)
+                tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$", fontsize=14, offset=-0.2)
+                tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$", fontsize=14, offset=-0.2)
+                tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$", fontsize=14)
+            else: 
+                if ax is None:
+                    fig, tax = ternary.figure(scale=1.0)
+                    fig.set_size_inches((8, 8))
+                else:
+                    # create ternary axes on an existing matplotlib subplot axis
+                    ax.get_xaxis().set_visible(False)
+                    ax.get_yaxis().set_visible(False)
+                    fig, tax = ternary.figure(ax=ax, scale=1)
+                fig.set_size_inches((8, 8))
+                tax.boundary(linewidth=1.5, zorder=0)
+                tax.get_axes().set_ylim(-0.005, 1.005)
+                tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$", fontsize=14, offset=-0.2)
+                tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$", fontsize=14, offset=-0.2)
+                tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$", fontsize=14, offset=0.075)
 
             tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
             tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
@@ -2392,7 +2409,11 @@ class PyroxeneClassifier(BaseMineralCalculator):
                         tax.scatter([pts[j] for j in mask_indices],
                                     marker='o', label=g, color=cmap(i),
                                     edgecolor='k', s=20, alpha=0.8)
-                tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02,1))
+                if quad_only: 
+                    tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.015,1.01))
+                else: 
+                    tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(0.99,1))
+
             else:
                 tax.scatter(pts, marker='o', color='C0', edgecolor='k', s=20, alpha=0.8)
 
@@ -2410,9 +2431,14 @@ class PyroxeneClassifier(BaseMineralCalculator):
                         L.set_visible(False)
                         T.set_visible(False)
 
-            draw_and_filter('l', keep_min=0.5, keep_max=1.0)  # En axis
-            draw_and_filter('r', keep_min=0.0, keep_max=0.5)  # Fs axis
-            draw_and_filter('b', offset=0.01, keep_min=0.0, keep_max=1.0)  # Wo axis
+            if quad_only: 
+                draw_and_filter('l', keep_min=0.5, keep_max=1.0)  # En axis
+                draw_and_filter('r', keep_min=0.0, keep_max=0.5)  # Fs axis
+                draw_and_filter('b', offset=0.01, keep_min=0.0, keep_max=1.0)  # Wo axis
+            else: 
+                draw_and_filter('l', keep_min=0.0, keep_max=1.0)  # En axis
+                draw_and_filter('r', keep_min=0.0, keep_max=1.0)  # Fs axis
+                draw_and_filter('b', offset=0.01, keep_min=0.0, keep_max=1.0)  # Wo axis
 
             if label_set:
                 fs = 12
@@ -2730,7 +2756,7 @@ class SodicPyroxeneCalculator(BaseMineralCalculator):
         sites["Fe3_Wang21"] = (Na + sites["Al_IV"] - sites["Al_VI"] - 2 * Ti - Cr)
         sites["Fe2_Wang21"] = Fe - sites["Fe3_Wang21"]
 
-        # This code was converted from MATLAB to Python, from Jesse Walter's MinPlot
+        # This code was converted from MATLAB to Python, from Jesse Walters' MinPlot
         # Verified for alignment between values. 
         # Sodic pool after balancing Ti
         excess_Si = (Si - 2.0).clip(lower=0)
