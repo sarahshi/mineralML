@@ -1442,9 +1442,34 @@ def plot_z2_overlay(
     _, label_names = unique_mapping_nn(labels_ref)
     name_to_id = {v: k for k, v in label_names.items()}
 
-# Convert df labels from strings to ints if they aren't already
+    mineral_rollup = {
+            "Plagioclase": "Feldspar",
+            "KFeldspar": "Feldspar",
+            "Feldspar_Miscibility_Gap": "Feldspar",
+            "Clinopyroxene": "Pyroxene",
+            "Orthopyroxene": "Pyroxene",
+            "Na-Pyroxene": "Pyroxene"
+        }
+
+    # Convert df labels from strings to ints if they aren't already
     if isinstance(labels_new[0], str):
-            yn_ints = np.array([name_to_id.get(label, -1) for label in labels_new])
+        yn_ints = []
+        for label in labels_new:
+            clean_label = label.strip()
+            
+            # Translate granular labels to broad labels if they exist in the dictionary
+            mapped_label = mineral_rollup.get(clean_label, clean_label) 
+            
+            # Fetch the ID, defaulting to -1 if STILL not found
+            yn_ints.append(name_to_id.get(mapped_label, -1))
+            
+        yn_ints = np.array(yn_ints)
+        
+        # Optional but highly recommended: warn if anything is STILL unmapped
+        unmapped_mask = (yn_ints == -1)
+        if unmapped_mask.any():
+            unmapped_labels = set(np.array(labels_new)[unmapped_mask])
+            print(f"WARNING: Skipping {unmapped_mask.sum()} points. Unrecognized labels: {unmapped_labels}")
     else:
         yn_ints = labels_new
 
@@ -1470,7 +1495,7 @@ def plot_z2_overlay(
     combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
 
     # Shuffle with a fixed seed to maximize visual distance
-    random.seed(42) 
+    random.seed(42)
     random.shuffle(combined_colors)
 
     #Create the cmap and set a fixed normalization range
@@ -1481,7 +1506,8 @@ def plot_z2_overlay(
     uniq_ref_classes = np.unique(yr).astype(int)
     ref_kws.pop("c", None) 
     for cls in uniq_ref_classes:
-        if cls < 0: continue # Skip unmapped
+        if cls < 0: 
+            continue # Skip unmapped
         mask = (yr == cls)
         name = label_names.get(cls, f"Class {cls}")
         color = cmap(norm(cls))
@@ -1524,6 +1550,7 @@ def plot_harker(
     x_oxide="SiO2",
     extra_pairs=None,
     plot_totals=False,
+    title=None,
     train_mineral_col="Mineral",
     train_kws=None,
     new_kws=None,
@@ -1623,7 +1650,10 @@ def plot_harker(
         for lh in leg.legend_handles: 
             lh.set_alpha(1.0) # Ensure legend is opaque
 
-    for ax in axes[n:]: ax.set_visible(False)
+    for ax in axes[n:]: 
+        ax.set_visible(False)
+
+    plt.suptitle(title)
     plt.tight_layout()
     plt.show()
 
