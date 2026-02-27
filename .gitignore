@@ -28,9 +28,9 @@ Train_LinearModels.py
 Validate_AE.py
 .ipynb_checkpoints
 /ignore/
+/Training_Data/
+/texfigs/
 /parametermatrix_autoencoder/
 /parametermatrix_neuralnetwork/
-/T8_quant/
-/T8_quant2/
 /Maps/
 Data_Plot/mindf_256_64_16_density.pdf

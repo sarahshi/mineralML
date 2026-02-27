@@ -5,7 +5,7 @@ __author__ = "Sarah Shi"
 import os
 import re
 import copy
-import random 
+import random
 
 import numpy as np
 import pandas as pd
@@ -16,11 +16,9 @@ from sklearn.model_selection import train_test_split
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
-import torch.nn.functional as F
 
 from .core import *
 from .core import same_seeds
-same_seeds(42)
 from .stoichiometry import *
 from .constants import OXIDES
 from .supervised import *
@@ -31,7 +29,7 @@ import matplotlib.cm as mcm
 from sklearn.decomposition import PCA
 
 
-# %% 
+# %%
 
 
 def format_oxide_label(label):
@@ -42,11 +40,11 @@ def format_oxide_label(label):
     """
     if label == "Total":
         return label
-    
+
     # Subscript digits and the lowercase 't'
     # The pattern (\d+|t) matches one or more digits OR the letter 't'
-    formatted = re.sub(r'(\d+|t)', r'_\1', label)
-    
+    formatted = re.sub(r"(\d+|t)", r"_\1", label)
+
     return f"$\mathregular{{{formatted}}}$"
 
 
@@ -55,6 +53,7 @@ class NNWRFeatureExtractor(nn.Module):
     Stage A: classifier-only.
     Returns logits, and optionally h (feature embedding).
     """
+
     def __init__(
         self,
         input_dim=11,
@@ -110,6 +109,7 @@ class NNWRLatentProjector(nn.Module):
     """
     Stage B: trainable mapper h -> z2 (2D).
     """
+
     def __init__(self, feat_dim, hidden=32, dropout_rate=0.0, nonlinear=True):
         super().__init__()
         self.feat_dim = int(feat_dim)
@@ -140,7 +140,10 @@ class NNWRReconstructionDecoder(nn.Module):
     """
     Stage B: trainable decoder z2 -> x
     """
-    def __init__(self, z_dim, output_dim, decoder_hidden_sizes=[64, 32], dropout_rate=0.0):
+
+    def __init__(
+        self, z_dim, output_dim, decoder_hidden_sizes=[64, 32], dropout_rate=0.0
+    ):
         super().__init__()
         self.z_dim = int(z_dim)
         self.output_dim = int(output_dim)
@@ -173,7 +176,13 @@ class NNWRReconstructionWrapper(nn.Module):
     Inference wrapper: returns (logits, recon, z_plot).
     z_plot is the true z2 (2D) so latent plotting will not PCA.
     """
-    def __init__(self, classifier: NNWRFeatureExtractor, mapper2d: NNWRLatentProjector, decoder: NNWRReconstructionDecoder):
+
+    def __init__(
+        self,
+        classifier: NNWRFeatureExtractor,
+        mapper2d: NNWRLatentProjector,
+        decoder: NNWRReconstructionDecoder,
+    ):
         super().__init__()
         self.classifier = classifier
         self.mapper2d = mapper2d
@@ -188,9 +197,9 @@ class NNWRReconstructionWrapper(nn.Module):
 
 
 def train_nn_hybrid_bottleneck(
-    classifier,     # trained classifier (frozen)
-    mapper2d,       # trainable
-    decoder,        # trainable
+    classifier,
+    mapper2d,
+    decoder,
     optimizer,
     train_loader,
     valid_loader,
@@ -201,11 +210,17 @@ def train_nn_hybrid_bottleneck(
     plot_every=100,
     max_plot_points=10000,
     plot_on="valid",
-    legend_max=30,
 ):
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    min_cat, mapping = load_minclass_nn()
-    label_names = min_cat
+    min_cat, _ = load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz")
+
+    tab20 = plt.get_cmap("tab20")
+    tab20b = plt.get_cmap("tab20b")
+    combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
+    random.shuffle(combined_colors)
+    custom_cmap = mcolors.ListedColormap(combined_colors)
+    custom_norm = mcolors.Normalize(vmin=0, vmax=max(len(min_cat), 1))
 
     classifier.to(device).eval()
     mapper2d.to(device).train()
@@ -230,7 +245,7 @@ def train_nn_hybrid_bottleneck(
     best_decoder_state = None
     patience_counter = 0
 
-    def avg(l): 
+    def avg(l):
         return float(np.mean(l)) if len(l) else float("nan")
 
     for epoch in range(n_epoch):
@@ -245,7 +260,7 @@ def train_nn_hybrid_bottleneck(
                 _logits, h = classifier(x, return_features=True)
 
             z2 = mapper2d(h)  # (B, 2)
-            recon = decoder(z2) # (B, D)
+            recon = decoder(z2)  # (B, D)
             loss = criterion_recon(recon, x)
 
             optimizer.zero_grad()
@@ -268,12 +283,13 @@ def train_nn_hybrid_bottleneck(
         train_losses["reconstruction"].append(avg(tr))
         valid_losses["reconstruction"].append(avg(va))
 
-        print(f"[BOTTLE {epoch+1:03}/{n_epoch:03}] train_rec={avg(tr):.6f} valid_rec={avg(va):.6f}")
+        print(
+            f"[BOTTLE {epoch + 1:03}/{n_epoch:03}] train_rec={avg(tr):.6f} valid_rec={avg(va):.6f}"
+        )
 
         # optional plotting of 2D latent (z2)
-        do_plot = (
-            plot_latent
-            and (epoch == 0 or (epoch + 1) % plot_every == 0 or epoch == n_epoch - 1)
+        do_plot = plot_latent and (
+            epoch == 0 or (epoch + 1) % plot_every == 0 or epoch == n_epoch - 1
         )
         if do_plot:
             loader = valid_loader if plot_on == "valid" else train_loader
@@ -282,13 +298,10 @@ def train_nn_hybrid_bottleneck(
             with torch.no_grad():
                 for xb, yb in loader:
                     xb = xb.to(device)
-                    yb = yb.to(device)
-
-                    _logits, h = classifier(xb, return_features=True)
+                    _, h = classifier(xb, return_features=True)
                     z2 = mapper2d(h)
-
-                    z_list.append(z2.detach().cpu().numpy())
-                    y_list.append(yb.detach().cpu().numpy())
+                    z_list.append(z2.cpu().numpy())
+                    y_list.append(yb.cpu().numpy())
                     n_seen += len(yb)
                     if n_seen >= max_plot_points:
                         break
@@ -296,36 +309,43 @@ def train_nn_hybrid_bottleneck(
             if len(z_list) > 0:
                 Z = np.concatenate(z_list, axis=0)[:max_plot_points]
                 Y = np.concatenate(y_list, axis=0)[:max_plot_points]
+                classes_uniq = np.unique(Y)
 
-                classes_uniq, counts = np.unique(Y, return_counts=True)
-                order = classes_uniq[np.argsort(-counts)]
-                use_legend = (label_names is not None) and (len(order) <= legend_max)
-
-                for k in order:
-                    mask = (Y == k)
+                plt.figure(figsize=(8, 7))
+                for k in classes_uniq:
+                    mask = Y == k
+                    # Use label_names if available, else fall back to ID
                     lab = (
-                        str(label_names[int(k)])
-                        if (label_names is not None and int(k) < len(label_names))
+                        min_cat[int(k)]
+                        if (min_cat is not None and int(k) < len(min_cat))
                         else f"class_{int(k)}"
                     )
-                    if use_legend:
-                        plt.scatter(Z[mask, 0], Z[mask, 1], s=20, ec="k", lw=0.5,
-                                    marker='o', alpha=0.8, label=lab)
-                    else:
-                        plt.scatter(Z[mask, 0], Z[mask, 1], s=20, ec="k", lw=0.5,
-                                    marker='o', alpha=0.8)
-                        
+
+                    # Apply your custom color logic
+                    class_color = custom_cmap(custom_norm(int(k)))
+
+                    plt.scatter(
+                        Z[mask, 0],
+                        Z[mask, 1],
+                        c=[class_color],
+                        s=15,
+                        ec="k",
+                        lw=0.25,
+                        marker="o",
+                        alpha=0.9,
+                        label=lab,
+                    )
+
                 plt.xlabel("z2_1")
                 plt.ylabel("z2_2")
-                plt.title(f"Bottleneck z2 ({plot_on}) - epoch {epoch+1}")
-                if use_legend:
-                    plt.legend(
-                        bbox_to_anchor=(1.0175, 1.0),
-                        loc="upper left",
-                        frameon=False,
-                        markerscale=1,
-                        prop={"size": 8},
-                    )
+                plt.title(f"Bottleneck z2 ({plot_on}) - epoch {epoch + 1}")
+                plt.legend(
+                    bbox_to_anchor=(1.0175, 1.0),
+                    loc="upper left",
+                    frameon=False,
+                    markerscale=1,
+                    prop={"size": 8},
+                )
                 plt.tight_layout()
                 plt.show()
 
@@ -338,8 +358,10 @@ def train_nn_hybrid_bottleneck(
             patience_counter = 0
         else:
             patience_counter += 1
-            if patience_counter >= patience:
-                print(f"[BOTTLE] Early stopping after {patience} epochs w/o improvement.")
+            if patience_counter >= (patience):
+                print(
+                    f"[BOTTLE] Early stopping after {patience * 2} epochs w/o improvement."
+                )
                 break
 
     if best_mapper_state is not None:
@@ -360,8 +382,12 @@ def plot_loss_curves(train_losses, valid_losses, filename):
     axes = axes.flatten()
 
     # 0: classification loss
-    axes[0].plot(train_losses.get("cls_classification", []), label="Train CE", alpha=0.8)
-    axes[0].plot(valid_losses.get("cls_classification", []), label="Valid CE", alpha=0.8)
+    axes[0].plot(
+        train_losses.get("cls_classification", []), label="Train CE", alpha=0.8
+    )
+    axes[0].plot(
+        valid_losses.get("cls_classification", []), label="Valid CE", alpha=0.8
+    )
     axes[0].set_title("Stage A - Classification Loss (CE)")
     axes[0].set_xlabel("Epoch")
     axes[0].set_ylabel("Loss")
@@ -387,8 +413,12 @@ def plot_loss_curves(train_losses, valid_losses, filename):
     axes[2].legend()
 
     # 3: reconstruction
-    axes[3].plot(train_losses.get("dec_reconstruction", []), label="Train Recon", alpha=0.8)
-    axes[3].plot(valid_losses.get("dec_reconstruction", []), label="Valid Recon", alpha=0.8)
+    axes[3].plot(
+        train_losses.get("dec_reconstruction", []), label="Train Recon", alpha=0.8
+    )
+    axes[3].plot(
+        valid_losses.get("dec_reconstruction", []), label="Valid Recon", alpha=0.8
+    )
     axes[3].set_title("Stage B - Reconstruction (from z2)")
     axes[3].set_xlabel("Epoch")
     axes[3].set_ylabel("MSE")
@@ -401,11 +431,11 @@ def plot_loss_curves(train_losses, valid_losses, filename):
 
 
 def kl_divergence_sum(model):
-    """ Sum KL divergences across all VariationalLayer modules.""" 
-    kl_div = 0.0 
+    """Sum KL divergences across all VariationalLayer modules."""
+    kl_div = 0.0
     for module in model.modules():
-        if isinstance(module, VariationalLayer): 
-            kl_div += module.kl_divergence() 
+        if isinstance(module, VariationalLayer):
+            kl_div += module.kl_divergence()
     return kl_div
 
 
@@ -420,6 +450,7 @@ def train_nn_hybrid_classifier(
     kl_decay_epochs=750,
     patience=50,
 ):
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
@@ -438,7 +469,7 @@ def train_nn_hybrid_classifier(
     total_ramp_steps = max(1, int(kl_decay_epochs) * steps_per_epoch)
     global_step = 0
 
-    def avg(l): 
+    def avg(l):
         return float(np.mean(l)) if len(l) else float("nan")
 
     for epoch in range(n_epoch):
@@ -495,7 +526,9 @@ def train_nn_hybrid_classifier(
         valid_losses["kl"].append(avg(va["kl"]))
 
         metric = avg(va["cls"])  # track classification val loss
-        print(f"[CLS {epoch+1:03}/{n_epoch:03}] train_cls={avg(tr['cls']):.6f} valid_cls={avg(va['cls']):.6f} (tot={avg(va['tot']):.6f})")
+        print(
+            f"[CLS {epoch + 1:03}/{n_epoch:03}] train_cls={avg(tr['cls']):.6f} valid_cls={avg(va['cls']):.6f} (tot={avg(va['tot']):.6f})"
+        )
 
         if metric < best_valid:
             best_valid = metric
@@ -554,9 +587,7 @@ def plot_latent_space_hybrid(
         else np.zeros((0, getattr(model, "latent_dim", 2)))
     )
     labels = (
-        np.concatenate(labels, axis=0)
-        if len(labels)
-        else np.zeros((0,), dtype=int)
+        np.concatenate(labels, axis=0) if len(labels) else np.zeros((0,), dtype=int)
     )
 
     # Reduce to 2D for plotting (PCA only if needed)
@@ -574,7 +605,7 @@ def plot_latent_space_hybrid(
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 12))
 
-    min_cat, _ = load_minclass_nn()
+    min_cat, _ = load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz")
 
     tab20 = plt.get_cmap("tab20")
     tab20b = plt.get_cmap("tab20b")
@@ -624,14 +655,13 @@ def neuralnetwork_wr(
     lr,
     wd,
     dr,
-    ep, # first
+    ep,
     n,
     balanced,
     # ---- second stage ----
-    ep_bottle=1000, # second
+    ep_bottle=1000,  # second
     lr_bottle=1e-4,
     wd_bottle=1e-4,
-    # mapper_hidden=32,
     mapper_hidden=16,
     mapper_nonlinear=True,
     decoder_hidden_sizes=(64, 32),
@@ -641,7 +671,7 @@ def neuralnetwork_wr(
     name="nn2d",
     plot_latent_during_training=False,
     plot_every=50,
-    plot_on="valid"
+    plot_on="valid",
 ):
     """
     Training function for neural network classifier with recon:
@@ -669,53 +699,91 @@ def neuralnetwork_wr(
     train_df, valid_df = train_test_split(df, test_size=n, random_state=42)
     if balanced is True:
         train_df = balance(train_df, n=1000)
-    train_df.to_csv('nnwithrecon_train_df.csv')
+    train_df.to_csv("nnwithrecon_train_df.csv")
 
     for _df in (train_df, valid_df):
         _df["Mineral"] = (
-            _df["Mineral"].astype(str)
+            _df["Mineral"]
+            .astype(str)
             .replace(["Clinopyroxene", "Orthopyroxene"], "Pyroxene")
             .replace(["Plagioclase", "KFeldspar"], "Feldspar")
             .replace(["Hematite", "Ilmenite"], "Rhombohedral_Oxides")
             .replace(["Magnetite", "Spinel"], "Spinels")
         )
 
-    train_df_nozirc = train_df[train_df["Mineral"] != "Zircon"].copy()
-    valid_df_nozirc = valid_df[valid_df["Mineral"] != "Zircon"].copy()
+    exclude = {"Zircon", "Carbonate", "SiO2_Polymorph"}
 
-    all_cats = pd.Categorical(train_df_nozirc["Mineral"])
+    train_df_nonempirical = train_df.loc[~train_df["Mineral"].isin(exclude)].copy()
+
+    valid_df_nonempirical = valid_df.loc[~valid_df["Mineral"].isin(exclude)].copy()
+
+    all_cats = pd.Categorical(train_df_nonempirical["Mineral"])
     mapping = dict(enumerate(all_cats.categories))
-    # min_names = pd.Categorical(train_df_nozirc["Mineral"]).categories.to_list()
-
     inv_mapping = {cat: idx for idx, cat in mapping.items()}
+
+    classes_path = os.path.join(
+        path_beg, "parametermatrix_neuralnetwork", "mineral_classes_nn_v0030.npz"
+    )
+    classes = np.asarray(all_cats.categories.tolist(), dtype=object)
+    np.savez_compressed(classes_path, classes=classes)
+
+    # min_names = pd.Categorical(train_df_nozirc["Mineral"]).categories.to_list()
     # sort_mapping = dict(sorted(mapping.items(), key=lambda item: item[0]))
 
-    train_df_nozirc["_code"] = train_df_nozirc["Mineral"].map(inv_mapping).astype(int)
-    valid_df_nozirc["_code"] = valid_df_nozirc["Mineral"].map(inv_mapping).astype(int)
-    
-    ss = StandardScaler().fit(train_df_nozirc[OXIDES].fillna(0))
-    train_x = ss.transform(train_df_nozirc[OXIDES].fillna(0))
-    valid_x = ss.transform(valid_df_nozirc[OXIDES].fillna(0))
-    scaler_path = os.path.join(path_beg, "parametermatrix_neuralnetwork", "scaler_nn_v0019.npz")
-    np.savez(scaler_path,
-            mean=pd.Series(ss.mean_, index=OXIDES),
-            scale=pd.Series(np.sqrt(ss.var_), index=OXIDES))
+    train_df_nonempirical["_code"] = (
+        train_df_nonempirical["Mineral"].map(inv_mapping).astype(int)
+    )
+    valid_df_nonempirical["_code"] = (
+        valid_df_nonempirical["Mineral"].map(inv_mapping).astype(int)
+    )
+
+    ss = StandardScaler().fit(train_df_nonempirical[OXIDES].fillna(0))
+    train_x = ss.transform(train_df_nonempirical[OXIDES].fillna(0))
+    valid_x = ss.transform(valid_df_nonempirical[OXIDES].fillna(0))
+    scaler_path = os.path.join(
+        path_beg, "parametermatrix_neuralnetwork", "scaler_nn_v0030.npz"
+    )
+    np.savez(
+        scaler_path,
+        mean=pd.Series(ss.mean_, index=OXIDES),
+        scale=pd.Series(np.sqrt(ss.var_), index=OXIDES),
+    )
 
     # encode labels
-    train_y = train_df_nozirc["_code"].to_numpy()
-    valid_y = valid_df_nozirc["_code"].to_numpy()
+    train_y = train_df_nonempirical["_code"].to_numpy()
+    valid_y = valid_df_nonempirical["_code"].to_numpy()
 
     # Define datasets to be used with PyTorch - see autoencoder file for details
     feature_dataset = LabelDataset(train_x, train_y)
     valid_dataset = LabelDataset(valid_x, valid_y)
 
-    batch_size = 256
+    batch_size = 128
     input_size = len(feature_dataset.__getitem__(0)[0])
 
-    feature_loader = DataLoader(feature_dataset, batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
+    feature_loader = DataLoader(
+        feature_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+    )
+    # num_workers=4, pin_memory=True, prefetch_factor=2,
+    # persistent_workers=True)
+    valid_loader = DataLoader(
+        valid_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+    )
+    #   num_workers=4, pin_memory=True, prefetch_factor=2,
+    #   persistent_workers=True)
     np.savez(
-        "parametermatrix_neuralnetwork/" + str(lr) + "_" + str(wd) + "_" + str(dr) + "_" + str(ep) + "_best_model_nnwithrecon_features.npz",
+        "parametermatrix_neuralnetwork/"
+        + str(lr)
+        + "_"
+        + str(wd)
+        + "_"
+        + str(dr)
+        + "_"
+        + str(ep)
+        + "_best_model_nnwithrecon_features.npz",
         feature_loader=feature_loader,
         valid_loader=valid_loader,
     )
@@ -734,7 +802,6 @@ def neuralnetwork_wr(
 
     for kl_weight_decay in kl_weight_decay_list:
         for hls in hls_list:
-
             classifier = NNWRFeatureExtractor(
                 input_dim=input_size,
                 hidden_layer_sizes=hls,
@@ -743,7 +810,9 @@ def neuralnetwork_wr(
                 use_bayesian_classifier=use_bayesian_classifier,
             ).to(device)
 
-            optimizer_cls = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=wd)
+            optimizer_cls = torch.optim.AdamW(
+                classifier.parameters(), lr=lr, weight_decay=wd
+            )
 
             cls_train, cls_valid, cls_best, cls_state = train_nn_hybrid_classifier(
                 classifier,
@@ -802,21 +871,22 @@ def neuralnetwork_wr(
         weight_decay=wd_bottle,
     )
 
-    dec_train, dec_valid, best_valid_rec, best_mapper_state, best_decoder_state = train_nn_hybrid_bottleneck(
-        classifier,
-        mapper2d,
-        decoder,
-        optimizer_bottle,
-        feature_loader,
-        valid_loader,
-        n_epoch=ep_bottle,
-        criterion_recon=nn.MSELoss(),
-        patience=50,
-        plot_latent=plot_latent_during_training,
-        plot_every=plot_every,
-        max_plot_points=10000,
-        plot_on=plot_on,
-        legend_max=30,
+    dec_train, dec_valid, best_valid_rec, best_mapper_state, best_decoder_state = (
+        train_nn_hybrid_bottleneck(
+            classifier,
+            mapper2d,
+            decoder,
+            optimizer_bottle,
+            feature_loader,
+            valid_loader,
+            n_epoch=ep_bottle,
+            criterion_recon=nn.MSELoss(),
+            patience=50,
+            plot_latent=plot_latent_during_training,
+            plot_every=plot_every,
+            max_plot_points=10000,
+            plot_on=plot_on,
+        )
     )
 
     # load best Stage B
@@ -836,9 +906,17 @@ def neuralnetwork_wr(
     # save sweep losses
     np.savez(
         "parametermatrix_neuralnetwork/"
-        + str(lr) + "_" + str(wd) + "_" + str(dr) + "_" + str(ep)
-        + "_kl" + str(best_kl_weight_decay)
-        + "_hls" + str(best_hidden_layer_size)
+        + str(lr)
+        + "_"
+        + str(wd)
+        + "_"
+        + str(dr)
+        + "_"
+        + str(ep)
+        + "_kl"
+        + str(best_kl_weight_decay)
+        + "_hls"
+        + str(best_hidden_layer_size)
         + "_best_model_nnwithrecon_losses.npz",
         cls_train_losses=cls_train_losses_dict,
         cls_valid_losses=cls_valid_losses_dict,
@@ -853,26 +931,30 @@ def neuralnetwork_wr(
         model=best_model,
         dataset=feature_dataset,
         title=f"{name} - Training Set z2 (2D)",
-        filename=f"parametermatrix_neuralnetwork/{name}_train_z2_space.pdf"
+        filename=f"parametermatrix_neuralnetwork/{name}_train_z2_space.pdf",
     )
 
     valid_latents, valid_labels = plot_latent_space_hybrid(
         model=best_model,
         dataset=valid_dataset,
         title=f"{name} - Validation Set z2 (2D)",
-        filename=f"parametermatrix_neuralnetwork/{name}_valid_z2_space.pdf"
+        filename=f"parametermatrix_neuralnetwork/{name}_valid_z2_space.pdf",
     )
 
     # loss curves PDF (Stage A + Stage B)
     train_losses = {
         "cls_total": best_cls_train_losses["total"] if best_cls_train_losses else [],
-        "cls_classification": best_cls_train_losses["classification"] if best_cls_train_losses else [],
+        "cls_classification": best_cls_train_losses["classification"]
+        if best_cls_train_losses
+        else [],
         "cls_kl": best_cls_train_losses["kl"] if best_cls_train_losses else [],
         "dec_reconstruction": dec_train["reconstruction"],
     }
     valid_losses = {
         "cls_total": best_cls_valid_losses["total"] if best_cls_valid_losses else [],
-        "cls_classification": best_cls_valid_losses["classification"] if best_cls_valid_losses else [],
+        "cls_classification": best_cls_valid_losses["classification"]
+        if best_cls_valid_losses
+        else [],
         "cls_kl": best_cls_valid_losses["kl"] if best_cls_valid_losses else [],
         "dec_reconstruction": dec_valid["reconstruction"],
     }
@@ -957,7 +1039,7 @@ def predict_class_prob_nnwr(
     hidden_layer_sizes=None,
     mc_dropout=True,
     return_recon_oxides=False,
-    scaler_path="scaler_nn_v0019.npz"
+    scaler_path="scaler_nn_v0030.npz",
 ):
     """
     Version of predict_class_prob_nn with reconstruction:
@@ -1019,14 +1101,45 @@ def predict_class_prob_nnwr(
     # ------------------------------------------------------------
 
     # Identify and classify zircons
-    zircon_mask = (df['ZrO2'] > 50) if 'ZrO2' in df.columns else pd.Series(False, index=df.index)
+    zircon_mask = (
+        (df["ZrO2"] > 50) if "ZrO2" in df.columns else pd.Series(False, index=df.index)
+    )
     zircon_mask = zircon_mask & ~all_zero_mask
     result_df.loc[zircon_mask, "Predict_Mineral"] = "Zircon"
     result_df.loc[zircon_mask, "Predict_Probability"] = 1.0
     result_df.loc[zircon_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[zircon_mask, "Second_Predict_Probability"] = np.nan
 
-    non_zircon_mask = (~zircon_mask) & (~all_zero_mask) 
+    # Identify and classify si-polymorphs (quartz + coesite + stishovite + tridymite + cristobalite)
+    quartz_mask = (
+        (df["SiO2"] > 90) if "SiO2" in df.columns else pd.Series(False, index=df.index)
+    )
+    quartz_mask = quartz_mask & ~all_zero_mask
+    result_df.loc[quartz_mask, "Predict_Mineral"] = "SiO2_Polymorph"
+    result_df.loc[quartz_mask, "Predict_Probability"] = 1.0
+    result_df.loc[quartz_mask, "Second_Predict_Mineral"] = np.nan
+    result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
+
+    # Identify and classify carbonates (calcite + dolomite + magnesite + siderite)
+    df["Total"] = (
+        df[OXIDES].sum(axis=1, skipna=True)
+        if all(c in df.columns for c in OXIDES)
+        else pd.Series(0, index=df.index)
+    )
+    carbonate_mask = (
+        (df["SiO2"] < 5) & (df["Total"] < 70)
+        if "CaO" in df.columns
+        else pd.Series(False, index=df.index)
+    )
+    carbonate_mask = carbonate_mask & ~all_zero_mask
+    result_df.loc[carbonate_mask, "Predict_Mineral"] = "Carbonate"
+    result_df.loc[carbonate_mask, "Predict_Probability"] = 1.0
+    result_df.loc[carbonate_mask, "Second_Predict_Mineral"] = np.nan
+    result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
+
+    non_zircon_mask = (
+        (~zircon_mask) & (~quartz_mask) & (~carbonate_mask) & (~all_zero_mask)
+    )
     probability_matrix = np.array([])
 
     if non_zircon_mask.any():
@@ -1036,15 +1149,23 @@ def predict_class_prob_nnwr(
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # default paths
-        model_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_best_model.pt")
+        # model_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_best_model_v004.pt")
+        model_path = os.path.join(
+            os.path.dirname(__file__), "nnwr_best_model_v0030.pt"
+        )
+
         checkpoint = torch.load(model_path, map_location=device)
         model_config = checkpoint.get("model_config", {})
 
         # architecture knobs (prefer checkpoint)
         hidden_layer_sizes = model_config.get("hidden_layer_sizes", [32, 16, 8])
         dropout_rate = float(model_config.get("dropout_rate", 0.1))
-        use_bayesian_feature_layer = bool(model_config.get("use_bayesian_feature_layer", True))
-        use_bayesian_classifier = bool(model_config.get("use_bayesian_classifier", False))
+        use_bayesian_feature_layer = bool(
+            model_config.get("use_bayesian_feature_layer", True)
+        )
+        use_bayesian_classifier = bool(
+            model_config.get("use_bayesian_classifier", False)
+        )
 
         # ---- build classifier ----
         # run the classifier only for prediction; mapper/decoder are irrelevant for logits.
@@ -1064,7 +1185,7 @@ def predict_class_prob_nnwr(
         cls_sd = {}
         for k, v in state_dict.items():
             if k.startswith("classifier."):
-                cls_sd[k[len("classifier."):]] = v
+                cls_sd[k[len("classifier.") :]] = v
 
         if len(cls_sd) == 0:
             cls_sd = state_dict
@@ -1079,7 +1200,9 @@ def predict_class_prob_nnwr(
         classifier = enable_mc_sampling(model, enable_dropout=mc_dropout)
 
         # ---- preprocess inputs to match training ----
-        norm_wt = norm_data_nn(non_za_df).astype(np.float32, copy=False)
+        norm_wt = norm_data_nn(non_za_df, scaler_path=scaler_path).astype(
+            np.float32, copy=False
+        )
         input_data = torch.from_numpy(norm_wt).to(device)
 
         recon_df = None
@@ -1120,11 +1243,14 @@ def predict_class_prob_nnwr(
                     xb = input_data[start:end]
                     _logits, recon_norm, _z2 = wrapper(xb)
                     recon_acc.append(recon_norm.detach().cpu().numpy())
-                recon_norm = np.concatenate(recon_acc, axis=0)  # (N, D) in normalized space
+                recon_norm = np.concatenate(
+                    recon_acc, axis=0
+                )  # (N, D) in normalized space
 
-                mean, std = load_scaler(scaler_path)
+                # mean, std = load_scaler(scaler_path="scaler_nn_v0019.npz")
+                mean, std = load_scaler(scaler_path="scaler_nn_v0030.npz")
                 mean_vec = mean[OXIDES].to_numpy(dtype=np.float32)
-                std_vec  = std[OXIDES].to_numpy(dtype=np.float32)
+                std_vec = std[OXIDES].to_numpy(dtype=np.float32)
                 recon_out = recon_norm * std_vec[None, :] + mean_vec[None, :]
 
             # df aligned to original df index (including zircons/all-zero)
@@ -1176,8 +1302,12 @@ def predict_class_prob_nnwr(
 
         # ---- top-2 predictions ----
         top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
-        first_probs = probability_matrix[np.arange(len(probability_matrix)), top_two_indices[:, 1]]
-        second_probs = probability_matrix[np.arange(len(probability_matrix)), top_two_indices[:, 0]]
+        first_probs = probability_matrix[
+            np.arange(len(probability_matrix)), top_two_indices[:, 1]
+        ]
+        second_probs = probability_matrix[
+            np.arange(len(probability_matrix)), top_two_indices[:, 0]
+        ]
         first_mins = class2mineral_nn(top_two_indices[:, 1])
         second_mins = class2mineral_nn(top_two_indices[:, 0])
 
@@ -1211,7 +1341,7 @@ def predict_class_prob_nnwr(
     # Feldspar classification
     fspar_mask = result_df["Predict_Mineral"] == "Feldspar"
     _merge_subclass(fspar_mask, FeldsparClassifier, want_sub=True)
-    
+
     # Oxide classification
     ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinels"])
     _merge_subclass(ox_mask, OxideClassifier, want_sub=True)
@@ -1228,8 +1358,8 @@ def predict_class_prob_nnwr(
         result_df = result_df[cols]
 
     if return_recon_oxides and recon_df is not None:
-            result_df = pd.concat([result_df, recon_df], axis=1)
-    
+        result_df = pd.concat([result_df, recon_df], axis=1)
+
     return result_df, probability_matrix
 
 
@@ -1262,7 +1392,9 @@ def enable_mc_sampling(model, *, enable_dropout: bool):
 
     return model
 
-# %% 
+
+# %%
+
 
 def _downsample(Z, labels=None, max_points=250_000):
     """Helper function to cleanly downsample large arrays."""
@@ -1272,13 +1404,10 @@ def _downsample(Z, labels=None, max_points=250_000):
     return Z[idx], labels[idx] if labels is not None else None
 
 
-def load_nnwr_wrapper_for_latents(
-    model_path=None, 
-    device=None
-):
+def load_nnwr_wrapper_for_latents(model_path=None, device=None):
     """
     Loads the trained NNWRReconstructionWrapper, along with configuration.
-    
+
     Returns:
         wrapper (nn.Module): The loaded model in evaluation mode.
         model_config (dict): The configuration dictionary from the checkpoint.
@@ -1291,16 +1420,18 @@ def load_nnwr_wrapper_for_latents(
 
     # Load Checkpoint
     if model_path is None:
-        model_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_best_model.pt")
-        
+        model_path = os.path.join(
+            os.path.dirname(__file__), "nnwr_best_model_v0030.pt"
+        )
+
     ckpt = torch.load(model_path, map_location=device)
     sd = ckpt["model_state_dict"]
     cfg = ckpt.get("model_config", {})
 
     # Extract Configuration with Fallbacks
     input_dim = int(cfg["input_dim"])
-    
-    # Initialize Submodules 
+
+    # Initialize Submodules
     classifier = NNWRFeatureExtractor(
         input_dim=input_dim,
         classes=int(cfg.get("classes", 23)),
@@ -1333,12 +1464,7 @@ def load_nnwr_wrapper_for_latents(
 
 
 @torch.inference_mode()
-def compute_z2_from_df(
-    df,
-    wrapper, 
-    batch_size=8192, 
-    device=None
-):
+def compute_z2_from_df(df, wrapper, batch_size=256, device=None):
     """
     Computes 2D latent representations (z2) AND predicted labels for a dataframe.
     """
@@ -1347,7 +1473,7 @@ def compute_z2_from_df(
 
     X_df = df[OXIDES].fillna(0.0)
     X_norm = norm_data_nn(X_df)
-    
+
     if isinstance(X_norm, pd.DataFrame):
         X_norm = X_norm.to_numpy(dtype=np.float32)
     else:
@@ -1358,21 +1484,21 @@ def compute_z2_from_df(
 
     N = len(dataset)
     Z2_out = np.empty((N, 2), dtype=np.float32)
-    Preds_out = np.empty(N, dtype=np.int32) # <-- Pre-allocate predictions array
+    Preds_out = np.empty(N, dtype=np.int32)  # <-- Pre-allocate predictions array
 
     idx = 0
     for (x_batch,) in dataloader:
         x_batch = x_batch.to(device)
-        
+
         # Grab logits as well as z2
         logits, _, z2 = wrapper(x_batch)
-        
+
         # Get the predicted class index (highest logit)
         preds = logits.argmax(dim=1)
-        
+
         batch_len = x_batch.size(0)
         Z2_out[idx : idx + batch_len] = z2.cpu().numpy()
-        Preds_out[idx : idx + batch_len] = preds.cpu().numpy() # <-- Save predictions
+        Preds_out[idx : idx + batch_len] = preds.cpu().numpy()  # <-- Save predictions
         idx += batch_len
 
     return Z2_out, Preds_out
@@ -1382,17 +1508,17 @@ def plot_z2_overlay(
     df,
     label_column="Predict_Mineral",
     title="Latent Space (z2) Overlay",
-    ref_kws=None, 
-    new_kws=None, 
+    ref_kws=None,
+    new_kws=None,
     max_points=250_000,
     filename=None,
 ):
     """
     Plots a 2D latent space overlaying new data on top of reference (training) data.
 
-    This function loads pre-computed training latents as a background reference and 
-    plots the provided dataframe samples as a foreground overlay. It supports 
-    custom styling for both layers and handles up to 40 distinct classes using a 
+    This function loads pre-computed training latents as a background reference and
+    plots the provided dataframe samples as a foreground overlay. It supports
+    custom styling for both layers and handles up to 40 distinct classes using a
     combined 'tab20' and 'tab20b' colormap.
 
     Parameters
@@ -1404,17 +1530,17 @@ def plot_z2_overlay(
     title : str, default="Latent Space (z2) Overlay"
         The title displayed at the top of the plot.
     ref_kws : dict, optional
-        Keyword arguments passed to `ax.scatter` for the background (training) 
+        Keyword arguments passed to `ax.scatter` for the background (training)
         data. Useful for adjusting 's' (size), 'marker', and 'alpha'.
         Defaults to: {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}.
     new_kws : dict, optional
-        Keyword arguments passed to `ax.scatter` for the foreground (new) 
+        Keyword arguments passed to `ax.scatter` for the foreground (new)
         data. Useful for highlighting specific points.
     max_points : int, default=250,000
-        The maximum number of points to plot for both reference and new data 
+        The maximum number of points to plot for both reference and new data
         combined to prevent memory issues and slow rendering.
     filename : str, optional
-        The path/filename to save the figure. If None, the plot is shown 
+        The path/filename to save the figure. If None, the plot is shown
         interactively via `plt.show()`.
     Returns
     -------
@@ -1422,20 +1548,26 @@ def plot_z2_overlay(
     """
 
     # Load Training Background
-    latent_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_latent_data.npz")
+    latent_path = os.path.join(
+        os.path.dirname(__file__), "nnwr_latent_data_v0030.npz"
+    )
     if os.path.exists(latent_path):
         with np.load(latent_path) as data:
             Z_ref = data["train_latents"]
             labels_ref = data["train_labels"]
     else:
-        raise FileNotFoundError(f"Could not find {latent_path}. Please provide Z_ref manually.")
+        raise FileNotFoundError(
+            f"Could not find {latent_path}. Please provide Z_ref manually."
+        )
 
     # Compute Foreground Z2 and predictions
     wrapper, _ = load_nnwr_wrapper_for_latents()
     Z_new, _ = compute_z2_from_df(df, wrapper)
-    
+
     if label_column not in df.columns:
-            raise KeyError(f"Dataframe must contain '{label_column}' column for pre-classified plotting.")
+        raise KeyError(
+            f"Dataframe must contain '{label_column}' column for pre-classified plotting."
+        )
     labels_new = df[label_column].values
 
     # Build mapping strictly from the REFERENCE labels
@@ -1443,33 +1575,35 @@ def plot_z2_overlay(
     name_to_id = {v: k for k, v in label_names.items()}
 
     mineral_rollup = {
-            "Plagioclase": "Feldspar",
-            "KFeldspar": "Feldspar",
-            "Feldspar_Miscibility_Gap": "Feldspar",
-            "Clinopyroxene": "Pyroxene",
-            "Orthopyroxene": "Pyroxene",
-            "Na-Pyroxene": "Pyroxene"
-        }
+        "Plagioclase": "Feldspar",
+        "KFeldspar": "Feldspar",
+        "Feldspar_Miscibility_Gap": "Feldspar",
+        "Clinopyroxene": "Pyroxene",
+        "Orthopyroxene": "Pyroxene",
+        "Na-Pyroxene": "Pyroxene",
+    }
 
     # Convert df labels from strings to ints if they aren't already
     if isinstance(labels_new[0], str):
         yn_ints = []
         for label in labels_new:
             clean_label = label.strip()
-            
+
             # Translate granular labels to broad labels if they exist in the dictionary
-            mapped_label = mineral_rollup.get(clean_label, clean_label) 
-            
+            mapped_label = mineral_rollup.get(clean_label, clean_label)
+
             # Fetch the ID, defaulting to -1 if STILL not found
             yn_ints.append(name_to_id.get(mapped_label, -1))
-            
+
         yn_ints = np.array(yn_ints)
-        
+
         # Optional but highly recommended: warn if anything is STILL unmapped
-        unmapped_mask = (yn_ints == -1)
+        unmapped_mask = yn_ints == -1
         if unmapped_mask.any():
             unmapped_labels = set(np.array(labels_new)[unmapped_mask])
-            print(f"WARNING: Skipping {unmapped_mask.sum()} points. Unrecognized labels: {unmapped_labels}")
+            print(
+                f"WARNING: Skipping {unmapped_mask.sum()} points. Unrecognized labels: {unmapped_labels}"
+            )
     else:
         yn_ints = labels_new
 
@@ -1481,8 +1615,14 @@ def plot_z2_overlay(
 
     # Configure style parameters (removed 'cmap' from default_new)
     default_train = {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}
-    default_df = {"s": 25, "alpha": 0.85, "marker": "o", "edgecolors": "black", "linewidths": 0.4}
-    
+    default_df = {
+        "s": 25,
+        "alpha": 0.85,
+        "marker": "o",
+        "edgecolors": "black",
+        "linewidths": 0.4,
+    }
+
     ref_kws = {**default_train, **(ref_kws or {})}
     new_kws = {**default_df, **(new_kws or {})}
 
@@ -1495,38 +1635,42 @@ def plot_z2_overlay(
     combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
 
     # Shuffle with a fixed seed to maximize visual distance
-    random.seed(42)
+    random.seed(21)
     random.shuffle(combined_colors)
 
-    #Create the cmap and set a fixed normalization range
+    # Create the cmap and set a fixed normalization range
     cmap = mcolors.ListedColormap(combined_colors)
-    norm = mcolors.Normalize(vmin=0, vmax=39)
+    norm = mcolors.Normalize(vmin=0, vmax=30)
 
     # Plot Reference Data (Background) and create dummy legend markers
     uniq_ref_classes = np.unique(yr).astype(int)
-    ref_kws.pop("c", None) 
+    ref_kws.pop("c", None)
     for cls in uniq_ref_classes:
-        if cls < 0: 
-            continue # Skip unmapped
-        mask = (yr == cls)
+        if cls < 0:
+            continue  # Skip unmapped
+        mask = yr == cls
         name = label_names.get(cls, f"Class {cls}")
         color = cmap(norm(cls))
         ax.scatter(Zr[mask, 0], Zr[mask, 1], color=color, **ref_kws)
-        ax.scatter([], [], s=40, marker='o', color=color, ec='k', lw=0.5, label=name)
-    
+        ax.scatter([], [], s=40, marker="o", color=color, ec="k", lw=0.5, label=name)
+
     # Plot new data in foreground
     uniq_new_classes = np.unique(yn).astype(int)
     for cls in uniq_new_classes:
-        if cls < 0: 
+        if cls < 0:
             continue
-        mask = (yn == cls)
+        mask = yn == cls
         color = cmap(norm(cls))
         ax.scatter(Zn[mask, 0], Zn[mask, 1], color=color, **new_kws)
 
     # Final formatting and legend
     if len(uniq_ref_classes) <= 30:
-            ax.legend(bbox_to_anchor=(1.015, 1.01), loc="upper left", 
-                      frameon=False, prop={"size": 9})
+        ax.legend(
+            bbox_to_anchor=(1.015, 1.01),
+            loc="upper left",
+            frameon=False,
+            prop={"size": 9},
+        )
     ax.set_xlabel("z2_1")
     ax.set_ylabel("z2_2")
     ax.set_title(title)
@@ -1539,7 +1683,7 @@ def plot_z2_overlay(
         plt.show()
 
 
-# %% 
+# %%
 
 
 def plot_harker(
@@ -1576,10 +1720,10 @@ def plot_harker(
         If True, calculates and plots x_oxide vs. the sum of all oxides.
     train_mineral_col : str, optional
     train_kws : dict, optional
-        Kws for the background training data. 
+        Kws for the background training data.
         Defaults: {"s": 20, "alpha": 0.1, "ec": "k", "lw": 0.25}
     new_kws : dict, optional
-        Default kws for all overlay datasets. 
+        Default kws for all overlay datasets.
         Defaults: {"s": 60, "alpha": 1.0, "ec": "k", "lw": 1}
     """
     overlay_datasets = overlay_datasets or {}
@@ -1588,37 +1732,65 @@ def plot_harker(
     # Configure style parameters to match your consistent coding style
     default_train = {"s": 20, "alpha": 0.1, "ec": "k", "lw": 0.25}
     default_new = {"s": 60, "alpha": 1.0, "ec": "k", "lw": 1}
-    
+
     train_kws = {**default_train, **(train_kws or {})}
     new_kws = {**default_new, **(new_kws or {})}
 
     # Setup Colors/Markers for overlays
-    overlay_colors = ['magenta', 'cyan', 'lime', 'yellow', 'orange']
-    overlay_markers = ['s', '^', 'D', 'o', 'v']
+    overlay_colors = ["magenta", "cyan", "lime", "yellow", "orange"]
+    overlay_markers = ["s", "^", "D", "o", "v"]
 
     # Build plotting pairs
     pairs = [(x_oxide, ox) for ox in oxides if ox != x_oxide]
-    if extra_pairs: 
+    if extra_pairs:
         pairs.extend(extra_pairs)
-    
+
+    if plot_totals:
+        target_y = "Total"
+        pairs.append((x_oxide, target_y))
+
+        # Safely calculate Total for df_train
+        if df_train is not None:
+            df_train = df_train.copy()
+            available_ox = [ox for ox in oxides if ox in df_train.columns]
+            df_train[target_y] = df_train[available_ox].sum(axis=1)
+
+        # Safely calculate Total for overlay_datasets
+        updated_overlays = {}
+        for name, item in overlay_datasets.items():
+            if isinstance(item, (tuple, list)) and len(item) == 2:
+                df_ov, ind_kws = item
+                df_ov = df_ov.copy()
+                available_ox = [ox for ox in oxides if ox in df_ov.columns]
+                df_ov[target_y] = df_ov[available_ox].sum(axis=1)
+                updated_overlays[name] = (df_ov, ind_kws)
+            else:
+                df_ov = item.copy()
+                available_ox = [ox for ox in oxides if ox in df_ov.columns]
+                df_ov[target_y] = df_ov[available_ox].sum(axis=1)
+                updated_overlays[name] = df_ov
+        overlay_datasets = updated_overlays
+
     # Setup grid
     cols = 4
     n = len(pairs)
     rows = (n + cols - 1) // cols
-    fig, axes = plt.subplots(rows, cols, figsize=(4*cols, 4*rows))
-    if n == 1: 
+    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
+    if n == 1:
         axes = np.array([axes])
     axes = axes.ravel()
-    
+
     for ax, (x, y) in zip(axes, pairs):
         # 1. Plot Background Training Data
         if df_train is not None:
             for min_name in train_minerals:
                 df_sub = df_train[df_train[train_mineral_col] == min_name]
                 if not df_sub.empty and x in df_sub.columns and y in df_sub.columns:
-                    ax.scatter(df_sub[x], df_sub[y], label=f'Train: {min_name}', **train_kws)
-                
-        # 2. Plot Overlay Datasets
+                    ax.scatter(
+                        df_sub[x], df_sub[y], label=f"Train: {min_name}", **train_kws
+                    )
+
+        # Plot Overlay Datasets
         for i, (name, item) in enumerate(overlay_datasets.items()):
             # Allow individual dataset overrides: {'Name': (df, {custom_kws})}
             if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -1628,12 +1800,12 @@ def plot_harker(
 
             # Combine: Default < New_Kws < Individual_Kws
             style = {
-                'c': overlay_colors[i % len(overlay_colors)],
-                'marker': overlay_markers[i % len(overlay_markers)],
+                "c": overlay_colors[i % len(overlay_colors)],
+                "marker": overlay_markers[i % len(overlay_markers)],
                 **new_kws,
-                **individual_kws
+                **individual_kws,
             }
-            
+
             if x in df_ov.columns and y in df_ov.columns:
                 ax.scatter(df_ov[x], df_ov[y], label=name, **style)
 
@@ -1645,17 +1817,29 @@ def plot_harker(
     by_label = dict(zip(labels, handles))
     if by_label:
         has_empty_slot = (n % cols) != 0
-        leg_loc, leg_bbox = ("center left", (0.775, 0.2)) if has_empty_slot else ("center left", (1.0, 0.5))
-        leg = fig.legend(by_label.values(), by_label.keys(), loc=leg_loc, bbox_to_anchor=leg_bbox, frameon=True)
-        for lh in leg.legend_handles: 
-            lh.set_alpha(1.0) # Ensure legend is opaque
+        leg_loc, leg_bbox = (
+            ("center left", (0.775, 0.2))
+            if has_empty_slot
+            else ("center left", (1.0, 0.5))
+        )
+        leg = fig.legend(
+            by_label.values(),
+            by_label.keys(),
+            loc=leg_loc,
+            bbox_to_anchor=leg_bbox,
+            frameon=True,
+        )
+        for lh in leg.legend_handles:
+            lh.set_alpha(1.0)  # Ensure legend is opaque
 
-    for ax in axes[n:]: 
+    for ax in axes[n:]:
         ax.set_visible(False)
 
     plt.suptitle(title)
     plt.tight_layout()
     plt.show()
 
+
+# %%
 
 # %%

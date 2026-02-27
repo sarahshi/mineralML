@@ -22,8 +22,8 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
 from .core import *
-# from .core import same_seeds
-# same_seeds(42)
+from .core import same_seeds
+# same_seeds(2)
 from .stoichiometry import *
 from .constants import OXIDES
 
@@ -112,25 +112,33 @@ class CLRTransformer(BaseEstimator, TransformerMixin):
         return obj
 
 
-def load_minclass_nn():
+def load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz"):
     """
     Loads mineral classes and their corresponding mappings from a .npz file.
     The file is expected to contain an array of class names under the 'classes' key.
     This function creates a dictionary that maps an integer code to each class name.
 
+    Parameters: 
+    minclass_path (str): Filename or relative path (relative to this file).
+ 
     Returns:
         min_cat (list): A list of mineral class names.
         mapping (dict): A dictionary that maps each integer code to its corresponding
         class name in the 'min_cat' list.
     """
 
-    current_dir = os.path.dirname(__file__)
-    filepath = os.path.join(current_dir, "mineral_classes_nn_v0019.npz")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(current_dir, minclass_path)
+
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Class file not found: {filepath}")
 
     with np.load(filepath, allow_pickle=True) as data:
+        if "classes" not in data:
+            raise KeyError(f'"classes" not found in {filepath}. Keys: {list(data.keys())}')
         min_cat = data["classes"].tolist()
-    mapping = {code: cat for code, cat in enumerate(min_cat)}
 
+    mapping = dict(enumerate(min_cat))
     return min_cat, mapping
 
 
@@ -201,7 +209,7 @@ def prep_df_nn(df):
     return df
 
 
-def norm_data_nn(df, scaler_path="scaler_nn_v0019.npz"):
+def norm_data_nn(df, scaler_path="scaler_nn_v0030.npz"):
     """
 
     Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
@@ -259,6 +267,9 @@ def balance(df, n=1000):
     - Rhombohedral oxide group (hematite + ilmenite -> 'rhombohedral oxide')
     - Spinel group (magnetite + spinel -> 'spinel')
     - Glass (separate group with 2000 samples), TAS stratified sampling
+
+    Groups to 1000 total:
+    - Garnet group
     - All other classes get standard n samples (default 1000). If count <1250, shuffle+oversample. 
 
     """
@@ -266,14 +277,15 @@ def balance(df, n=1000):
     from sklearn.preprocessing import StandardScaler
     from sklearn.cluster import KMeans
 
-    olivine_classes = ['Olivine']
+    olivine_class = ['Olivine']
     pyroxene_classes = ['Clinopyroxene', 'Orthopyroxene']
     feldspar_classes = ['Plagioclase', 'KFeldspar']
     rhombohedral_oxide_classes = ['Hematite', 'Ilmenite']
     spinel_classes = ['Magnetite', 'Spinel']
     amphibole_class = ['Amphibole']
+    garnet_class = ['Garnet']
     glass_class = ['Glass']
-    lower_threshold = 1250
+    lower_threshold = 1000
     random_seed = 42
 
     oxides = OXIDES
@@ -381,14 +393,19 @@ def balance(df, n=1000):
     # Olivine: kmeans to n
     oli_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
     if 'Olivine' in df["Mineral"].unique():
-        oli_df = kmeans_multi_sample(df[df.Mineral == 'Olivine'], n_target=n,
-                                     n_clusters=2)
+        oli_df = kmeans_multi_sample(df[df.Mineral == 'Olivine'], n_target=2*n,
+                                     n_clusters=3)
         oli_df["Mineral"] = 'Olivine'
 
     amph_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
     if 'Amphibole' in df["Mineral"].unique():
-        amph_df = kmeans_multi_sample(df[df.Mineral == 'Amphibole'], n_target=n)
+        amph_df = kmeans_multi_sample(df[df.Mineral == 'Amphibole'], n_target=2*n, n_clusters=8)
         amph_df["Mineral"] = 'Amphibole'
+
+    gt_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
+    if 'Garnet' in df["Mineral"].unique():
+        gt_df = kmeans_multi_sample(df[df.Mineral == 'Garnet'], n_target=n, n_clusters=8)
+        gt_df["Mineral"] = 'Garnet'
 
     # Pyroxene: Cpx kmeans->n + Opx kmeans->n  => total 2n
     pyroxene_df = process_group_per_member(pyroxene_classes, 
@@ -397,7 +414,7 @@ def balance(df, n=1000):
 
     # Feldspar: Plag kmeans->n + KFspar kmeans->n => total 2n
     feldspar_df = process_group_per_member(feldspar_classes,
-                                           lambda d, k: kmeans_multi_sample(d, n_target=k),
+                                           lambda d, k: kmeans_multi_sample(d, n_target=k, n_clusters=8),
                                            n_per_member=n, relabel_as='Feldspar')
 
     # Rhombohedral oxides: per member random->n (=> 2n total)
@@ -437,8 +454,9 @@ def balance(df, n=1000):
         glass_df = pd.DataFrame(columns=OXIDES + ['Mineral'])
 
     # Other classes: if <1250 -> shuffle+oversample to n; else cap to n
-    special_flat = set(olivine_classes + pyroxene_classes + feldspar_classes +
-                       rhombohedral_oxide_classes + spinel_classes + amphibole_class + glass_class)
+    special_flat = set(olivine_class + pyroxene_classes + feldspar_classes +
+                       rhombohedral_oxide_classes + spinel_classes + amphibole_class + 
+                       garnet_class + glass_class)
     other_classes = [c for c in df["Mineral"].unique() if c not in special_flat]
 
     other_dfs = []
@@ -451,7 +469,7 @@ def balance(df, n=1000):
     other_df = pd.concat(other_dfs, ignore_index=True) if other_dfs else pd.DataFrame(columns=OXIDES+["Mineral"])
 
     df_balanced = pd.concat(
-        [oli_df, pyroxene_df, feldspar_df, rhombohedral_oxide_df, spinel_df, amph_df, glass_df, other_df],
+        [oli_df, pyroxene_df, feldspar_df, rhombohedral_oxide_df, spinel_df, amph_df, gt_df, glass_df, other_df],
         ignore_index=True
     )
     return df_balanced
@@ -896,8 +914,6 @@ def class2mineral_nn(pred_class):
     """
 
     _, valid_mapping = unique_mapping_nn(pred_class)
-    # print("Sample predictions:", pred_class[:10])
-    # print("Mapping used:", valid_mapping)
     pred_mineral = np.array([valid_mapping[x] for x in pred_class])
     return pred_mineral
 

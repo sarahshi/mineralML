@@ -1,9 +1,7 @@
 # %%
 
 import os
-import math
 import time
-import copy
 
 import numpy as np
 import pandas as pd
@@ -17,132 +15,145 @@ from torch.nn.modules.activation import LeakyReLU
 from torch.utils.data import DataLoader
 from scipy.special import softmax
 
+import gpytorch
+from gpytorch.models import ApproximateGP
+from gpytorch.variational import VariationalStrategy, CholeskyVariationalDistribution
+from gpytorch.distributions import MultivariateNormal
+from gpytorch.kernels import RBFKernel, ScaleKernel
+from gpytorch.mlls.variational_elbo import VariationalELBO
+from gpytorch.mlls.deep_approximate_mll import DeepApproximateMLL
+
 from hdbscan.flat import HDBSCAN_flat, approximate_predict_flat
 
 from matplotlib import pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.cm as mcm
 
-from mineralML.core import *
+from .core import *
+from .supervised import *
+from .constants import OXIDES
+
 
 # %%
 
 
-def prep_df_ae(df):
-    """
+# def prep_df_ae(df):
+#     """
 
-    Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
-    It filters the DataFrame for selected minerals, handles missing values, and separates the data
-    into two DataFrames: one that includes specified minerals and another that excludes them.
-    The function defines a list of oxide column names and minerals to include and exclude. It drops
-    rows where the specified oxides and 'Mineral' column have fewer than six non-NaN values.
+#     Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
+#     It filters the DataFrame for selected minerals, handles missing values, and separates the data
+#     into two DataFrames: one that includes specified minerals and another that excludes them.
+#     The function defines a list of oxide column names and minerals to include and exclude. It drops
+#     rows where the specified oxides and 'Mineral' column have fewer than six non-NaN values.
 
-    Parameters:
-        df (DataFrame): The input DataFrame containing mineral composition data along with 'Mineral' column.
+#     Parameters:
+#         df (DataFrame): The input DataFrame containing mineral composition data along with 'Mineral' column.
 
-    Returns:
-        df_in (DataFrame): A DataFrame with rows including only the specified minerals and 'NaN' filled with zero.
-        df_ex (DataFrame): A DataFrame with rows excluding the specified minerals and 'NaN' filled with zero.
+#     Returns:
+#         df_in (DataFrame): A DataFrame with rows including only the specified minerals and 'NaN' filled with zero.
+#         df_ex (DataFrame): A DataFrame with rows excluding the specified minerals and 'NaN' filled with zero.
 
-    """
+#     """
 
-    if "FeO" in df.columns and "FeOt" not in df.columns:
-        raise ValueError(
-            "No 'FeOt' column found. You have a 'FeO' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
-        )
-    if "Fe2O3" in df.columns and "FeOt" not in df.columns:
-        raise ValueError(
-            "No 'FeOt' column found. You have a 'Fe2O3' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
-        )
+#     if "FeO" in df.columns and "FeOt" not in df.columns:
+#         raise ValueError(
+#             "No 'FeOt' column found. You have a 'FeO' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+#         )
+#     if "Fe2O3" in df.columns and "FeOt" not in df.columns:
+#         raise ValueError(
+#             "No 'FeOt' column found. You have a 'Fe2O3' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+#         )
 
-    oxidesandmin = [
-        "SiO2",
-        "TiO2",
-        "Al2O3",
-        "FeOt",
-        "MnO",
-        "MgO",
-        "CaO",
-        "Na2O",
-        "K2O",
-        "Cr2O3",
-        "Mineral",
-    ]
-    include_minerals = [
-        "Amphibole",
-        "Apatite",
-        "Biotite",
-        "Clinopyroxene",
-        "Garnet",
-        "Glass",
-        "Ilmenite",
-        "KFeldspar",
-        "Magnetite",
-        "Muscovite",
-        "Olivine",
-        "Orthopyroxene",
-        "Plagioclase",
-        "Quartz",
-        "Rutile",
-        "Spinel",
-        "Tourmaline",
-        "Zircon",
-    ]
-    # df.dropna(subset=oxidesandmin, thresh=5, inplace=True)
-    df_in = df[df["Mineral"].isin(include_minerals)]
-    df_ex = df[~df["Mineral"].isin(include_minerals)]
+#     oxidesandmin = [
+#         "SiO2",
+#         "TiO2",
+#         "Al2O3",
+#         "FeOt",
+#         "MnO",
+#         "MgO",
+#         "CaO",
+#         "Na2O",
+#         "K2O",
+#         "Cr2O3",
+#         'P2O5',
+#         "Mineral",
+#     ]
+#     include_minerals = [
+#         "Amphibole",
+#         "Apatite",
+#         "Biotite",
+#         "Clinopyroxene",
+#         "Garnet",
+#         "Glass",
+#         "Ilmenite",
+#         "KFeldspar",
+#         "Magnetite",
+#         "Muscovite",
+#         "Olivine",
+#         "Orthopyroxene",
+#         "Plagioclase",
+#         "Quartz",
+#         "Rutile",
+#         "Spinel",
+#         "Tourmaline",
+#         "Zircon",
+#     ]
+#     # df.dropna(subset=oxidesandmin, thresh=5, inplace=True)
+#     df_in = df[df["Mineral"].isin(include_minerals)]
+#     df_ex = df[~df["Mineral"].isin(include_minerals)]
 
-    df_in = df_in[oxidesandmin].fillna(0)
+#     df_in = df_in[oxidesandmin].fillna(0)
 
-    df_in = df_in.reset_index(drop=True)
-    df_ex = df_ex.reset_index(drop=True)
+#     df_in = df_in.reset_index(drop=True)
+#     df_ex = df_ex.reset_index(drop=True)
 
-    return df_in, df_ex
+#     return df_in, df_ex
 
 
-def norm_data_ae(df):
-    """
+# def norm_data_ae(df):
+#     """
 
-    Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
-    It ensures that the dataframe has been preprocessed accordingly before applying the transformation.
-    The function expects that the scaler is already fitted and available for use as defined in the
-    'load_scaler' function.
+#     Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
+#     It ensures that the dataframe has been preprocessed accordingly before applying the transformation.
+#     The function expects that the scaler is already fitted and available for use as defined in the
+#     'load_scaler' function.
 
-    Parameters:
-        df (DataFrame): The input DataFrame containing the oxide composition data.
+#     Parameters:
+#         df (DataFrame): The input DataFrame containing the oxide composition data.
 
-    Returns:
-        array_x (ndarray): An array of the transformed oxide composition data.
+#     Returns:
+#         array_x (ndarray): An array of the transformed oxide composition data.
 
-    """
+#     """
 
-    oxides = [
-        "SiO2",
-        "TiO2",
-        "Al2O3",
-        "FeOt",
-        "MnO",
-        "MgO",
-        "CaO",
-        "Na2O",
-        "K2O",
-        "Cr2O3",
-    ]
-    mean, std = load_scaler("scaler_ae.npz")
+#     oxides = [
+#         "SiO2",
+#         "TiO2",
+#         "Al2O3",
+#         "FeOt",
+#         "MnO",
+#         "MgO",
+#         "CaO",
+#         "Na2O",
+#         "K2O",
+#         "Cr2O3",
+#         'P2O5',
+#     ]
+#     mean, std = load_scaler("scaler_ae.npz")
 
-    if df[oxides].isnull().any().any():
-        df, _ = prep_df_ae(df)
-    else:
-        df = df
+#     if df[oxides].isnull().any().any():
+#         df, _ = prep_df_nn(df)
+#     else:
+#         df = df
 
-    scaled_df = df[oxides].copy()
+#     scaled_df = df[oxides].copy()
 
-    for col in df[oxides].columns:
-        scaled_df[col] = (df[col] - mean[col]) / std[col]
+#     for col in df[oxides].columns:
+#         scaled_df[col] = (df[col] - mean[col]) / std[col]
 
-    array_x = scaled_df.to_numpy()
+#     array_x = scaled_df.to_numpy()
 
-    return array_x
+#     return array_x
 
 
 def feature_normalisation(feature, return_params=False, mean_norm=True):
@@ -348,7 +359,7 @@ def train(
     valid_loader,
     n_epoch,
     criterion,
-    patience=20,
+    patience=200,
     min_delta=0.00005,
 ):
     """
@@ -436,7 +447,7 @@ def train(
     return avg_train_loss, avg_valid_loss
 
 
-def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
+def autoencode(df, name, AE_Model, hls, lr, wd, ep, n, balanced):
     """
 
     Trains an autoencoder on a given dataset and visualizes the latent space representation.
@@ -450,7 +461,7 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
         name (str): Name to be used for saving outputs (plots, model parameters, etc.).
         AE_Model (nn.Module): Autoencoder model class to be instantiated.
         hidden_layer_sizes (tuple of ints): Sizes of the hidden layers in the autoencoder.
-        epochs (int): Number of epochs to train the model.
+        ep (int): Number of epochs to train the model.
 
     Returns:
         np.ndarray: Latent space representation of the entire dataset.
@@ -458,44 +469,61 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
     """
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    oxides = OXIDES
 
-    oxides = [
-        "SiO2",
-        "TiO2",
-        "Al2O3",
-        "FeOt",
-        "MnO",
-        "MgO",
-        "CaO",
-        "Na2O",
-        "K2O",
-        "Cr2O3",
-        "P2O5",
-    ]
 
-    # wt = df[oxides].fillna(0)
-    wt = df[oxides].fillna(1e-4)
+    all_cats_init = pd.Categorical(df["Mineral"])
+    df["_code"] = all_cats_init.codes
+
+    # Split the dataset into train and test sets
+    train_df, valid_df = train_test_split(
+        df, test_size=n, stratify=df["_code"], random_state=42
+    )
+    if balanced == True:
+        train_df = balance(train_df, n=1000)
+
+    all_cats = pd.Categorical(train_df["Mineral"])
+    mapping = dict(enumerate(all_cats.categories))
+    inv_mapping = {cat: idx for idx, cat in mapping.items()}
+    sort_mapping = dict(sorted(mapping.items(), key=lambda item: item[0]))
+
+    valid_df['Mineral'] = (
+      valid_df['Mineral'].astype(str)\
+        .replace(['Clinopyroxene', 'Orthopyroxene'], 'Pyroxene')
+        .replace(['Plagioclase', 'KFeldspar'], 'Feldspar')
+        .replace(['Hematite', 'Ilmenite'], 'Rhombohedral_Oxides')
+        .replace(['Magnetite', 'Spinel'], 'Spinels')
+    )
+
+    train_df["_code"] = train_df["Mineral"].map(inv_mapping).astype(int)
+    valid_df["_code"] = valid_df["Mineral"].map(inv_mapping).astype(int)
+
+    ss = StandardScaler().fit(train_df[OXIDES])
+    train_x = ss.transform(train_df[OXIDES].fillna(0))
+    valid_x = ss.transform(valid_df[OXIDES].fillna(0))
+
+
+    # # perform z-score normalisation
+    wt = df[oxides].fillna(0) # 1e-4
     wt = wt.to_numpy()
-
-    # perform z-score normalisation
     ss = StandardScaler()
     array_norm = ss.fit_transform(wt)
 
-    # #split the dataset into train and test sets
-    # train_data, valid_data = train_test_split(array_norm, test_size=0.1, stratify = df['Mineral'], random_state=42)
-    train_data, valid_data = train_test_split(
-        array_norm, test_size=0.2, stratify=df["Mineral"], random_state=42
-    )
+    # # #split the dataset into train and test sets
+    # # train_data, valid_data = train_test_split(array_norm, test_size=0.1, stratify = df['Mineral'], random_state=42)
+    # train_data, valid_data = train_test_split(
+    #     array_norm, test_size=0.2, stratify=df["Mineral"], random_state=42
+    # )
 
     # define datasets to be used with PyTorch - see autoencoder file for details
-    feature_dataset = FeatureDataset(train_data)
-    valid_dataset = FeatureDataset(valid_data)
+    feature_dataset = FeatureDataset(train_x)
+    valid_dataset = FeatureDataset(valid_x)
 
     # autoencoder params:
-    lr = 5e-4
-    wd = 0.005
+    lr = lr # 5e-4
+    wd = wd # 0.005
+    ep = ep
     batch_size = 256
-    epochs = epochs
     input_size = feature_dataset.__getitem__(0).size(0)
 
     # define data loaders
@@ -508,7 +536,7 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
     )
 
     # define model
-    model = AE_Model(input_dim=input_size, hidden_layer_sizes=hidden_layer_sizes).to(
+    model = AE_Model(input_dim=input_size, hidden_layer_sizes=hls).to(
         device
     )
 
@@ -517,9 +545,30 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
     criterion = nn.MSELoss()
 
     # train model using pre-defined function
-    train_loss, valid_loss = train(
-        model, optimizer, feature_loader, valid_loader, epochs, criterion
+    # train_loss, valid_loss = train(
+    #     model, optimizer, feature_loader, valid_loader, ep, criterion
+    # )
+
+    # testing
+    def kl_anneal(epoch):
+        warm, ramp, beta_max = 20, 150, 0.3
+        if epoch+1 <= warm: return 0.0
+        e = min(1.0, (epoch+1 - warm)/ramp)
+        return beta_max * e
+    
+    train_loss, valid_loss = train_vae(
+        model,
+        optimizer,
+        train_loader=feature_loader,
+        valid_loader=valid_loader,
+        n_epoch=ep,
+        beta=1.0,
+        recon='mse',
+        kl_anneal=kl_anneal,
+        patience=50, start_es_beta=1.0
     )
+
+
     np.savez(
         "parametermatrix_autoencoder/" + name + "_tanh_loss.npz",
         train_loss=train_loss,
@@ -547,47 +596,32 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
     # #transform entire dataset to latent space
     z = getLatent(model, array_norm)
 
-    # phase = np.array(['Amphibole', 'Apatite', 'Biotite', 'Clinopyroxene',
-    #     'Garnet', 'Ilmenite', 'KFeldspar', 'Magnetite', 'Muscovite', 'Olivine',
-    #     'Orthopyroxene', 'Plagioclase', 'Quartz', 'Rutile', 'Spinel', 'Tourmaline',
-    #     'Zircon'])
-
-    phase = np.array(
-        [
-            "Amphibole",
-            "Apatite",
-            "Biotite",
-            "Clinopyroxene",
-            "Garnet",
-            "Glass",
-            "Ilmenite",
-            "KFeldspar",
-            "Magnetite",
-            "Muscovite",
-            "Olivine",
-            "Orthopyroxene",
-            "Plagioclase",
-            "Quartz",
-            "Rutile",
-            "Spinel",
-            "Tourmaline",
-            "Zircon",
-            # "Amphibole",
-            # "Apatite",
-            # "Biotite",
-            # "Clinopyroxene",
-            # "Garnet",
-            # "Glass",
-            # "Ilmenite",
-            # "KFeldspar",
-            # "Magnetite",
-            # "Muscovite",
-            # "Olivine",
-            # "Orthopyroxene",
-            # "Plagioclase",
-            # "Spinel",
-        ]
-    )
+    phase = np.array([
+        "Amphibole",
+        "Apatite",
+        "Biotite",
+        "Calcite",
+        "Chlorite",
+        "Epidote",
+        "Feldspar",
+        "Garnet",
+        "Glass",
+        "Kalsilite",
+        "Leucite",
+        "Melilite",
+        "Muscovite",
+        "Nepheline",
+        "Olivine",
+        "Pyroxene",
+        "Quartz",
+        "Rhombohedral_Oxides",
+        "Rutile",
+        "Serpentine",
+        "Spinels",
+        "Titanite",
+        "Tourmaline",
+        "Zircon",
+    ])
 
     phasez = range(1, len(phase))
     tab = plt.get_cmap("tab20")
@@ -624,9 +658,9 @@ def autoencode(df, name, AE_Model, hidden_layer_sizes, epochs):
     np.savez(
         "parametermatrix_autoencoder/" + name + "_tanh.npz",
         batch_size=batch_size,
-        epochs=epochs,
         lr=lr,
         wd=wd,
+        ep=ep,
         input_size=input_size,
         conc_file=conc_file,
         z=z,
@@ -693,15 +727,14 @@ def get_latent_space(df):
 
     current_dir = os.path.dirname(__file__)
     model_path = os.path.join(current_dir, "ae_best_model.pt")
-    # model_path = os.path.join(current_dir, 'ae_best_model_noP_tanh.pt')
-    model = Tanh_Autoencoder(input_dim=10, hidden_layer_sizes=(256, 64, 16)).to(device)
+    model = Tanh_Autoencoder(input_dim=11, hidden_layer_sizes=(256, 64, 16)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=0)
     load_model(model, optimizer, model_path)
 
     # # Set the model to evaluation mode
     # model.eval()
 
-    norm_wt = norm_data_ae(df)
+    norm_wt = norm_data_nn(df)
     z = getLatent(model, norm_wt)
     z_df = pd.DataFrame(z, columns=["LV1", "LV2"])
 
@@ -970,3 +1003,153 @@ def plot_latent_space(df_pred):
     ax[1].tick_params(axis="x", direction="in", length=5, pad=6.5)
     ax[1].tick_params(axis="y", direction="in", length=5, pad=6.5)
     plt.tight_layout()
+
+
+# %%
+
+class VAE(nn.Module):
+    def __init__(self, input_dim=10, latent_dim=2, hidden_layer_sizes=(256, 64, 16), use_tanh=False):
+        super().__init__()
+        self.input_dim = input_dim
+        self.latent_dim = latent_dim
+        self.hls = hidden_layer_sizes
+        Act = nn.Tanh if use_tanh else lambda: nn.LeakyReLU(0.02)
+
+        def block(in_c, out_c):
+            return [nn.Linear(in_c, out_c), nn.LayerNorm(out_c), Act()]
+
+        # Encoder trunk
+        enc = block(input_dim, self.hls[0])
+        for i in range(len(self.hls) - 1):
+            enc += block(self.hls[i], self.hls[i+1])
+        self.encoder = nn.Sequential(*enc)
+
+        # Heads for mean & log-variance of q(z|x)
+        self.fc_mu = nn.Linear(self.hls[-1], latent_dim)
+        self.fc_logvar = nn.Linear(self.hls[-1], latent_dim)
+
+        # Decoder
+        dec = block(latent_dim, self.hls[-1])
+        for i in range(len(self.hls)-1, 0, -1):
+            dec += block(self.hls[i], self.hls[i-1])
+        dec += [nn.Linear(self.hls[0], input_dim)]
+        self.decoder = nn.Sequential(*dec)
+
+        self.apply(weights_init)
+
+    # ---- encoder helpers
+    def encode(self, x):
+        h = self.encoder(x)
+        mu = self.fc_mu(h)
+        logvar = self.fc_logvar(h)
+        return mu, logvar
+
+    def reparameterize(self, mu, logvar):
+        # during eval you can choose to return mu only
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    # ---- decoder helpers
+    def decode(self, z):
+        return self.decoder(z)
+
+    # ---- convenience
+    def forward(self, x, sample_latent=True):
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar) if sample_latent else mu
+        x_hat = self.decode(z)
+        return x_hat, mu, logvar
+
+    # used by your getLatent() to export deterministic embeddings
+    def encoded(self, x):
+        mu, _ = self.encode(x)
+        return mu
+
+# %%
+
+def kl_capacity(epoch, start=0, end=200, C_max=2.0):
+    # grow target KL capacity C(t) from 0 to C_max nats over 'end' epochs
+    if epoch < start: return 0.0
+    e = min(1.0, (epoch - start) / max(1, end - start))
+    return C_max * e
+
+def beta_sigmoid(epoch, mid=100, sharp=10, beta_max=1.0):
+    # smooth 0->1 sigmoid
+    import math
+    s = 1 / (1 + math.exp(-(epoch - mid)/sharp))
+    return beta_max * s
+
+def vae_loss(x_hat, x, mu, logvar, beta, recon='mse', C_t=0.0):
+    rec = (nn.functional.mse_loss if recon=='mse' else nn.functional.l1_loss)(x_hat, x, reduction='mean')
+    logvar = logvar.clamp(-15.0, 15.0)
+    kl_pd = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())   # [B,D]
+    kl = kl_pd.sum(dim=1).mean()  # sum over dims, mean over batch (nats)
+    # capacity loss: penalize only the excess above C_t
+    kl_term = beta * torch.relu(kl - C_t)
+    total = rec + kl_term
+    return total, rec, kl
+
+def train_vae(model, optimizer, train_loader, valid_loader, n_epoch, beta=1.0,
+              patience=20, min_delta=5e-5, recon='mse', kl_anneal=None,
+              earlystop_on='auto', start_es_beta=1.0, start_es_epoch=0):
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    def pick_metric(beta_t, val_rec, val_total):
+        if earlystop_on == 'recon':
+            return val_rec
+        if earlystop_on == 'total':
+            return val_total
+        return val_rec if beta_t < 1.0 else val_total  # auto
+
+    best_valid, patience_ctr = float('inf'), 0
+    avg_train, avg_valid = [], []
+
+    for epoch in range(n_epoch):
+        model.train()
+        beta_t = kl_anneal(epoch) if kl_anneal else beta
+        C_t = kl_capacity(epoch, start=20, end=200, C_max=5.0)  # tune C_max ~ latent_dim * 0.5–3.0
+
+        tr_rec, tr_kl, tr_tot = [], [], []
+        for x in train_loader:
+            x = x.to(device)
+            x_hat, mu, logvar = model(x, sample_latent=True)
+            total, rec, kl = vae_loss(x_hat, x, mu, logvar, beta=beta_t, recon=recon, C_t=C_t)
+            optimizer.zero_grad(); total.backward(); optimizer.step()
+            tr_rec.append(rec.item()); tr_kl.append(kl.item()); tr_tot.append(total.item())
+
+        model.eval()
+        va_rec, va_kl, va_tot = [], [], []
+        with torch.no_grad():
+            for x in valid_loader:
+                x = x.to(device)
+                # use deterministic latents for validation if you want
+                x_hat, mu, logvar = model(x, sample_latent=False)
+                total, rec, kl = vae_loss(x_hat, x, mu, logvar, beta=beta_t, recon=recon)
+                va_rec.append(rec.item()); va_kl.append(kl.item()); va_tot.append(total.item())
+
+        tr_rec_m, tr_kl_m, tr_tot_m = np.mean(tr_rec), np.mean(tr_kl), np.mean(tr_tot)
+        va_rec_m, va_kl_m, va_tot_m = np.mean(va_rec), np.mean(va_kl), np.mean(va_tot)
+        val_metric = pick_metric(beta_t, va_rec_m, va_tot_m)
+
+        print(f"[{epoch+1:03}/{n_epoch:03}] β={beta_t:.3f} | "
+              f"train rec:{tr_rec_m:.4f} kl:{tr_kl_m:.4f} tot:{tr_tot_m:.4f} || "
+              f"valid rec:{va_rec_m:.4f} kl:{va_kl_m:.4f} tot:{va_tot_m:.4f}")
+
+        avg_train.append(tr_tot_m); avg_valid.append(va_tot_m)
+
+        es_enabled = (beta_t >= start_es_beta) and (epoch+1 >= start_es_epoch)
+        if es_enabled:
+            if best_valid - val_metric > min_delta:
+                best_valid, patience_ctr = val_metric, 0
+            else:
+                patience_ctr += 1
+                if patience_ctr >= patience:
+                    print(f"Early stop on metric={val_metric:.4f} (patience {patience}).")
+                    break
+        else:
+            best_valid, patience_ctr = float('inf'), 0
+
+    return avg_train, avg_valid
