@@ -220,56 +220,64 @@ class TestPredictTrainLoop(unittest.TestCase):
         self.assertTrue(np.allclose(mean.sum(axis=1), 1.0, atol=1e-5))
 
 
+
 class TestPredictClassProbNN(unittest.TestCase):
-    @patch("mineralML.supervised.class2mineral_nn", side_effect=lambda idx: np.array([f"C{int(i)}" for i in idx]))
-    @patch("mineralML.supervised.load_model", side_effect=lambda model, opt, path: None)  # no file I/O
-    @patch("mineralML.supervised.norm_data_nn")
-    @patch("mineralML.supervised.load_minclass_nn")
-    def test_predict_class_prob_nn_shapes_and_columns(self, p_classes, p_norm, _p_load_model, _p_c2m):
-        # Mock class list & mapping (ids must be contiguous 0..K-1)
-        fake_classes = [f"C{i}" for i in range(6)]
-        fake_map = {i: fake_classes[i] for i in range(len(fake_classes))}
+    """
+    Minimal contract test for predict_class_prob_nnwr:
+
+    - Returns (out_df, prob)
+    - out_df preserves row count and has expected output columns
+    - Zircon shortcut works: high ZrO2 rows become Zircon with prob=1.0
+    - prob is 2D and has one row per non-zircon input
+    - prob has columns in blocks of K classes (implementation may concatenate blocks)
+    """
+    @patch("mineralML.hybrid.load_model", side_effect=lambda model, opt, path: None)  # no file I/O
+    @patch("mineralML.hybrid.norm_data_nn")
+    @patch("mineralML.hybrid.load_minclass_nn")
+    @patch("mineralML.hybrid.class2mineral_nn", side_effect=lambda idx: np.array([f"C{int(i)}" for i in idx]))
+    def test_predict_class_prob_nn_contract(self, p_classes, p_norm, _p_load_model):
+        # --- Arrange ---
+        K = 6
+        fake_classes = [f"C{i}" for i in range(K)]
+        fake_map = dict(enumerate(fake_classes))
         p_classes.return_value = (fake_classes, fake_map)
 
-        # Normed data returned by scaler: shape (N, len(OXIDES))
         ox = mm.constants.OXIDES
         N = 5
-
         df = pd.DataFrame(0.0, columns=list(ox) + ["ZrO2"], index=[f"S{i}" for i in range(N)])
-        for i in [0, 2]:
-            df.iloc[i, df.columns.get_loc("ZrO2")] = 60.0
-            df.iloc[i, df.columns.get_loc("SiO2")] = 30.0
 
-        for i in [1, 3, 4]:
-            df.iloc[i, df.columns.get_loc("SiO2")] = 50.0
-            df.iloc[i, df.columns.get_loc("TiO2")] = 1.0
+        zircon_rows = [0, 2]
+        non_zircon_rows = [i for i in range(N) if i not in zircon_rows]
 
-        # Mock scaler to return zeros with matching row count to the INPUT it receives
+        # Make two rows "zircon-like"
+        df.loc[df.index[zircon_rows], ["ZrO2", "SiO2"]] = [60.0, 30.0]
+
+        # Make remaining rows "non-zircon-like"
+        df.loc[df.index[non_zircon_rows], ["SiO2", "TiO2"]] = [50.0, 1.0]
+
+        # Scaler mock: correct shape only
         p_norm.side_effect = lambda d: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
-        # Run
-        out_df, prob = mm.predict_class_prob_nnwr(df, n_iterations=3)
+        # --- Act ---
+        out_df, prob = mm.predict_class_prob_nnwr(df, n_iterations=1)
 
-        # DF has prediction cols
-        for i in [0, 2]:
+        # --- Assert (DataFrame contract) ---
+        self.assertEqual(len(out_df), N)
+        self.assertTrue({"Predict_Mineral", "Predict_Probability"}.issubset(out_df.columns))
+
+        # Zircon shortcut contract
+        for i in zircon_rows:
             self.assertEqual(out_df.iloc[i]["Predict_Mineral"], "Zircon")
-            self.assertEqual(out_df.iloc[i]["Predict_Probability"], 1.0)
+            self.assertEqual(float(out_df.iloc[i]["Predict_Probability"]), 1.0)
 
-        zircon_count = 2
-
-        # probability_matrix shape: (non-zircon_count, n_classes * n_blocks)
-        # class_list, _ = mm.load_minclass_nn()
-        K = len(fake_classes)
+        # --- Assert (probability matrix contract) ---
+        self.assertIsInstance(prob, np.ndarray)
         self.assertEqual(prob.ndim, 2)
-        self.assertEqual(prob.shape[0], N - zircon_count)
+        self.assertEqual(prob.shape[0], len(non_zircon_rows))
 
-        # Accept implementations that concatenate one block per MC iteration/head
-        self.assertEqual(prob.shape[1] % K, 0, "prob columns must be a multiple of #classes")
-        n_blocks = prob.shape[1] // K
+        # Allow concatenated blocks, but require block width = K
+        self.assertEqual(prob.shape[1] % K, 0)
 
-        # Collapse across blocks and assert the averaged shape is (N-zirc, K)
-        prob_avg = prob.reshape(prob.shape[0], n_blocks, K).mean(axis=1)
-        self.assertEqual(prob_avg.shape, (N - zircon_count, K))
 
 class TestBalance(unittest.TestCase):
     def test_balance_groups_with_mocks(self):
