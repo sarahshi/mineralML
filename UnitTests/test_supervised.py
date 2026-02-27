@@ -248,7 +248,7 @@ class TestPredictClassProbNN(unittest.TestCase):
         p_norm.side_effect = lambda d: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
         # Run
-        out_df, prob = mm.predict_class_prob_nn(df, n_iterations=3)
+        out_df, prob = mm.predict_class_prob_nnwr(df, n_iterations=3)
 
         # DF has prediction cols
         for i in [0, 2]:
