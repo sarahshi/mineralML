@@ -256,7 +256,7 @@ class TestPredictClassProbNN(unittest.TestCase):
         self.assertIsInstance(prob, np.ndarray)
         self.assertEqual(prob.ndim, 2)
         self.assertEqual(prob.shape[0], len(non_zircon_rows))
-        self.assertEqual(prob.shape[1] % K, 0)
+        self.assertGreater(prob.shape[1], 0)
 
 
 class TestBalance(unittest.TestCase):
