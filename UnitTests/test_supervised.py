@@ -90,7 +90,7 @@ class mineralML_supervised(unittest.TestCase):
         self.assertEqual(normalized_data.shape, (len(df_cleaned), len(oxides)))
 
         # Compute expected normalization directly from the scaler
-        mean, std = mm.load_scaler("scaler_nn_v0019.npz")
+        mean, std = mm.load_scaler("scaler_nn_v0030.npz")
         # Ensure Series aligned to oxides
         mean = mean.reindex(oxides)
         std = std.reindex(oxides)
@@ -258,8 +258,8 @@ class TestPredictClassProbNN(unittest.TestCase):
         zircon_count = 2
 
         # probability_matrix shape: (non-zircon_count, n_classes * n_blocks)
-        class_list, _ = mm.load_minclass_nn()
-        K = len(class_list)
+        # class_list, _ = mm.load_minclass_nn()
+        K = len(fake_classes)
         self.assertEqual(prob.ndim, 2)
         self.assertEqual(prob.shape[0], N - zircon_count)
 
