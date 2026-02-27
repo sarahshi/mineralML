@@ -220,23 +220,13 @@ class TestPredictTrainLoop(unittest.TestCase):
         self.assertTrue(np.allclose(mean.sum(axis=1), 1.0, atol=1e-5))
 
 
-
 class TestPredictClassProbNN(unittest.TestCase):
-    """
-    Minimal contract test for predict_class_prob_nnwr:
-
-    - Returns (out_df, prob)
-    - out_df preserves row count and has expected output columns
-    - Zircon shortcut works: high ZrO2 rows become Zircon with prob=1.0
-    - prob is 2D and has one row per non-zircon input
-    - prob has columns in blocks of K classes (implementation may concatenate blocks)
-    """
     @patch("mineralML.hybrid.load_model", side_effect=lambda model, opt, path: None)  # no file I/O
     @patch("mineralML.hybrid.norm_data_nn")
     @patch("mineralML.hybrid.load_minclass_nn")
-    @patch("mineralML.hybrid.class2mineral_nn", side_effect=lambda idx: np.array([f"C{int(i)}" for i in idx]))
-    def test_predict_class_prob_nn_contract(self, p_classes, p_norm, _p_load_model):
-        # --- Arrange ---
+    @patch("mineralML.hybrid.class2mineral_nn",
+           side_effect=lambda idx: np.array([f"C{int(i)}" for i in idx]))
+    def test_predict_class_prob_nn_contract(self, p_c2m, p_classes, p_norm, _p_load_model):
         K = 6
         fake_classes = [f"C{i}" for i in range(K)]
         fake_map = dict(enumerate(fake_classes))
@@ -249,35 +239,25 @@ class TestPredictClassProbNN(unittest.TestCase):
         zircon_rows = [0, 2]
         non_zircon_rows = [i for i in range(N) if i not in zircon_rows]
 
-        # Make two rows "zircon-like"
         df.loc[df.index[zircon_rows], ["ZrO2", "SiO2"]] = [60.0, 30.0]
-
-        # Make remaining rows "non-zircon-like"
         df.loc[df.index[non_zircon_rows], ["SiO2", "TiO2"]] = [50.0, 1.0]
 
-        # Scaler mock: correct shape only
         p_norm.side_effect = lambda d: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
-        # --- Act ---
         out_df, prob = mm.predict_class_prob_nnwr(df, n_iterations=1)
 
-        # --- Assert (DataFrame contract) ---
         self.assertEqual(len(out_df), N)
         self.assertTrue({"Predict_Mineral", "Predict_Probability"}.issubset(out_df.columns))
 
-        # Zircon shortcut contract
         for i in zircon_rows:
             self.assertEqual(out_df.iloc[i]["Predict_Mineral"], "Zircon")
             self.assertEqual(float(out_df.iloc[i]["Predict_Probability"]), 1.0)
 
-        # --- Assert (probability matrix contract) ---
         self.assertIsInstance(prob, np.ndarray)
         self.assertEqual(prob.ndim, 2)
         self.assertEqual(prob.shape[0], len(non_zircon_rows))
-
-        # Allow concatenated blocks, but require block width = K
         self.assertEqual(prob.shape[1] % K, 0)
-
+        
 
 class TestBalance(unittest.TestCase):
     def test_balance_groups_with_mocks(self):
