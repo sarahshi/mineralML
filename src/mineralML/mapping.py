@@ -1,5 +1,7 @@
 # %%
 
+__author__ = "Sarah Shi"
+
 import os
 import re
 import warnings

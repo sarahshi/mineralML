@@ -1404,4 +1404,3 @@ def neuralnetwork(df, hls_list, kl_weight_decay_list, lr, wd, dr, ep, n, balance
     )
 
     return best_model_state
-

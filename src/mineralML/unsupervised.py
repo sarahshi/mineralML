@@ -15,13 +15,13 @@ from torch.nn.modules.activation import LeakyReLU
 from torch.utils.data import DataLoader
 from scipy.special import softmax
 
-import gpytorch
-from gpytorch.models import ApproximateGP
-from gpytorch.variational import VariationalStrategy, CholeskyVariationalDistribution
-from gpytorch.distributions import MultivariateNormal
-from gpytorch.kernels import RBFKernel, ScaleKernel
-from gpytorch.mlls.variational_elbo import VariationalELBO
-from gpytorch.mlls.deep_approximate_mll import DeepApproximateMLL
+# import gpytorch
+# from gpytorch.models import ApproximateGP
+# from gpytorch.variational import VariationalStrategy, CholeskyVariationalDistribution
+# from gpytorch.distributions import MultivariateNormal
+# from gpytorch.kernels import RBFKernel, ScaleKernel
+# from gpytorch.mlls.variational_elbo import VariationalELBO
+# from gpytorch.mlls.deep_approximate_mll import DeepApproximateMLL
 
 from hdbscan.flat import HDBSCAN_flat, approximate_predict_flat
 
@@ -37,123 +37,123 @@ from .constants import OXIDES
 # %%
 
 
-# def prep_df_ae(df):
-#     """
+def prep_df_ae(df):
+    """
 
-#     Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
-#     It filters the DataFrame for selected minerals, handles missing values, and separates the data
-#     into two DataFrames: one that includes specified minerals and another that excludes them.
-#     The function defines a list of oxide column names and minerals to include and exclude. It drops
-#     rows where the specified oxides and 'Mineral' column have fewer than six non-NaN values.
+    Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
+    It filters the DataFrame for selected minerals, handles missing values, and separates the data
+    into two DataFrames: one that includes specified minerals and another that excludes them.
+    The function defines a list of oxide column names and minerals to include and exclude. It drops
+    rows where the specified oxides and 'Mineral' column have fewer than six non-NaN values.
 
-#     Parameters:
-#         df (DataFrame): The input DataFrame containing mineral composition data along with 'Mineral' column.
+    Parameters:
+        df (DataFrame): The input DataFrame containing mineral composition data along with 'Mineral' column.
 
-#     Returns:
-#         df_in (DataFrame): A DataFrame with rows including only the specified minerals and 'NaN' filled with zero.
-#         df_ex (DataFrame): A DataFrame with rows excluding the specified minerals and 'NaN' filled with zero.
+    Returns:
+        df_in (DataFrame): A DataFrame with rows including only the specified minerals and 'NaN' filled with zero.
+        df_ex (DataFrame): A DataFrame with rows excluding the specified minerals and 'NaN' filled with zero.
 
-#     """
+    """
 
-#     if "FeO" in df.columns and "FeOt" not in df.columns:
-#         raise ValueError(
-#             "No 'FeOt' column found. You have a 'FeO' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
-#         )
-#     if "Fe2O3" in df.columns and "FeOt" not in df.columns:
-#         raise ValueError(
-#             "No 'FeOt' column found. You have a 'Fe2O3' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
-#         )
+    if "FeO" in df.columns and "FeOt" not in df.columns:
+        raise ValueError(
+            "No 'FeOt' column found. You have a 'FeO' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+        )
+    if "Fe2O3" in df.columns and "FeOt" not in df.columns:
+        raise ValueError(
+            "No 'FeOt' column found. You have a 'Fe2O3' column. mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+        )
 
-#     oxidesandmin = [
-#         "SiO2",
-#         "TiO2",
-#         "Al2O3",
-#         "FeOt",
-#         "MnO",
-#         "MgO",
-#         "CaO",
-#         "Na2O",
-#         "K2O",
-#         "Cr2O3",
-#         'P2O5',
-#         "Mineral",
-#     ]
-#     include_minerals = [
-#         "Amphibole",
-#         "Apatite",
-#         "Biotite",
-#         "Clinopyroxene",
-#         "Garnet",
-#         "Glass",
-#         "Ilmenite",
-#         "KFeldspar",
-#         "Magnetite",
-#         "Muscovite",
-#         "Olivine",
-#         "Orthopyroxene",
-#         "Plagioclase",
-#         "Quartz",
-#         "Rutile",
-#         "Spinel",
-#         "Tourmaline",
-#         "Zircon",
-#     ]
-#     # df.dropna(subset=oxidesandmin, thresh=5, inplace=True)
-#     df_in = df[df["Mineral"].isin(include_minerals)]
-#     df_ex = df[~df["Mineral"].isin(include_minerals)]
+    oxidesandmin = [
+        "SiO2",
+        "TiO2",
+        "Al2O3",
+        "FeOt",
+        "MnO",
+        "MgO",
+        "CaO",
+        "Na2O",
+        "K2O",
+        "Cr2O3",
+        'P2O5',
+        "Mineral",
+    ]
+    include_minerals = [
+        "Amphibole",
+        "Apatite",
+        "Biotite",
+        "Clinopyroxene",
+        "Garnet",
+        "Glass",
+        "Ilmenite",
+        "KFeldspar",
+        "Magnetite",
+        "Muscovite",
+        "Olivine",
+        "Orthopyroxene",
+        "Plagioclase",
+        "Quartz",
+        "Rutile",
+        "Spinel",
+        "Tourmaline",
+        "Zircon",
+    ]
+    # df.dropna(subset=oxidesandmin, thresh=5, inplace=True)
+    df_in = df[df["Mineral"].isin(include_minerals)]
+    df_ex = df[~df["Mineral"].isin(include_minerals)]
 
-#     df_in = df_in[oxidesandmin].fillna(0)
+    df_in = df_in[oxidesandmin].fillna(0)
 
-#     df_in = df_in.reset_index(drop=True)
-#     df_ex = df_ex.reset_index(drop=True)
+    df_in = df_in.reset_index(drop=True)
+    df_ex = df_ex.reset_index(drop=True)
 
-#     return df_in, df_ex
+    return df_in, df_ex
 
 
-# def norm_data_ae(df):
-#     """
+def norm_data_ae(df):
+    """
 
-#     Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
-#     It ensures that the dataframe has been preprocessed accordingly before applying the transformation.
-#     The function expects that the scaler is already fitted and available for use as defined in the
-#     'load_scaler' function.
+    Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
+    It ensures that the dataframe has been preprocessed accordingly before applying the transformation.
+    The function expects that the scaler is already fitted and available for use as defined in the
+    'load_scaler' function.
 
-#     Parameters:
-#         df (DataFrame): The input DataFrame containing the oxide composition data.
+    Parameters:
+        df (DataFrame): The input DataFrame containing the oxide composition data.
 
-#     Returns:
-#         array_x (ndarray): An array of the transformed oxide composition data.
+    Returns:
+        array_x (ndarray): An array of the transformed oxide composition data.
 
-#     """
+    """
 
-#     oxides = [
-#         "SiO2",
-#         "TiO2",
-#         "Al2O3",
-#         "FeOt",
-#         "MnO",
-#         "MgO",
-#         "CaO",
-#         "Na2O",
-#         "K2O",
-#         "Cr2O3",
-#         'P2O5',
-#     ]
-#     mean, std = load_scaler("scaler_ae.npz")
+    oxides = [
+        "SiO2",
+        "TiO2",
+        "Al2O3",
+        "FeOt",
+        "MnO",
+        "MgO",
+        "CaO",
+        "Na2O",
+        "K2O",
+        "Cr2O3",
+        'P2O5',
+    ]
+    mean, std = load_scaler("scaler_ae.npz")
 
-#     if df[oxides].isnull().any().any():
-#         df, _ = prep_df_nn(df)
-#     else:
-#         df = df
+    if df[oxides].isnull().any().any():
+        df, _ = prep_df_nn(df)
+    else:
+        df = df
 
-#     scaled_df = df[oxides].copy()
+    scaled_df = df[oxides].copy()
 
-#     for col in df[oxides].columns:
-#         scaled_df[col] = (df[col] - mean[col]) / std[col]
+    for col in df[oxides].columns:
+        scaled_df[col] = (df[col] - mean[col]) / std[col]
 
-#     array_x = scaled_df.to_numpy()
+    array_x = scaled_df.to_numpy()
 
-#     return array_x
+    return array_x
 
 
 def feature_normalisation(feature, return_params=False, mean_norm=True):
