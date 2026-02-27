@@ -242,7 +242,7 @@ class TestPredictClassProbNN(unittest.TestCase):
         df.loc[df.index[zircon_rows], ["ZrO2", "SiO2"]] = [60.0, 30.0]
         df.loc[df.index[non_zircon_rows], ["SiO2", "TiO2"]] = [50.0, 1.0]
 
-        p_norm.side_effect = lambda d: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
+        p_norm.side_effect = lambda d, *args, **kwargs: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
         out_df, prob = mm.predict_class_prob_nnwr(df, n_iterations=1)
 
@@ -257,7 +257,7 @@ class TestPredictClassProbNN(unittest.TestCase):
         self.assertEqual(prob.ndim, 2)
         self.assertEqual(prob.shape[0], len(non_zircon_rows))
         self.assertEqual(prob.shape[1] % K, 0)
-        
+
 
 class TestBalance(unittest.TestCase):
     def test_balance_groups_with_mocks(self):
