@@ -239,8 +239,8 @@ class TestPredictClassProbNN(unittest.TestCase):
         zircon_rows = [0, 2]
         non_zircon_rows = [i for i in range(N) if i not in zircon_rows]
 
-        df.loc[df.index[zircon_rows], ["ZrO2", "SiO2"]] = [60.0, 30.0]
-        df.loc[df.index[non_zircon_rows], ["SiO2", "TiO2"]] = [50.0, 1.0]
+        df.loc[df.index[zircon_rows], ["ZrO2", "SiO2", "TiO2"]] = [60.0, 30.0, 1.0]
+        df.loc[df.index[non_zircon_rows], ["SiO2", "TiO2", "Al2O3"]] = [50.0, 1.0, 1.0]
 
         p_norm.side_effect = lambda d, *args, **kwargs: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
