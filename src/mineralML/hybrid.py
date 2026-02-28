@@ -1069,7 +1069,10 @@ def predict_class_prob_nnwr(
     """
 
     # ---- set up result DataFrame  ----
-    result_df = df.copy()
+    oxides = OXIDES
+    oxides_plus_zr = oxides + ["ZrO2"]
+    result_df = df[oxides_plus_zr].copy()
+
     pred_cols = [
         "Predict_Mineral",
         "Predict_Probability",
@@ -1084,29 +1087,30 @@ def predict_class_prob_nnwr(
     result_df["Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
     result_df["Second_Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
 
-    # --- detect rows where every input oxide value is 0 ---
+    # --- detect rows with fewer than 3 valid (non-zero) oxide values ---
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
     if oxide_cols_in_df:
-        # treat NaN as 0
-        all_zero_mask = (df[oxide_cols_in_df].fillna(0).to_numpy() == 0).all(axis=1)
-        all_zero_mask = pd.Series(all_zero_mask, index=df.index)
+        # count how many oxides are not zero (treating NaN as 0)
+        valid_oxide_count = (df[oxide_cols_in_df].fillna(0) != 0).sum(axis=1)
+        invalid_mask = valid_oxide_count < 3
     else:
-        all_zero_mask = pd.Series(False, index=df.index)
+        # if no oxide columns exist, all rows are invalid
+        invalid_mask = pd.Series(True, index=df.index) 
 
-    # explicitly set outputs to nan
-    result_df.loc[all_zero_mask, "Predict_Mineral"] = np.nan
-    result_df.loc[all_zero_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[all_zero_mask, "Predict_Probability"] = np.nan
-    result_df.loc[all_zero_mask, "Second_Predict_Probability"] = np.nan
+    # explicitly set outputs to nan for invalid rows
+    result_df.loc[invalid_mask, "Predict_Mineral"] = np.nan
+    result_df.loc[invalid_mask, "Second_Predict_Mineral"] = np.nan
+    result_df.loc[invalid_mask, "Predict_Probability"] = np.nan
+    result_df.loc[invalid_mask, "Second_Predict_Probability"] = np.nan
     # ------------------------------------------------------------
 
     # Identify and classify zircons
     zircon_mask = (
         (df["ZrO2"] > 50) if "ZrO2" in df.columns else pd.Series(False, index=df.index)
     )
-    zircon_mask = zircon_mask & ~all_zero_mask
+    zircon_mask = zircon_mask & ~invalid_mask
     result_df.loc[zircon_mask, "Predict_Mineral"] = "Zircon"
-    result_df.loc[zircon_mask, "Predict_Probability"] = 1.0
+    result_df.loc[zircon_mask, "Predict_Probability"] = np.nan
     result_df.loc[zircon_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[zircon_mask, "Second_Predict_Probability"] = np.nan
 
@@ -1114,31 +1118,32 @@ def predict_class_prob_nnwr(
     quartz_mask = (
         (df["SiO2"] > 90) if "SiO2" in df.columns else pd.Series(False, index=df.index)
     )
-    quartz_mask = quartz_mask & ~all_zero_mask
+    quartz_mask = quartz_mask & ~invalid_mask
     result_df.loc[quartz_mask, "Predict_Mineral"] = "SiO2_Polymorph"
-    result_df.loc[quartz_mask, "Predict_Probability"] = 1.0
+    result_df.loc[quartz_mask, "Predict_Probability"] = np.nan
     result_df.loc[quartz_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
 
     # Identify and classify carbonates (calcite + dolomite + magnesite + siderite)
-    df["Total"] = (
-        df[OXIDES].sum(axis=1, skipna=True)
-        if all(c in df.columns for c in OXIDES)
-        else pd.Series(0, index=df.index)
-    )
+    if "Total" not in df.columns:
+        df["Total"] = (
+            df[OXIDES].sum(axis=1, skipna=True)
+            if all(c in df.columns for c in OXIDES)
+            else pd.Series(0, index=df.index)
+        )
     carbonate_mask = (
         (df["SiO2"] < 5) & (df["Total"] < 70)
         if "CaO" in df.columns
         else pd.Series(False, index=df.index)
     )
-    carbonate_mask = carbonate_mask & ~all_zero_mask
+    carbonate_mask = carbonate_mask & ~invalid_mask
     result_df.loc[carbonate_mask, "Predict_Mineral"] = "Carbonate"
-    result_df.loc[carbonate_mask, "Predict_Probability"] = 1.0
+    result_df.loc[carbonate_mask, "Predict_Probability"] = np.nan
     result_df.loc[carbonate_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
 
     non_zircon_mask = (
-        (~zircon_mask) & (~quartz_mask) & (~carbonate_mask) & (~all_zero_mask)
+        (~zircon_mask) & (~quartz_mask) & (~carbonate_mask) & (~invalid_mask)
     )
     probability_matrix = np.array([])
 

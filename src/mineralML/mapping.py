@@ -1115,6 +1115,9 @@ def plot_component_composite(
     scalebar_loc="lower left",
     pixel_size_um=1.0,
     scalebar_color="black",
+    gap=0.015,
+    cbar_gap=-0.01,
+    cbar_height=0.03,
     dpi=300,
 ):
     """
@@ -1337,17 +1340,16 @@ def plot_component_composite(
         "red": _make_ramp("#FFE6E6", "#C83C50"),
         "maroon": _make_ramp("#CB4545", "#5A0000"),
         "green": _make_ramp("#EFEEBB", "#666633"),
-        "brown": _make_ramp("#e89b76", "#5E2910"),
+        "brown": _make_ramp("#843916", "#473127"),
     }
 
-    legend_entries = [(c["leg"], c["col"]) for c in active_components] + [
-        (m["name"], m["color"]) for m in active_masks
-    ]
+    # Only include discrete masks/phases in the patch legend
+    legend_entries = [(m["name"], m["color"]) for m in active_masks]
 
     # --- Setup Figure and Axes ---
     if ax is None:
         fig_w, fig_h = _auto_figsize_from_array(
-            mineral_map.shape, n_legend=len(legend_entries)
+            mineral_map.shape, n_legend=len(legend_entries) + len(active_components)
         )
         fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi, layout="constrained")
 
@@ -1359,14 +1361,17 @@ def plot_component_composite(
     else:
         ax_map, fig, ax_legend = ax, ax.get_figure(), None
 
+    # Store the image objects so we can attach colorbars to them
+    comp_images = []
     for c in active_components:
-        ax_map.imshow(
+        im = ax_map.imshow(
             np.ma.masked_invalid(c["data"]),
             cmap=ramps[c["ramp"]],
             vmin=c["vmin"],
             vmax=c["vmax"],
             interpolation="none",
         )
+        comp_images.append((im, c["leg"]))
 
     for m in active_masks:
         display = np.where(m["mask"], 1.0, np.nan)
@@ -1375,8 +1380,28 @@ def plot_component_composite(
     ax_map.set_title(title, pad=8)
     ax_map.axis("off")
 
+    # Add colorbars for each continuous component
+    n_bars = len(comp_images)
+    if n_bars > 0:
+        gap = gap  # 15% gap between colorbars to prevent label overlap
+        w = (1.0 - (n_bars - 1) * gap) / n_bars  # dynamic width of each colorbar
+
+        for i, (im, label) in enumerate(comp_images):
+            x = i * (w + gap)
+            
+            # Create a dedicated axis for the colorbar relative to the map's dimensions
+            # [left, bottom, width, height] in axes fractions
+            cax = ax_map.inset_axes([x, cbar_gap, w, cbar_height])
+            
+            cbar = fig.colorbar(im, cax=cax, orientation="horizontal", format='%.2f')
+            cbar.set_label(label, size=9, labelpad=4)
+            cbar.ax.tick_params(labelsize=10)
+            
+            # Rotate tick labels slightly so the numbers don't crash into each other
+            cbar.ax.tick_params(axis='x') #, rotation=45)
+
     # Add Legend
-    if legend_on:
+    if legend_on and legend_entries:
         handles = [mpatches.Patch(facecolor=c, label=lab) for lab, c in legend_entries]
         if ax_legend is not None:
             ax_legend.axis("off")
@@ -1384,7 +1409,7 @@ def plot_component_composite(
                 handles=handles,
                 loc="upper left",
                 frameon=False,
-                title="Layers",
+                title="Categorical Phases",
                 ncol=legend_cols,
                 fontsize=8,
             )
@@ -1394,7 +1419,7 @@ def plot_component_composite(
                 loc="upper left",
                 bbox_to_anchor=(1.02, 1),
                 frameon=False,
-                title="Layers",
+                title="Categorical Phases",
                 fontsize=8,
             )
 
@@ -1419,7 +1444,6 @@ def plot_component_composite(
     if save_path:
         fig.savefig(save_path, bbox_inches="tight")
     return fig, mineral_map, processed_comp_maps
-
 
 # %% EBSD mapping
 
@@ -1561,28 +1585,35 @@ def plot_ctf_phases(
     # Create the 2D string-based map to return
     phase_map = phase_names.reshape((y_cells, x_cells))
 
-    # --- Set up the custom colormap ---
-    base_colors = list(plt.get_cmap("tab20").colors)
-    colors = []
-    color_idx = 0
-
-    for name in unique_names:
-        if phase_colors and name in phase_colors:
-            colors.append(phase_colors[name])
-        else:
-            colors.append(base_colors[color_idx % len(base_colors)])
-            color_idx += 1
-
-    cmap = ListedColormap(colors)
-
     # --- Handle Axes ---
     show_plot = False
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 6))
         show_plot = True
 
-    ax.imshow(numeric_ids, cmap=cmap, interpolation="none")
     ax.axis("off")
+
+    # --- Plot EACH phase as its own distinct layer ---
+    base_colors = list(plt.get_cmap("tab20").colors)
+    cmap_dict = {} # We'll store this to build the legend later
+
+    for i, name in enumerate(unique_names):
+        # Create a mask: 1 where the phase exists, NaN everywhere else
+        phase_mask = np.where(phase_map == name, 1.0, np.nan)
+        
+        # Determine the color
+        if phase_colors and name in phase_colors:
+            color = phase_colors[name]
+        else:
+            color = base_colors[i % len(base_colors)]
+            
+        # Create a single-color colormap for this specific phase
+        single_cmap = ListedColormap([color])
+        cmap_dict[name] = color # Save for the legend
+        
+        # Plot just this phase. 
+        # Illustrator will now read this as an individual object!
+        ax.imshow(phase_mask, cmap=single_cmap, vmin=0, vmax=1, interpolation="none")
 
     # Title
     if title == "default":
@@ -1616,12 +1647,11 @@ def plot_ctf_phases(
     n_show = min(max_legend, len(unique_names))
     handles = [
         plt.Line2D(
-            [0],
-            [0],
+            [0], [0],
             marker="s",
             linestyle="",
             markersize=10,
-            color=cmap(name_to_code[name]),
+            color=cmap_dict[name],
         )
         for name in unique_names[:n_show]
     ]

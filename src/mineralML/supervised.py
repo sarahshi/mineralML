@@ -146,11 +146,11 @@ def prep_df_nn(df):
     """
     Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
     It handles missing values and ensures the presence of required oxide columns.
-    The function defines a list of oxide column names and drops rows where the specified oxides
-    have fewer than three non-NaN values.
+    The function defines a list of oxide column names and fills missing values with zero,
+    while preserving all original columns in the dataset.
 
     Parameters:
-        df (DataFrame): The input DataFrame containing mineral composition data along with 'Mineral' column.
+        df (DataFrame): The input DataFrame containing mineral composition data.
 
     Returns:
         df (DataFrame): The cleaned DataFrame with 'NaN' filled with zero for oxides.
@@ -174,8 +174,7 @@ def prep_df_nn(df):
 
     sample_cols = ["SampleID", "Sample", "Sample Name"]
     present_sample_cols = [c for c in sample_cols if c in df.columns]
-    sample_col = present_sample_cols[0] if present_sample_cols else None
-
+    
     # ensure required columns exist
     for col in oxides_plus_zr + ["Mineral"] + present_sample_cols:
         if col not in df.columns:
@@ -195,15 +194,10 @@ def prep_df_nn(df):
             stacklevel=2,
         )
 
-    # Drop rows with fewer than 3 non-NaN values in the oxides columns
-    df.dropna(subset=oxides, thresh=3, inplace=True)
-
-    # Fill remaining NaN values with 0 for oxides, keep NaN for 'Mineral'
+    # Fill remaining NaN values with 0 for oxides only
     df.loc[:, oxides_plus_zr] = df.loc[:, oxides_plus_zr].fillna(0)
 
-    # Ensure only oxides, 'Mineral', and 'SampleID' columns are kept
-    keep_cols = oxides_plus_zr + ["Mineral"] + present_sample_cols
-    df = df.loc[:, keep_cols]
+    # Keep all columns, just reset the index
     df = df.reset_index(drop=True)
 
     return df
