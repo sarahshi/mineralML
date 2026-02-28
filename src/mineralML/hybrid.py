@@ -1087,12 +1087,12 @@ def predict_class_prob_nnwr(
     result_df["Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
     result_df["Second_Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
 
-    # --- detect rows with fewer than 3 valid (non-zero) oxide values ---
+    # --- detect rows with fewer than 2 valid (non-zero) oxide values ---
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
     if oxide_cols_in_df:
         # count how many oxides are not zero (treating NaN as 0)
         valid_oxide_count = (df[oxide_cols_in_df].fillna(0) != 0).sum(axis=1)
-        invalid_mask = valid_oxide_count < 3
+        invalid_mask = valid_oxide_count < 2
     else:
         # if no oxide columns exist, all rows are invalid
         invalid_mask = pd.Series(True, index=df.index) 
