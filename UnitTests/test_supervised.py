@@ -251,7 +251,7 @@ class TestPredictClassProbNN(unittest.TestCase):
 
         for i in zircon_rows:
             self.assertEqual(out_df.iloc[i]["Predict_Mineral"], "Zircon")
-            self.assertEqual(float(out_df.iloc[i]["Predict_Probability"]), 1.0)
+            self.assertTrue(np.isnan(float(out_df.iloc[i]["Predict_Probability"])))
 
         self.assertIsInstance(prob, np.ndarray)
         self.assertEqual(prob.ndim, 2)
