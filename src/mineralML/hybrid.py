@@ -57,7 +57,7 @@ class NNWRFeatureExtractor(nn.Module):
     def __init__(
         self,
         input_dim=11,
-        classes=21,
+        classes=23,
         hidden_layer_sizes=[128, 64, 32],
         dropout_rate=0.1,
         use_bayesian_feature_layer=True,
