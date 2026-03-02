@@ -57,7 +57,7 @@ class NNWRFeatureExtractor(nn.Module):
     def __init__(
         self,
         input_dim=11,
-        classes=23,
+        classes=21,
         hidden_layer_sizes=[128, 64, 32],
         dropout_rate=0.1,
         use_bayesian_feature_layer=True,
@@ -70,7 +70,7 @@ class NNWRFeatureExtractor(nn.Module):
         self.dropout_rate = dropout_rate
         self.use_bayesian_feature_layer = use_bayesian_feature_layer
         self.use_bayesian_classifier = use_bayesian_classifier
-
+        
         def enc_element(in_channel, out_channel, is_last=False):
             if not is_last:
                 return [
@@ -1757,7 +1757,7 @@ def plot_harker(
         # Safely calculate Total for df_train
         if df_train is not None:
             df_train = df_train.copy()
-            available_ox = [ox for ox in oxides if ox in df_train.columns]
+            available_ox = [ox for ox in OXIDES if ox in df_train.columns]
             df_train[target_y] = df_train[available_ox].sum(axis=1)
 
         # Safely calculate Total for overlay_datasets
