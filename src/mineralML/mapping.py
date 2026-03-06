@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.font_manager as fm
 from matplotlib.colors import ListedColormap, to_rgb
+import matplotlib.transforms as mtransforms
+from matplotlib.colors import BoundaryNorm
+
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 from mineralML.stoichiometry import *
@@ -589,6 +592,8 @@ def plot_phase_map(
         ax_map = ax
         fig = ax.get_figure()
         ax_legend = None
+        ax_map.clear()
+        ax_map.set_axis_off()   
     else:
         fig_w, fig_h = _auto_figsize_from_array(
             ids.shape, n_legend=len(phases), legend_side=legend_side, legend_cols=legend_cols
@@ -628,7 +633,7 @@ def plot_phase_map(
     # ----------------------------------------------------
     # Rendering Data
     # ----------------------------------------------------
-    ax_map.imshow(ids, cmap=cmap, interpolation="none", origin="upper", vmin=0, vmax=len(phases)) 
+    ax_map.imshow(ids, cmap=cmap, interpolation="none", origin="upper")
     ax_map.set_title(title, pad=8)
     ax_map.axis("off")
 
@@ -1095,13 +1100,7 @@ def plot_component_composite(
         "Clinopyroxene": ("Clinopyroxene", "Augite", "Diopside"),
         "Orthopyroxene": ("Orthopyroxene", "Enstatite", "Hypersthene"),
         "Olivine": ("Olivine", "Forsterite", "Fayalite"),
-        "Amphibole": (
-            "Amphibole",
-            "Tremolite",
-            "Actinolite",
-            "Anthrophyllite",
-            "Grunerite",
-        ),
+        "Amphibole": ("Amphibole", "Tremolite", "Actinolite", "Anthrophyllite", "Grunerite"),
     },
     mask_config=None,
     phase_colors=None,
@@ -1163,6 +1162,7 @@ def plot_component_composite(
         mask_config = {
             "Glass": {"labels": ("Glass", "Melt"), "color": "#F9C300"},
             "Spinel": {"labels": ("Spinel"), "color": "#2E2DCE"},
+            "Feldspar_Miscibility_Gap": {"labels": ("Feldspar_Miscibility_Gap"), "color": "#003d36"},
         }
 
     comp_maps = res.get("component_maps", {})
@@ -1383,22 +1383,19 @@ def plot_component_composite(
     # Add colorbars for each continuous component
     n_bars = len(comp_images)
     if n_bars > 0:
-        gap = gap  # 15% gap between colorbars to prevent label overlap
-        w = (1.0 - (n_bars - 1) * gap) / n_bars  # dynamic width of each colorbar
+        gap_ = gap
+        fill = 0.95   # fraction of axis width the whole group should occupy
+        total_w = fill
+        bar_w = (total_w - (n_bars - 1) * gap_) / n_bars
+        x0 = 0.5 - total_w / 2.0
 
         for i, (im, label) in enumerate(comp_images):
-            x = i * (w + gap)
-            
-            # Create a dedicated axis for the colorbar relative to the map's dimensions
-            # [left, bottom, width, height] in axes fractions
-            cax = ax_map.inset_axes([x, cbar_gap, w, cbar_height])
-            
-            cbar = fig.colorbar(im, cax=cax, orientation="horizontal", format='%.2f')
+            x = x0 + i * (bar_w + gap_)
+            cax = ax_map.inset_axes([x, cbar_gap, bar_w, cbar_height])
+
+            cbar = fig.colorbar(im, cax=cax, orientation="horizontal", format="%.2f")
             cbar.set_label(label, size=9, labelpad=4)
-            cbar.ax.tick_params(labelsize=10)
-            
-            # Rotate tick labels slightly so the numbers don't crash into each other
-            cbar.ax.tick_params(axis='x') #, rotation=45)
+            cbar.ax.tick_params(labelsize=10, axis="x")
 
     # Add Legend
     if legend_on and legend_entries:
@@ -1426,24 +1423,38 @@ def plot_component_composite(
     if scalebar_um is not None:
         scalebar_pixels = scalebar_um / pixel_size_um
         fontprops = fm.FontProperties(size=12, weight="bold")
+
+        # Inset the anchor box so the bar never bleeds past the edge.
+        # Values are in axes-fraction coords: (x0, y0, width, height)
+        # Tweak the margin (here 0.03) to taste.
+        margin = 0.015
+        bbox = mtransforms.Bbox.from_bounds(
+            margin, margin, 1 - 2 * margin, 1 - 2 * margin
+        )
+
         scalebar = AnchoredSizeBar(
             ax_map.transData,
             scalebar_pixels,
             f"{scalebar_um} µm",
             loc=scalebar_loc,
             pad=0.5,
+            borderpad=0.5,
             color=scalebar_color,
             frameon=False,
             size_vertical=1,
             sep=3,
             label_top=True,
             fontproperties=fontprops,
+            bbox_to_anchor=bbox,
+            bbox_transform=ax_map.transAxes,  # interpret bbox in axes fractions
         )
+        scalebar.set_clip_on(True)
         ax_map.add_artist(scalebar)
 
     if save_path:
         fig.savefig(save_path, bbox_inches="tight")
     return fig, mineral_map, processed_comp_maps
+
 
 # %% EBSD mapping
 

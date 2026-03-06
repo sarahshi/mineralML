@@ -4,11 +4,127 @@ import numpy as np
 import pandas as pd
 import warnings
 import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 import matplotlib
 from matplotlib import pyplot as plt
 
 # %%
+
+
+def confusion_matrix_df(given_min, pred_min):
+    """
+
+    Constructs a confusion matrix as a pandas DataFrame for easy visualization and
+    analysis. The function first finds the unique classes and maps them to their
+    corresponding mineral names. Then, it uses these mappings to construct the
+    confusion matrix, which compares the given and predicted classes.
+
+    Parameters:
+        given_class (array-like): The true class labels.
+        pred_class (array-like): The predicted class labels.
+
+    Returns:
+        cm_df (DataFrame): A DataFrame representing the confusion matrix, with rows
+                           and columns labeled by the unique mineral names found in
+                           the given and predicted class arrays.
+
+    """
+
+    minerals = [
+        "Alkali_Feldspar",
+        "Amphibole",
+        "Apatite",
+        "Biotite",
+        "Carbonate",
+        "Chlorite",
+        "Clinopyroxene",
+        "Epidote",
+        "Garnet",
+        "Glass",
+        "Kalsilite",
+        "Leucite",
+        "Melilite",
+        "Muscovite",
+        "Nepheline",
+        "Olivine",
+        'Orthopyroxene',
+        "Plagioclase",
+        "Rhombohedral_Oxides",
+        "Rutile",
+        "Serpentine",
+        "SiO2_Polymorph",
+        "Spinel_Group",
+        "Titanite",
+        "Tourmaline",
+        "Zircon",
+    ]
+
+    given = pd.Series(given_min)
+    pred = pd.Series(pred_min)
+
+    given_nans = given.isna().sum()
+    pred_nans = pred.isna().sum()
+    if given_nans > 0 or pred_nans > 0:
+        warnings.warn(
+            f"Missing data detected: {given_nans} NaN(s) in given_min, "
+            f"{pred_nans} NaN(s) in pred_min. "
+            f"These rows will be excluded from the confusion matrix.",
+            UserWarning,
+            stacklevel=2,
+        )
+        mask = given.notna() & pred.notna()
+        given = given[mask]
+        pred = pred[mask]
+
+    # case-insensitive group merges
+    def _merge_to_spinel_group(x):
+        if pd.isna(x):
+            return x
+        s = str(x).strip().lower()
+        if "spinel" in s or s in {"magnetite", "chromite", "hercynite", "ulvospinel"}:
+            return "Spinel_Group"
+        return x
+    def _merge_to_rhomb_oxide(x):
+        if pd.isna(x):
+            return x
+        s = str(x).strip().lower()
+        if s in {"hematite","ilmenite"}:
+            return "Rhombohedral_Oxides"
+        return x
+    def _merge_to_clinopyroxene(x):
+        if pd.isna(x):
+            return x
+        s = str(x).strip().lower()
+        if s in {"na-pyroxene"}:
+            return "Clinopyroxene"
+        return x
+
+    given_min_merged = given.map(_merge_to_spinel_group)
+    given_min_merged = given_min_merged.map(_merge_to_rhomb_oxide)
+    given_min_merged = given_min_merged.map(_merge_to_clinopyroxene)
+    pred_min_merged = pred.map(_merge_to_spinel_group)
+    pred_min_merged = pred_min_merged.map(_merge_to_rhomb_oxide)
+    pred_min_merged = pred_min_merged.map(_merge_to_clinopyroxene)
+
+    # Create a confusion matrix with labels as all possible minerals
+    cm_matrix = confusion_matrix(given_min_merged, pred_min_merged, labels=minerals)
+
+    # Create a DataFrame from the confusion matrix
+    cm_df = pd.DataFrame(cm_matrix, index=minerals, columns=minerals)
+
+    # Adjust DataFrame to handle missing minerals
+    # Ensure all minerals are included as rows and columns, filling missing ones with zeros
+    for mineral in minerals:
+        if mineral not in cm_df:
+            cm_df[mineral] = 0
+        if mineral not in cm_df.index:
+            cm_df.loc[mineral] = 0
+
+    # Reorder rows and columns based on the predefined minerals list
+    cm_df = cm_df.reindex(index=minerals, columns=minerals)
+
+    return cm_df
 
 
 def pp_matrix(
@@ -140,7 +256,7 @@ def pp_matrix(
     ax.set_ylabel(ylbl)
     plt.tight_layout()  # set layout slim
 
-    if savefig != None:
+    if savefig:
         plt.savefig(savefig + '.pdf')
 
 

@@ -1040,7 +1040,7 @@ class FeldsparClassifier(FeldsparCalculator):
 
             # Then K-Feldspar with the interpolated curve
             elif a_n <= f_kfeld(o):
-                main = "KFeldspar"
+                main = "Alkali_Feldspar"
                 sub = "Sanidine" if o >= 0.37 else "Anorthoclase"
 
             # Area in between is miscibility gap
@@ -1174,7 +1174,7 @@ class FeldsparClassifier(FeldsparCalculator):
             tax.scatter(pts_sub, marker='o', label=g, color=cmap(i),
                         edgecolor='k', s=20, alpha=0.8, vmin=None, vmax=None)
         # legend for the classified fields
-        tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
+        tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(0.98, 1))
 
         # Plot “Unclassified” as hollow xs:
         mask_unc = df_class["Submineral"] == "Feldspar_Miscibility_Gap"
@@ -1832,7 +1832,7 @@ class OxideClassifier:
                 U = np.array([0.0, 1/3, 2/3]) # Ulvöspinel (Fe2TiO4)
                 t_mu, on_mu, dist_mu = self._project_to_line(P, M, U, eps/4)
                 df_class.loc[idx[on_mu], "Submineral"] = np.where(
-                    t_mu[on_mu] <= 0.5, "Spinels", "Ulvöspinel"
+                    t_mu[on_mu] <= 0.5, "Spinel", "Ulvöspinel"
                 )
                 # df_class.loc[idx[on_mu], "Classification_Confidence"] = 1 - (dist_mu[on_mu]/eps)
 
@@ -1913,16 +1913,16 @@ class OxideClassifier:
         fs = 14
         fig.set_size_inches(figsize)
         tax.boundary(linewidth=1.5, zorder=0)
-        tax.right_corner_label("R$\\mathregular{^{3+}}$\n$\\mathregular{Fe^{3+}+Cr+Mn}$\nHematite, $\\mathregular{Fe_2O_3}$", fontsize=fs, offset=-0.075)
-        tax.top_corner_label("Rutile, anatase, brookite\n$\\mathregular{TiO_2}$", fontsize=fs, offset=0.175)
-        tax.left_corner_label("R$\\mathregular{^{2+}}$\n$\\mathregular{Fe^{2+}+Mg+Mn}$\n FeO ", fontsize=fs, offset=-0.075)
-        tax.bottom_axis_label("Magnetite\n$\\mathregular{Fe_3O_4}$", fontsize=fs, offset=0)
+        tax.right_corner_label("R$\\mathregular{^{3+}}$\n$\\mathregular{Fe^{3+}+Cr+Mn}$\nHematite, $\\mathregular{Fe_2O_3}$", offset=-0.075) #fontsize=fs, 
+        tax.top_corner_label("Rutile, anatase, brookite\n$\\mathregular{TiO_2}$", offset=0.175)
+        tax.left_corner_label("R$\\mathregular{^{2+}}$\n$\\mathregular{Fe^{2+}+Mg+Mn}$\n FeO ", offset=-0.075)
+        tax.bottom_axis_label("Magnetite\n$\\mathregular{Fe_3O_4}$", offset=0)
 
         ax = tax.get_axes()
-        ax.text(0.86, 0.45, "Pseudobrookite\n$\\mathregular{FeTi_2O_5}$", fontsize=fs, ha="center", va="center")
-        ax.text(0.24, 0.59, "FeO$\\cdot$${\\mathregular{2TiO_2}}$", fontsize=fs, ha="center", va="center")
-        ax.text(0.17, 0.44, "Ilmenite\n$\\mathregular{FeTiO_3}$", fontsize=fs, ha="center", va="center")
-        ax.text(0.06, 0.30, "Ulvöspinel\n2FeO$\\cdot$${\\mathregular{TiO_2}}$", fontsize=fs, ha="center", va="center")
+        ax.text(0.86, 0.45, "Pseudobrookite\n$\\mathregular{FeTi_2O_5}$", ha="center", va="center")
+        ax.text(0.24, 0.59, "FeO$\\cdot$${\\mathregular{2TiO_2}}$", ha="center", va="center")
+        ax.text(0.17, 0.44, "Ilmenite\n$\\mathregular{FeTiO_3}$", ha="center", va="center")
+        ax.text(0.06, 0.30, "Ulvöspinel\n2FeO$\\cdot$${\\mathregular{TiO_2}}$", ha="center", va="center")
 
         tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
         tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
@@ -1951,7 +1951,7 @@ class OxideClassifier:
         if ticks:
             tax.ticks(axis="lbr", linewidth=0.5, multiple=0.2, offset=0.01, tick_formats="%.1f")
 
-        tax.legend(fontsize=10, bbox_to_anchor=(1.02, 1))
+        tax.legend(bbox_to_anchor=(0.98, 1)) # fontsize=10,
         tax.get_axes().axis("off")
 
         sp_mask = df["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
@@ -1989,15 +1989,15 @@ class OxideClassifier:
         ax.vlines(x=0.50, ymin=0.75, ymax=1.02, color='k', lw=1, zorder=0)
 
         fs = 14
-        ax.text(0.225, 0.875, "Magnesioferrite", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.775, 0.875, "Magnetite", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.125, 0.500, "Ferrian-Spinel", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.500, 0.500, "Ferrian-Pleonaste", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.875, 0.625, "Al-Magnetite", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.875, 0.375, "Ferrian-Picotite", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.125, 0.130, "Spinel", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.500, 0.130, "Pleonaste", fontsize=fs, ha="center", va="center", zorder=30)
-        ax.text(0.875, 0.130, "Hercynite", fontsize=fs, ha="center", va="center", zorder=30)
+        ax.text(0.225, 0.875, "Magnesioferrite", ha="center", va="center", zorder=30) # fontsize=10,
+        ax.text(0.775, 0.875, "Magnetite", ha="center", va="center", zorder=30)
+        ax.text(0.125, 0.500, "Ferrian-Spinel", ha="center", va="center", zorder=30)
+        ax.text(0.500, 0.500, "Ferrian-Pleonaste", ha="center", va="center", zorder=30)
+        ax.text(0.875, 0.625, "Al-Magnetite", ha="center", va="center", zorder=30)
+        ax.text(0.875, 0.375, "Ferrian-Picotite", ha="center", va="center", zorder=30)
+        ax.text(0.125, 0.130, "Spinel", ha="center", va="center", zorder=30)
+        ax.text(0.500, 0.130, "Pleonaste", ha="center", va="center", zorder=30)
+        ax.text(0.875, 0.130, "Hercynite", ha="center", va="center", zorder=30)
 
         # Color by hue using tab10; keep in sorted order
         cmap = plt.get_cmap("tab10")
@@ -2009,7 +2009,7 @@ class OxideClassifier:
                         edgecolors="k", linewidth=0.5, color=cmap(i % 10), zorder=20)
             # Put legend OUTSIDE 
             fig.subplots_adjust(right=0.9)  # make room on the right
-            ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=True, fontsize=9)
+            ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=True) # fontsize=9
         else:
             ax.scatter(x, y, s=30, alpha=0.6, edgecolors="k", linewidth=0.5,
                     color=cmap(0), zorder=20)
@@ -2365,9 +2365,9 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 fig.set_size_inches(figsize)
                 tax.boundary(linewidth=1.5, zorder=0)
                 tax.get_axes().set_ylim(-0.035, 0.434)
-                tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$", fontsize=14, offset=-0.2)
-                tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$", fontsize=14, offset=-0.2)
-                tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$", fontsize=14)
+                tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$", offset=-0.2)
+                tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$",  offset=-0.2)
+                tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$",)
             else: 
                 if ax is None:
                     fig, tax = ternary.figure(scale=1.0)
@@ -2380,9 +2380,9 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 fig.set_size_inches((8, 8))
                 tax.boundary(linewidth=1.5, zorder=0)
                 tax.get_axes().set_ylim(-0.005, 1.005)
-                tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$", fontsize=14, offset=-0.2)
-                tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$", fontsize=14, offset=-0.2)
-                tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$", fontsize=14, offset=0.075)
+                tax.left_corner_label("En\n$(\\mathregular{Mg_2Si_2O_6})$",  offset=-0.2)
+                tax.right_corner_label("Fs\n$(\\mathregular{Fe_2Si_2O_6})$", offset=-0.2)
+                tax.top_corner_label("Wo\n$(\\mathregular{Ca_2Si_2O_6})$", offset=0.075)
 
             tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
             tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
@@ -2410,9 +2410,9 @@ class PyroxeneClassifier(BaseMineralCalculator):
                                     marker='o', label=g, color=cmap(i),
                                     edgecolor='k', s=20, alpha=0.8)
                 if quad_only: 
-                    tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.015,1.01))
+                    tax.legend(loc='upper left', bbox_to_anchor=(1.015,1.01))
                 else: 
-                    tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(0.99,1))
+                    tax.legend(loc='upper left', bbox_to_anchor=(0.99,1))
 
             else:
                 tax.scatter(pts, marker='o', color='C0', edgecolor='k', s=20, alpha=0.8)
@@ -2423,7 +2423,7 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 nL, nT = len(ax.lines), len(ax.texts)
                 ticks = [i * 0.1 for i in range(11)]
                 tax.ticks(axis=axis, ticks=ticks, linewidth=1, 
-                          tick_formats="%.1f", offset=offset, fontsize=10)
+                          tick_formats="%.1f", offset=offset)
                 newL, newT = ax.lines[nL:], ax.texts[nT:]
                 for L, T in zip(newL, newT):
                     v = float(T.get_text())
@@ -2444,12 +2444,12 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 fs = 12
                 lab_z = 120
                 ax = tax.get_axes()
-                ax.text(0.375, 0.4, label_set["Diopside"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.625, 0.4, label_set["Hedenbergite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.5, 0.275, label_set["Augite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.5, 0.1, label_set["Pigeonite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.25, 0.02, label_set["Enstatite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.75, 0.02, label_set["Ferrosilite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.375, 0.4, label_set["Diopside"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.625, 0.4, label_set["Hedenbergite"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.5, 0.275, label_set["Augite"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.5, 0.1, label_set["Pigeonite"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.25, 0.02, label_set["Enstatite"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.75, 0.02, label_set["Ferrosilite"], ha='center', va='center', zorder=lab_z)
             tax.clear_matplotlib_ticks()
             ax.axis("off")
             figs.append((fig, tax))
@@ -2485,9 +2485,9 @@ class PyroxeneClassifier(BaseMineralCalculator):
             fig_sod, tax_sod = ternary.figure(scale=1.0)
             fig_sod.set_size_inches((8, 8))
             tax_sod.boundary(linewidth=1.5, zorder=0)
-            tax_sod.top_corner_label("En+Di-Hd\n(Ca-Mg-Fe Pyroxenes)", fontsize=14)
-            tax_sod.left_corner_label("Jd\n$(\\mathregular{NaAlSi_2O_6})$", fontsize=14, offset=0.03)
-            tax_sod.right_corner_label("Aeg\n$(\\mathregular{NaFe^{3+}Si_2O_6})$", fontsize=14, offset=0.03)
+            tax_sod.top_corner_label("En+Di-Hd\n(Ca-Mg-Fe Pyroxenes)") #, fontsize=14)
+            tax_sod.left_corner_label("Jd\n$(\\mathregular{NaAlSi_2O_6})$",offset=0.03)
+            tax_sod.right_corner_label("Aeg\n$(\\mathregular{NaFe^{3+}Si_2O_6})$", offset=0.03)
             tax_sod.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
             tax_sod.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
 
@@ -2501,9 +2501,9 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 tax_sod.line(xs, ys, color="k", zorder=0)
 
             tax_sod.ticks(axis='lr', multiple=0.2, linewidth=1,
-                          tick_formats="%.1f", offset=0.02, fontsize=10)
+                          tick_formats="%.1f", offset=0.02) #, fontsize=10)
             tax_sod.ticks(axis='b', multiple=0.2, linewidth=1,
-                          tick_formats="%.1f", offset=0.01, fontsize=10)
+                          tick_formats="%.1f", offset=0.01) #, fontsize=10)
 
             # Scatter: color by Submineral if present
             if subclass and "Submineral" in sodic_px.columns:
@@ -2522,7 +2522,7 @@ class PyroxeneClassifier(BaseMineralCalculator):
                                          edgecolor='k', s=20, alpha=0.85)
                 # Only add legend if there are any points plotted
                 if len(pts_sodic) > 0:
-                    tax_sod.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02,1))
+                    tax_sod.legend(loc='upper left',  bbox_to_anchor=(1.02,1)) #fontsize=10,
             else:
                 # Fallback: plot all points without subclass coloring
                 if len(pts_sodic) > 0:
@@ -2533,10 +2533,10 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 fs = 12
                 lab_z = 120
                 ax = tax_sod.get_axes()
-                ax.text(0.375, 0.4, label_set["Omphacite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.625, 0.4, label_set["Aegirine-Augite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.3, 0.09, label_set["Jadeite"], fontsize=fs, ha='center', va='center', zorder=lab_z)
-                ax.text(0.7, 0.09, label_set["Aegirine"], fontsize=fs, ha='center', va='center', zorder=lab_z)
+                ax.text(0.375, 0.4, label_set["Omphacite"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.625, 0.4, label_set["Aegirine-Augite"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.3, 0.09, label_set["Jadeite"], ha='center', va='center', zorder=lab_z)
+                ax.text(0.7, 0.09, label_set["Aegirine"], ha='center', va='center', zorder=lab_z)
 
             tax_sod.clear_matplotlib_ticks()
             tax_sod.get_axes().axis("off")

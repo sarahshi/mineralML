@@ -89,7 +89,7 @@ class SolidSolutionGenerator:
         return cations
 
     def _apply_site_variation(self, site_totals):
-        """Apply variation to site totals using all noise parameters."""
+        """Apply log-normal variation to site totals (preserves strictly positive values)."""
         varied_totals = {}
 
         for site, tot in site_totals.items():
@@ -101,22 +101,16 @@ class SolidSolutionGenerator:
             )
 
             # Base lognormal variation (preserves positives)
-            base_variation = tot * np.random.lognormal(mean=0, sigma=variation)
-
-            # Add additional Gaussian noise scaled by element_noise_scale
-            gauss_noise = np.random.normal(loc=0, scale=self.element_noise_scale * tot)
-
-            # Combine all noise sources
-            varied_total = base_variation + gauss_noise
+            varied_total = tot * np.random.lognormal(mean=0, sigma=variation)
 
             # Enforce minimum site fraction using min_site_fraction parameter
             varied_totals[site] = max(
                 varied_total,
-                self.min_site_fraction * tot,  # Now using the parameter
+                self.min_site_fraction * tot,  
             )
 
         return varied_totals
-
+    
     def _add_element_noise(self, cations):
         """Add per-element noise using element_noise_scale parameter."""
         noisy_cations = {}
@@ -186,7 +180,7 @@ class SolidSolutionGenerator:
 
         raw_charge = self._total_charge(cations)
         expected_charge = 2 * self.oxygen_basis
-        if abs(raw_charge - expected_charge) > 0.2:
+        if abs(raw_charge - expected_charge) > (0.1 * expected_charge):
             print(f"Charge mismatch: {raw_charge:.2f} vs {expected_charge}")
         return self._add_element_noise(cations)
 
@@ -212,65 +206,57 @@ class SolidSolutionGenerator:
         # Normalize to 100%
         return {ox: (mass / total_mass) * 100 for ox, mass in oxide_wt.items()}
 
+
     def generate(self, n_samples=1000):
         """Generate synthetic mineral compositions."""
         records = []
         endmember_names = list(self.endmembers.keys())
 
         for _ in range(n_samples):
-            # 1) Endmember mixing
+            cations = {}
+
+            # Base Composition Generation (Endmember mixing)
             if len(self.endmembers) > 1:
                 frac = self._generate_mixing_fraction()
-                cations = {}
 
-                # For binary mixtures
+                # Handle binary mixtures
                 if len(endmember_names) == 2:
                     for element in set().union(
                         *[e.keys() for e in self.endmembers.values()]
                     ):
                         if element == "O":
                             continue
-                        cations[element] = frac * self.endmembers[
-                            endmember_names[1]
-                        ].get(element, 0) + (1 - frac) * self.endmembers[
-                            endmember_names[0]
-                        ].get(element, 0)
-
-                    # check raw charge before noise
-                    cations = self._check_charge_balance_add_noise(cations)
+                        val1 = self.endmembers[endmember_names[0]].get(element, 0)
+                        val2 = self.endmembers[endmember_names[1]].get(element, 0)
+                        cations[element] = frac * val2 + (1 - frac) * val1
+                
+                # Handle multi-component mixtures (>2)
                 else:
-                    # For >2 endmembers (requires dirichlet mixing)
                     for i, name in enumerate(endmember_names):
                         for element, value in self.endmembers[name].items():
                             if element == "O":
                                 continue
-                            if element not in cations:
-                                cations[element] = 0
-                            cations[element] += frac[i] * value
+                            cations[element] = cations.get(element, 0) + frac[i] * value
 
-                    # check raw charge before noise
-                    cations = self._check_charge_balance_add_noise(cations)
-
-            # 2) Coupled site generation (alternative)
+            # Single endmember
             else:
-                only = next(iter(self.endmembers))
-                # copy its cations (drop oxygen)
-                base_cat = {
-                    el: cnt for el, cnt in self.endmembers[only].items() if el != "O"
-                }
+                only = endmember_names[0]
+                cations = {el: cnt for el, cnt in self.endmembers[only].items() if el != "O"}
 
-                # apply log-normal variation to the total cation sum
-                total = sum(base_cat.values())
-                varied_total = total * np.random.lognormal(
-                    mean=0, sigma=self.site_variation
-                )
-                scale = varied_total / total
-                cations = {el: cnt * scale for el, cnt in base_cat.items()}
-                # now add per‐element Gaussian noise, renormalize charge & O
-                cations = self._check_charge_balance_add_noise(cations)
-
-            # Add minor elements
+            # Add minor elements prior to noise and charge balancing
             cations = self._add_minor_elements(cations)
+
+            # Perturb total site occupancies (Log-normal variation)
+            # Treat the whole composition as a "bulk" site for proportional scaling.
+            total_cations = sum(cations.values())
+            if total_cations > 0:
+                varied_totals = self._apply_site_variation({"bulk": total_cations})
+                scale = varied_totals["bulk"] / total_cations
+                cations = {el: cnt * scale for el, cnt in cations.items()}
+
+            # Element-specific Gaussian noise and strict charge balancing
+            # Calculates total cationic charge, adds element noise, and renormalizes.
+            cations = self._check_charge_balance_add_noise(cations)
 
             # Convert to oxide wt%
             oxide_wt = self._calculate_oxide_wt_percent(cations)
@@ -288,6 +274,7 @@ class SolidSolutionGenerator:
             records.append({**oxide_wt, **norm_cations})
 
         return pd.DataFrame(records)
+
 
     def compare_distributions(
         self,

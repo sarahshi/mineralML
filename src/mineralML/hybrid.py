@@ -32,6 +32,502 @@ from sklearn.decomposition import PCA
 # %%
 
 
+def load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz"):
+    """
+    Loads mineral classes and their corresponding mappings from a .npz file.
+    The file is expected to contain an array of class names under the 'classes' key.
+    This function creates a dictionary that maps an integer code to each class name.
+
+    Parameters: 
+    minclass_path (str): Filename or relative path (relative to this file).
+ 
+    Returns:
+        min_cat (list): A list of mineral class names.
+        mapping (dict): A dictionary that maps each integer code to its corresponding
+        class name in the 'min_cat' list.
+    """
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(current_dir, minclass_path)
+
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Class file not found: {filepath}")
+
+    with np.load(filepath, allow_pickle=True) as data:
+        if "classes" not in data:
+            raise KeyError(f'"classes" not found in {filepath}. Keys: {list(data.keys())}')
+        min_cat = data["classes"].tolist()
+
+    mapping = dict(enumerate(min_cat))
+    return min_cat, mapping
+
+
+def prep_df_nn(df):
+    """
+    Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
+    It handles missing values and ensures the presence of required oxide columns.
+    The function defines a list of oxide column names and fills missing values with zero,
+    while preserving all original columns in the dataset.
+
+    Parameters:
+        df (DataFrame): The input DataFrame containing mineral composition data.
+
+    Returns:
+        df (DataFrame): The cleaned DataFrame with 'NaN' filled with zero for oxides.
+    """
+
+    if "FeO" in df.columns:
+        if "FeOt" not in df.columns:
+            raise ValueError(
+                "No 'FeOt' column found. You have a 'FeO' column. "
+                "mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+            )
+    if "Fe2O3" in df.columns:
+        if "FeOt" not in df.columns:
+            raise ValueError(
+                "No 'FeOt' column found. You have a 'Fe2O3' column. "
+                "mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+            )
+
+    oxides = OXIDES
+    oxides_plus_zr = oxides + ["ZrO2"]
+
+    sample_cols = ["SampleID", "Sample", "Sample Name"]
+    present_sample_cols = [c for c in sample_cols if c in df.columns]
+    
+    # ensure required columns exist
+    for col in oxides_plus_zr + ["Mineral"] + present_sample_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+            warnings.warn(
+                f"The column '{col}' was missing and has been filled with NaN.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+    # Convert columns to numeric, coercing errors to NaN
+    df[oxides_plus_zr] = df[oxides_plus_zr].apply(pd.to_numeric, errors="coerce")
+    if df[oxides_plus_zr].isnull().any().any():
+        warnings.warn(
+            "Some non-numeric values were found in the oxides columns and have been coerced to NaN.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    # Fill remaining NaN values with 0 for oxides only
+    df.loc[:, oxides_plus_zr] = df.loc[:, oxides_plus_zr].fillna(0)
+
+    # Keep all columns, just reset the index
+    df = df.reset_index(drop=True)
+
+    return df
+
+
+def norm_data_nn(df, scaler_path="scaler_nn_v0030.npz"):
+    """
+
+    Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
+    It ensures that the dataframe has been preprocessed accordingly before applying the transformation.
+    The function expects that the scaler is already fitted and available for use as defined in the
+    'load_scaler' function.
+
+    Parameters:
+        df (DataFrame): The input DataFrame containing the oxide composition data.
+
+    Returns:
+        array_x (ndarray): An array of the transformed oxide composition data.
+
+    """
+
+    oxides = OXIDES    
+    mean, std = load_scaler(scaler_path)
+
+    # Ensure that mean and std are Series objects with indices matching the columns
+    if not isinstance(mean, pd.Series) or not isinstance(std, pd.Series):
+        raise ValueError("mean and std should be Series")
+
+    for col in oxides:
+        if col not in mean.index or col not in std.index:
+            raise ValueError(f"Missing mean or std for column: {col}")
+
+    df = df.reset_index(drop=False)
+    scaled_df = df[oxides].copy()
+
+    # scaled_df = df[oxides].reset_index(drop=True).copy()
+
+    if df[oxides].isnull().any().any():
+        df = prep_df_nn(df)
+    else:
+        df = df
+
+    for col in df[oxides].columns:
+        scaled_df[col] = (df[col] - mean[col]) / std[col]
+
+    array_x = scaled_df.to_numpy()
+
+    return array_x
+
+
+def balance(df, n=1000):
+    """
+
+    Groups to 2000 total:
+    - Pyroxene group (clinopyroxene + orthopyroxene -> 'pyroxene'), kmeans for representative sampling
+    - Feldspar group (plagioclase + k-feldspar -> 'feldspar'), kmeans for representative sampling
+    - Olivine, kmeans for representative sampling
+    - Amphibole, kmeans for representative sampling to capture tremolite and actinolite
+    - Rhombohedral oxide group (hematite + ilmenite -> 'rhombohedral oxide')
+    - Spinel group (magnetite + spinel -> 'spinel')
+    - Glass (separate group with 2000 samples), TAS stratified sampling
+
+    Groups to 1000 total:
+    - Garnet group
+    - All other classes get standard n samples (default 1000). If count <1250, shuffle+oversample. 
+
+    """
+
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.cluster import KMeans
+
+    olivine_class = ['Olivine']
+    pyroxene_classes = ['Clinopyroxene', 'Orthopyroxene']
+    feldspar_classes = ['Plagioclase', 'Alkali_Feldspar']
+    rhombohedral_oxide_classes = ['Hematite', 'Ilmenite']
+    spinel_classes = ['Magnetite', 'Spinel']
+    amphibole_class = ['Amphibole']
+    garnet_class = ['Garnet']
+    glass_class = ['Glass']
+    lower_threshold = 1000
+    random_seed = 42
+
+    oxides = OXIDES
+    oxides_plus_zr = oxides + ["ZrO2"]
+
+    sample_cols = ["SampleID", "Sample", "Sample Name", "Sample ID"]
+    present_sample_cols = [c for c in sample_cols if c in df.columns]
+
+    # ensure required columns exist
+    for col in oxides_plus_zr + ["Mineral"] + present_sample_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    # Helpers
+    def kmeans_multi_sample(member_df,
+                            n_target,
+                            n_clusters=5,
+                            min_per_cluster=1):
+        """Cluster into 10 groups and sample multiple per cluster to total n_target."""
+        n_rows = len(member_df)
+        if n_rows == 0:
+            return member_df.iloc[[]].copy()
+        if n_rows <= n_target:
+            return member_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
+
+        C = int(max(2, min(n_clusters, n_rows, n_target)))
+        X = member_df[oxides_plus_zr].fillna(0.0).to_numpy()
+        Xs = StandardScaler().fit_transform(X)
+
+        km = KMeans(n_clusters=C, random_state=random_seed, n_init=10)
+        labels = km.fit_predict(Xs)
+
+        tmp = member_df.copy()
+        tmp["_cluster"] = labels
+
+        # cluster sizes
+        sizes = tmp["_cluster"].value_counts().sort_index().to_numpy()
+
+        # start uniform then distribute remainder to the largest clusters
+        base = n_target // C
+        alloc = np.full(C, base, dtype=int)
+        remainder = n_target - alloc.sum()
+        if remainder > 0:
+            give = np.argsort(-sizes)[:remainder]
+            alloc[give] += 1
+
+        # enforce floor
+        alloc = np.maximum(alloc, min_per_cluster)
+        # trim if we overshot
+        over = alloc.sum() - n_target
+        if over > 0:
+            order = np.argsort(-(alloc - min_per_cluster))
+            for idx in order:
+                if over <= 0:
+                    break
+                can_trim = alloc[idx] - min_per_cluster
+                if can_trim > 0:
+                    t = min(can_trim, over)
+                    alloc[idx] -= t
+                    over -= t
+
+        parts = []
+        for c_idx, n_c in enumerate(alloc):
+            g = tmp[tmp["_cluster"] == c_idx]
+            replace = len(g) < n_c
+            parts.append(g.sample(n=n_c, replace=replace, random_state=random_seed))
+
+        out = (pd.concat(parts, ignore_index=True)
+                 .drop(columns=["_cluster"])
+                 .sample(frac=1, random_state=random_seed)
+                 .reset_index(drop=True))
+        return out
+
+    def random_cap(member_df, n_target):
+        """Random cap to n_target (no replacement if enough)."""
+        if len(member_df) <= n_target:
+            return member_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
+        return member_df.sample(n=n_target, replace=False, random_state=random_seed).reset_index(drop=True)
+
+    def shuffle_oversample_to(member_df, n_target):
+        """Shuffle, then oversample with replacement up to n_target."""
+        if len(member_df) == 0:
+            return member_df.iloc[[]].copy()
+        if len(member_df) >= n_target:
+            return random_cap(member_df, n_target)
+        # oversample with replacement
+        return (member_df.sample(frac=1, random_state=random_seed)
+                          .sample(n=n_target, replace=True, random_state=random_seed)
+                          .reset_index(drop=True))
+
+    def process_group_per_member(group_classes, sampler_fn, n_per_member, relabel_as):
+        """Apply sampler per member class to n_per_member, then relabel to group name."""
+        present = [c for c in group_classes if c in df["Mineral"].unique()]
+        if not present:
+            return pd.DataFrame(columns=OXIDES + ["Mineral"])
+        pieces = []
+        for m in present:
+            sub = df[df["Mineral"] == m]
+            pieces.append(sampler_fn(sub, n_per_member))
+        out = pd.concat(pieces, ignore_index=True)
+        out["Mineral"] = relabel_as
+        return out
+
+    # Build groups
+    # Olivine: kmeans to n
+    oli_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
+    if 'Olivine' in df["Mineral"].unique():
+        oli_df = kmeans_multi_sample(df[df.Mineral == 'Olivine'], n_target=n,
+                                     n_clusters=3)
+        oli_df["Mineral"] = 'Olivine'
+
+    amph_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
+    if 'Amphibole' in df["Mineral"].unique():
+        amph_df = kmeans_multi_sample(df[df.Mineral == 'Amphibole'], n_target=2*n, n_clusters=8)
+        amph_df["Mineral"] = 'Amphibole'
+
+    gt_df = pd.DataFrame(columns=OXIDES + ["Mineral"])
+    if 'Garnet' in df["Mineral"].unique():
+        gt_df = kmeans_multi_sample(df[df.Mineral == 'Garnet'], n_target=n, n_clusters=8)
+        gt_df["Mineral"] = 'Garnet'
+
+    # Pyroxene: Cpx kmeans->n + Opx kmeans->n  => total 2n
+    pyroxene_df = process_group_per_member(pyroxene_classes, 
+                                           lambda d, k: kmeans_multi_sample(d, n_target=k),
+                                           n_per_member=n, relabel_as='Pyroxene')
+
+    # Feldspar: Plag kmeans->n + KFspar kmeans->n => total 2n
+    feldspar_df = process_group_per_member(feldspar_classes,
+                                           lambda d, k: kmeans_multi_sample(d, n_target=k, n_clusters=8),
+                                           n_per_member=n, relabel_as='Feldspar')
+
+    # Rhombohedral oxides: per member random->n (=> 2n total)
+    rhombohedral_oxide_df = process_group_per_member(rhombohedral_oxide_classes,
+                                                     lambda d, k: random_cap(d, k),
+                                                     n_per_member=n, relabel_as='Rhombohedral_Oxides')
+
+    # Spinels: per member random->n (=> 2n total)
+    spinel_df = process_group_per_member(spinel_classes,
+                                         lambda d, k: random_cap(d, k),
+                                         n_per_member=n, relabel_as='Spinel_Group')
+
+    # Glass: TAS-stratified to 2n
+    from pyrolite.util.classification import TAS
+    gl_df = df[df.Mineral == 'Glass']
+    if len(gl_df):
+        gl_df = gl_df[gl_df.SiO2 > 40].copy()
+        cm = TAS()
+        gl_df['Na2O + K2O'] = gl_df['Na2O'] + gl_df['K2O']
+        gl_df['TAS'] = cm.predict(gl_df)
+        min_per = max(1, (2*n) // gl_df['TAS'].nunique())
+        resampled = (
+            gl_df
+            .groupby('TAS', group_keys=False)
+            .apply(lambda x: x.sample(
+                n=max(min_per, int(2*n * len(x) / len(gl_df))),
+                replace=True, random_state=random_seed))
+            .sample(n=2*n, random_state=random_seed)
+            .reset_index(drop=True)
+        )
+        to_drop = [c for c in ["Na2O + K2O", "TAS"] if c in resampled.columns]
+        resampled = resampled.drop(columns=to_drop)
+        resampled = resampled.copy()
+        resampled['Mineral'] = 'Glass'
+        glass_df = resampled
+    else:
+        glass_df = pd.DataFrame(columns=OXIDES + ['Mineral'])
+
+    # Other classes: if <1250 -> shuffle+oversample to n; else cap to n
+    special_flat = set(olivine_class + pyroxene_classes + feldspar_classes +
+                       rhombohedral_oxide_classes + spinel_classes + amphibole_class + 
+                       garnet_class + glass_class)
+    other_classes = [c for c in df["Mineral"].unique() if c not in special_flat]
+
+    other_dfs = []
+    for cls in other_classes:
+        grp = df[df.Mineral == cls]
+        if len(grp) < lower_threshold:
+            other_dfs.append(shuffle_oversample_to(grp, n))
+        else:
+            other_dfs.append(random_cap(grp, n))
+    other_df = pd.concat(other_dfs, ignore_index=True) if other_dfs else pd.DataFrame(columns=OXIDES+["Mineral"])
+
+    df_balanced = pd.concat(
+        [oli_df, pyroxene_df, feldspar_df, rhombohedral_oxide_df, spinel_df, amph_df, gt_df, glass_df, other_df],
+        ignore_index=True
+    )
+    return df_balanced
+
+
+class VariationalLayer(nn.Module):
+
+    """
+
+    The VariationalLayer class implements a Bayesian approach to linear layers
+    in neural networks, which allows for the incorporation
+    of uncertainty in the weights and biases. This is achieved by modeling the
+    parameters as distributions rather than point estimates. The layer utilizes
+    variational inference to learn the parameters of these distributions.
+
+    Parameters:
+        in_features (int): The number of input features to the layer.
+        out_features (int): The number of output features from the layer.
+
+    Attributes:
+        weight_mu (Parameter): The mean of the Gaussian distributions of the weights.
+        weight_rho (Parameter): The rho parameters (unconstrained) for the standard
+                                deviations of the Gaussian distributions of the weights.
+        bias_mu (Parameter): The mean of the Gaussian distributions of the biases.
+        bias_rho (Parameter): The rho parameters (unconstrained) for the standard
+                              deviations of the Gaussian distributions of the biases.
+        softplus (nn.Softplus): A Softplus activation function used for ensuring the
+                                standard deviation is positive.
+
+    Methods:
+        reset_parameters(): Initializes the parameters based on the number of input features.
+        forward(input): Performs the forward pass using a sampled weight and bias according
+                        to their respective distributions.
+        kl_divergence(): Computes the Kullback-Leibler divergence of the layer's
+                         parameters, which can be used as a part of the loss function
+                         to regulate the learning of the distribution parameters.
+
+    The forward computation of this layer is equivalent to a standard linear layer
+    with sampled weights and biases. The KL divergence method returns a value that
+    quantifies the difference between the prior and variational distributions of the
+    layer's parameters, which encourages the learning of plausible weights and biases
+    while controlling complexity.
+
+    """
+
+    def __init__(self, in_features, out_features):
+        super(VariationalLayer, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+
+        self.weight_mu = nn.Parameter(torch.Tensor(out_features, in_features))
+        self.weight_rho = nn.Parameter(torch.Tensor(out_features, in_features))
+        self.bias_mu = nn.Parameter(torch.Tensor(out_features))
+        self.bias_rho = nn.Parameter(torch.Tensor(out_features))
+
+        self.softplus = nn.Softplus()
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        std = 1.0 / math.sqrt(self.weight_mu.size(1))
+        self.weight_mu.data.uniform_(-std, std)
+        self.weight_rho.data.uniform_(-std, std)
+        self.bias_mu.data.uniform_(-std, std)
+        self.bias_rho.data.uniform_(-std, std)
+
+    def forward(self, input):
+        weight_sigma = torch.log1p(torch.exp(self.weight_rho))
+        bias_sigma = torch.log1p(torch.exp(self.bias_rho))
+
+        weight_epsilon = torch.normal(
+            mean=0.0, std=1.0, size=weight_sigma.size(), device=input.device
+        )
+        bias_epsilon = torch.normal(
+            mean=0.0, std=1.0, size=bias_sigma.size(), device=input.device
+        )
+
+        weight_sample = self.weight_mu + weight_epsilon * weight_sigma
+        bias_sample = self.bias_mu + bias_epsilon * bias_sigma
+
+        output = F.linear(input, weight_sample, bias_sample)
+        return output
+
+    def kl_divergence(self):
+        weight_sigma = torch.log1p(torch.exp(self.weight_rho))
+        bias_sigma = torch.log1p(torch.exp(self.bias_rho))
+
+        kl_div = -0.5 * torch.sum(
+            1
+            + torch.log(weight_sigma.pow(2))
+            - self.weight_mu.pow(2)
+            - weight_sigma.pow(2)
+        )
+        kl_div += -0.5 * torch.sum(
+            1 + torch.log(bias_sigma.pow(2)) - self.bias_mu.pow(2) - bias_sigma.pow(2)
+        )
+
+        return kl_div
+
+
+
+def unique_mapping_nn(pred_class):
+    """
+    Generates a mapping of unique class codes from given and predicted class labels,
+    considering only the classes present in both input arrays. It loads a predefined
+    category list and mapping, encodes the 'given_class' labels into categorical codes,
+    and creates a subset mapping for the unique classes found. It also handles unknown
+    classes by assigning them a code of -1 and mapping the 'Unknown' label to them.
+
+    Parameters:
+        pred_class (array-like): The array of predicted class labels.
+
+    Returns:
+        unique (ndarray): Array of unique class codes found in both given and predicted classes.
+        valid_mapping (dict): Dictionary mapping class codes to their corresponding labels,
+        including 'Unknown' for any class code of -1.
+    """
+
+    _, mapping = load_minclass_nn()
+    unique = np.unique(pred_class)
+    valid_mapping = {key: mapping[key] for key in unique}
+    if -1 in unique:
+        valid_mapping[-1] = "Unknown"
+
+    return unique, valid_mapping
+
+
+def class2mineral_nn(pred_class):
+    """
+
+    Translates predicted class codes into mineral names using a mapping obtained from the
+    unique classes present in the 'pred_class' array. It utilizes the 'unique_mapping_nn'
+    function to establish the relevant class-to-mineral name mapping.
+
+    Parameters:
+        pred_class (array-like): The array of predicted class codes to be translated into mineral names.
+
+    Returns:
+        pred_mineral (ndarray): An array of mineral names corresponding to the predicted class codes.
+
+    """
+
+    _, valid_mapping = unique_mapping_nn(pred_class)
+    pred_mineral = np.array([valid_mapping[x] for x in pred_class])
+    return pred_mineral
+
+
 def format_oxide_label(label):
     """
     Converts 'SiO2' -> '$\mathregular{SiO_2}$'
@@ -48,6 +544,8 @@ def format_oxide_label(label):
     return f"$\mathregular{{{formatted}}}$"
 
 
+# %% 
+
 class NNWRFeatureExtractor(nn.Module):
     """
     Stage A: classifier-only.
@@ -58,7 +556,7 @@ class NNWRFeatureExtractor(nn.Module):
         self,
         input_dim=11,
         classes=23,
-        hidden_layer_sizes=[128, 64, 32],
+        hidden_layer_sizes=[64, 32, 16],
         dropout_rate=0.1,
         use_bayesian_feature_layer=True,
         use_bayesian_classifier=False,
@@ -708,7 +1206,7 @@ def neuralnetwork_wr(
             .replace(["Clinopyroxene", "Orthopyroxene"], "Pyroxene")
             .replace(["Plagioclase", "KFeldspar"], "Feldspar")
             .replace(["Hematite", "Ilmenite"], "Rhombohedral_Oxides")
-            .replace(["Magnetite", "Spinel"], "Spinels")
+            .replace(["Magnetite", "Spinel"], "Spinel_Group")
         )
 
     exclude = {"Zircon", "Carbonate", "SiO2_Polymorph"}
@@ -1071,11 +1569,15 @@ def predict_class_prob_nnwr(
     # ---- set up result DataFrame  ----
     oxides = OXIDES
     oxides_plus_zr = oxides + ["ZrO2"]
-    result_df = df[oxides_plus_zr].copy()
+    # result_df = df[oxides_plus_zr].copy()
+    cols = oxides_plus_zr + [c for c in ["Mineral", "Source"] if c in df.columns]
+    result_df = df[cols].copy()
+
 
     pred_cols = [
         "Predict_Mineral",
         "Predict_Probability",
+        "Predict_Probability_Sigma",
         "Second_Predict_Mineral",
         "Second_Predict_Probability",
     ]
@@ -1085,14 +1587,15 @@ def predict_class_prob_nnwr(
     result_df["Predict_Mineral"] = pd.Series(index=df.index, dtype="object")
     result_df["Second_Predict_Mineral"] = pd.Series(index=df.index, dtype="object")
     result_df["Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
+    result_df["Predict_Probability_Sigma"] = pd.Series(index=df.index, dtype="float64")
     result_df["Second_Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
 
-    # --- detect rows with fewer than 2 valid (non-zero) oxide values ---
+    # --- detect rows with fewer than 1 valid (non-zero) oxide values ---
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
     if oxide_cols_in_df:
         # count how many oxides are not zero (treating NaN as 0)
         valid_oxide_count = (df[oxide_cols_in_df].fillna(0) != 0).sum(axis=1)
-        invalid_mask = valid_oxide_count < 2
+        invalid_mask = valid_oxide_count < 1
     else:
         # if no oxide columns exist, all rows are invalid
         invalid_mask = pd.Series(True, index=df.index) 
@@ -1101,6 +1604,7 @@ def predict_class_prob_nnwr(
     result_df.loc[invalid_mask, "Predict_Mineral"] = np.nan
     result_df.loc[invalid_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[invalid_mask, "Predict_Probability"] = np.nan
+    result_df.loc[invalid_mask, "Predict_Probability_Sigma"] = np.nan
     result_df.loc[invalid_mask, "Second_Predict_Probability"] = np.nan
     # ------------------------------------------------------------
 
@@ -1111,6 +1615,7 @@ def predict_class_prob_nnwr(
     zircon_mask = zircon_mask & ~invalid_mask
     result_df.loc[zircon_mask, "Predict_Mineral"] = "Zircon"
     result_df.loc[zircon_mask, "Predict_Probability"] = np.nan
+    result_df.loc[zircon_mask, "Predict_Probability_Sigma"] = np.nan
     result_df.loc[zircon_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[zircon_mask, "Second_Predict_Probability"] = np.nan
 
@@ -1121,6 +1626,7 @@ def predict_class_prob_nnwr(
     quartz_mask = quartz_mask & ~invalid_mask
     result_df.loc[quartz_mask, "Predict_Mineral"] = "SiO2_Polymorph"
     result_df.loc[quartz_mask, "Predict_Probability"] = np.nan
+    result_df.loc[quartz_mask, "Predict_Probability_Sigma"] = np.nan
     result_df.loc[quartz_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
 
@@ -1139,6 +1645,7 @@ def predict_class_prob_nnwr(
     carbonate_mask = carbonate_mask & ~invalid_mask
     result_df.loc[carbonate_mask, "Predict_Mineral"] = "Carbonate"
     result_df.loc[carbonate_mask, "Predict_Probability"] = np.nan
+    result_df.loc[carbonate_mask, "Predict_Probability_Sigma"] = np.nan
     result_df.loc[carbonate_mask, "Second_Predict_Mineral"] = np.nan
     result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
 
@@ -1154,7 +1661,6 @@ def predict_class_prob_nnwr(
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # default paths
-        # model_path = os.path.join(os.path.dirname(__file__), "nnwithrecon_best_model_v004.pt")
         model_path = os.path.join(
             os.path.dirname(__file__), "nnwr_best_model_v0030.pt"
         )
@@ -1163,7 +1669,7 @@ def predict_class_prob_nnwr(
         model_config = checkpoint.get("model_config", {})
 
         # architecture knobs (prefer checkpoint)
-        hidden_layer_sizes = model_config.get("hidden_layer_sizes", [32, 16, 8])
+        hidden_layer_sizes = model_config.get("hidden_layer_sizes", [64, 32, 16])
         dropout_rate = float(model_config.get("dropout_rate", 0.1))
         use_bayesian_feature_layer = bool(
             model_config.get("use_bayesian_feature_layer", True)
@@ -1214,9 +1720,9 @@ def predict_class_prob_nnwr(
         if return_recon_oxides:
             # --- build full wrapper to compute recon = decoder(z2) ---
             feat_dim = int(model_config.get("feat_dim", hidden_layer_sizes[-1]))
-            mapper_hidden = int(model_config.get("mapper_hidden", 16))
+            mapper_hidden = int(model_config.get("mapper_hidden", 32))
             mapper_nonlinear = bool(model_config.get("mapper_nonlinear", True))
-            decoder_hidden_sizes = model_config.get("decoder_hidden_sizes", [64, 32])
+            decoder_hidden_sizes = model_config.get("decoder_hidden_sizes", [64, 32, 16])
 
             mapper2d = NNWRLatentProjector(
                 feat_dim=feat_dim,
@@ -1278,9 +1784,10 @@ def predict_class_prob_nnwr(
             N = len(input_data)
             C = model.classes
             BATCH = 2**13
-            K = 8  # MC passes per chunk
+            K = 10 # MC passes per chunk
 
             probs_mean = torch.empty((N, C), device=device, dtype=torch.float32)
+            probs_var  = torch.empty((N, C), device=device, dtype=torch.float32)
 
             for start in range(0, N, BATCH):
                 end = min(start + BATCH, N)
@@ -1289,26 +1796,34 @@ def predict_class_prob_nnwr(
 
                 done = 0
                 acc = torch.zeros((b, C), device=device, dtype=torch.float32)
+                acc2 = torch.zeros((b, C), device=device, dtype=torch.float32)
 
                 while done < n_iterations:
                     kk = min(K, n_iterations - done)
 
-                    p = 0.0
+                    # p = 0.0
                     for _ in range(kk):
                         logits = classifier(x)  # classifier-only forward
-                        p = p + torch.softmax(logits, dim=1)
+                        # p = p + torch.softmax(logits, dim=1)
+                        s = torch.softmax(logits, dim=1)
+                        acc += s
+                        acc2 += s**2
 
-                    acc += p
                     done += kk
 
                 probs_mean[start:end] = acc / float(n_iterations)
+                probs_var[start:end] = (acc2 / float(n_iterations)) - probs_mean[start:end]**2
 
             probability_matrix = probs_mean.detach().cpu().numpy()
+            std_matrix = np.sqrt(probs_var.detach().cpu().numpy())
 
         # ---- top-2 predictions ----
         top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
         first_probs = probability_matrix[
             np.arange(len(probability_matrix)), top_two_indices[:, 1]
+        ]
+        first_uncertainty = std_matrix[
+        np.arange(len(std_matrix)), top_two_indices[:, 1]
         ]
         second_probs = probability_matrix[
             np.arange(len(probability_matrix)), top_two_indices[:, 0]
@@ -1318,6 +1833,7 @@ def predict_class_prob_nnwr(
 
         result_df.loc[non_zircon_mask, "Predict_Mineral"] = first_mins
         result_df.loc[non_zircon_mask, "Predict_Probability"] = first_probs
+        result_df.loc[non_zircon_mask, "Predict_Probability_Sigma"] = first_uncertainty
         result_df.loc[non_zircon_mask, "Second_Predict_Mineral"] = second_mins
         result_df.loc[non_zircon_mask, "Second_Predict_Probability"] = second_probs
 
@@ -1348,19 +1864,21 @@ def predict_class_prob_nnwr(
     _merge_subclass(fspar_mask, FeldsparClassifier, want_sub=True)
 
     # Oxide classification
-    ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinels"])
+    ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinel_Group"])
     _merge_subclass(ox_mask, OxideClassifier, want_sub=True)
 
     if "Submineral" not in result_df.columns:
         result_df["Submineral"] = pd.Series(index=result_df.index, dtype="object")
 
     cols = list(result_df.columns)
-    if "Predict_Mineral" in cols and "Submineral" in cols:
-        # remove and re-insert Submineral right after Predict_Mineral
-        cols.remove("Submineral")
-        insert_at = cols.index("Predict_Mineral") + 1
-        cols.insert(insert_at, "Submineral")
-        result_df = result_df[cols]
+    for col, after in [
+        ("Predict_Probability_Sigma", "Predict_Probability"),
+        ("Submineral", "Predict_Mineral"),
+    ]:
+        if col in cols and after in cols:
+            cols.remove(col)
+            cols.insert(cols.index(after) + 1, col)
+    result_df = result_df[cols]
 
     if return_recon_oxides and recon_df is not None:
         result_df = pd.concat([result_df, recon_df], axis=1)
@@ -1558,8 +2076,8 @@ def plot_z2_overlay(
     )
     if os.path.exists(latent_path):
         with np.load(latent_path) as data:
-            Z_ref = data["train_latents"]
-            labels_ref = data["train_labels"]
+            Z_ref = data["valid_latents"]
+            labels_ref = data["valid_labels"]
     else:
         raise FileNotFoundError(
             f"Could not find {latent_path}. Please provide Z_ref manually."
@@ -1619,7 +2137,12 @@ def plot_z2_overlay(
     fig, ax = plt.subplots(figsize=(10, 8), constrained_layout=True)
 
     # Configure style parameters (removed 'cmap' from default_new)
-    default_train = {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}
+    default_train = {
+        "s": 10,
+        "alpha": 0.10,
+        "marker": "x",
+        "edgecolors":
+        "none"}
     default_df = {
         "s": 25,
         "alpha": 0.85,
@@ -1637,15 +2160,15 @@ def plot_z2_overlay(
 
     tab20 = plt.get_cmap("tab20")
     tab20b = plt.get_cmap("tab20b")
-    combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
+    combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(1)]
 
     # Shuffle with a fixed seed to maximize visual distance
-    random.seed(21)
-    random.shuffle(combined_colors)
+    # random.seed(42)
+    # random.shuffle(combined_colors)
 
     # Create the cmap and set a fixed normalization range
     cmap = mcolors.ListedColormap(combined_colors)
-    norm = mcolors.Normalize(vmin=0, vmax=30)
+    norm = mcolors.Normalize(vmin=0, vmax=20)
 
     # Plot Reference Data (Background) and create dummy legend markers
     uniq_ref_classes = np.unique(yr).astype(int)
