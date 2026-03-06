@@ -65,7 +65,7 @@ R = {
         "SiO2": 37.02, "TiO2": 0.0, "Al2O3": 31.43, "FeOt": 0.35, "MnO": 0.0,
         "MgO": 0.0, "CaO": 0.0, "Na2O": 0.04, "K2O": 29.61, "P2O5": np.nan, "Cr2O3": 0.0069
     },
-    "KFeldspar": {
+    "Alkali_Feldspar": {
         "Sample Name": "DG-44",
         "SiO2": 65.0797, "TiO2": np.nan, "Al2O3": 18.8768, "FeOt": 0.0, "MnO": np.nan,
         "MgO": np.nan, "CaO": 0.0664, "Na2O": 2.4138, "K2O": 13.194, "P2O5": np.nan, "Cr2O3": np.nan

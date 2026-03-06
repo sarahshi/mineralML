@@ -323,7 +323,7 @@ class TestBalance(unittest.TestCase):
 class TestConfusionMatrixDF(unittest.TestCase):
     def test_confusion_matrix_df_merges_and_shape(self):
         given = ["Magnetite", "Plagioclase", "Hematite", "Zircon"]
-        pred  = ["Spinel_Group",  "Alkali_Feldspar",  "Ilmenite", "Zircon"]
+        pred  = ["Spinel",  "Alkali_Feldspar",  "Ilmenite", "Zircon"]
         cm = mm.confusion_matrix_df(given, pred)
         # Square with the fixed label set
         self.assertEqual(cm.shape[0], cm.shape[1])
