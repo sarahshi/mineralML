@@ -286,9 +286,9 @@ class TestFeldspar(unittest.TestCase):
         self.assertTrue(0.99 <= s <= 1.01)
 
     def test_feldspar_classifier_kfeldspar(self):
-        out = mm.FeldsparClassifier(_df("KFeldspar")).classify(subclass=True)
+        out = mm.FeldsparClassifier(_df("Alkali_Feldspar")).classify(subclass=True)
         _assert_cols(self, out, ["Mineral", "Submineral"])
-        self.assertIn(out["Mineral"].iloc[0], ["Plagioclase","KFeldspar","Unclassified"])
+        self.assertIn(out["Mineral"].iloc[0], ["Plagioclase","Alkali_Feldspar","Unclassified"])
 
 
 class TestGarnet(unittest.TestCase):
