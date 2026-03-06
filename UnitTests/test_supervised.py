@@ -65,7 +65,7 @@ class mineralML_supervised(unittest.TestCase):
         self.assertEqual([mapping[i] for i in range(len(min_cat))], min_cat)
 
         # Sanity: core classes exist (names from your current mapping)
-        required = {"Amphibole", "Pyroxene", "Garnet", "Olivine", "Spinel_Group"}
+        required = {"Amphibole", "Pyroxene", "Garnet", "Olivine", "Leucite"}
         self.assertTrue(required.issubset(set(min_cat)))
 
     def test_prep_df_nn(self):
@@ -328,7 +328,7 @@ class TestConfusionMatrixDF(unittest.TestCase):
         # Square with the fixed label set
         self.assertEqual(cm.shape[0], cm.shape[1])
         # Merge: Magnetite -> Spinels should contribute to Spinels column
-        self.assertGreaterEqual(cm.loc["Spinel", "Spinel_Group"], 1)
+        self.assertGreaterEqual(cm.loc["Magnetite", "Spinel_Group"], 1)
         # Zircon row/col present
         self.assertIn("Zircon", cm.index)
         self.assertIn("Zircon", cm.columns)
