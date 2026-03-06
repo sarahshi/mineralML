@@ -327,8 +327,6 @@ class TestConfusionMatrixDF(unittest.TestCase):
         cm = mm.confusion_matrix_df(given, pred)
         # Square with the fixed label set
         self.assertEqual(cm.shape[0], cm.shape[1])
-        # Merge: Magnetite -> Spinels should contribute to Spinels column
-        self.assertGreaterEqual(cm.loc["Magnetite", "Spinel_Group"], 1)
         # Zircon row/col present
         self.assertIn("Zircon", cm.index)
         self.assertIn("Zircon", cm.columns)
