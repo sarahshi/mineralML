@@ -247,11 +247,11 @@ class TestPredictClassProbNN(unittest.TestCase):
         out_df, prob = mm.predict_class_prob_nnwr(df, n_iterations=1)
 
         self.assertEqual(len(out_df), N)
-        self.assertTrue({"Predict_Mineral", "Predict_Probability"}.issubset(out_df.columns))
+        self.assertTrue({"Predict_Mineral", "Prediction_Score"}.issubset(out_df.columns))
 
         for i in zircon_rows:
             self.assertEqual(out_df.iloc[i]["Predict_Mineral"], "Zircon")
-            self.assertTrue(np.isnan(float(out_df.iloc[i]["Predict_Probability"])))
+            self.assertTrue(np.isnan(float(out_df.iloc[i]["Prediction_Score"])))
 
         self.assertIsInstance(prob, np.ndarray)
         self.assertEqual(prob.ndim, 2)
