@@ -30,19 +30,7 @@ from .constants import OXIDES
 # %%
 
 
-def _ensure_columns(df, expected=OXIDES):
-    """
-    Aligns DataFrame columns to the expected list in one fast operation.
-    """
-    out = df.copy()
-    if "FeO" in out.columns:
-        out.rename(columns={"FeO": "FeOt"}, inplace=True)
-
-    # Reindex aligns columns and fills missing ones with NaN
-    return out.reindex(columns=expected)
-
-
-def _maps_to_df(E):
+def maps_to_df(E):
     """
     Convert a dictionary of 2D arrays into a flat DataFrame.
 
@@ -63,7 +51,7 @@ def _maps_to_df(E):
     return pd.DataFrame(flat), (H, W)
 
 
-def _df_to_maps(df, shape):
+def df_to_maps(df, shape):
     """
     Convert a flattened DataFrame back into dict of 2D arrays.
 
@@ -76,44 +64,6 @@ def _df_to_maps(df, shape):
     """
     H, W = shape
     return {k: df[k].to_numpy().reshape(H, W, order="C") for k in df.columns}
-
-
-def _clean_labels_1d(arr):
-    """
-    Flatten labels and de-noise (drop NaN/empties, strip), returning clean strings.
-
-    Parameters:
-        arr (array-like): 1D/2D labels (e.g., (H,W) mineral map or flat vector).
-
-    Returns:
-        labels (pd.Series): Cleaned string labels (index not meaningful).
-    """
-    s = pd.Series(np.asarray(arr).ravel())
-    s = s[~s.isna()].astype(str).str.strip()
-    return s[~s.str.lower().isin({"", "nan", "none", "null"})]
-
-
-def _make_palette(labels, cmap_name="tab20"):
-    """
-    Map labels to RGB tuples sampled from a matplotlib colormap.
-
-    Parameters:
-        labels (list[str]): Unique labels in display order.
-        cmap_name (str): Matplotlib colormap name to sample.
-
-    Returns:
-        palette (dict[str, tuple]): {label: (r,g,b)} with values in [0,1].
-    """
-    n_labels = len(labels)
-    cmap = plt.get_cmap(cmap_name, max(n_labels, 1))
-    cols = []
-    for i in range(len(labels)):
-        r, g, b, _ = cmap(i)
-        cols.append((min(r, 0.95), min(g, 0.95), min(b, 0.95)))
-    return {lab: cols[i] for i, lab in enumerate(labels)}
-
-
-# %% Map Loading
 
 
 def renormalize_maps(ox_maps):
@@ -198,9 +148,9 @@ def load_dir_to_oxide_maps(path, renormalize=False):
         ox_maps (dict): Dictionary mapping oxide names (str) to 2D numpy arrays (float).
     """
     O = load_element_maps(path)
-    df_ox, shape = _maps_to_df(O)
+    df_ox, shape = maps_to_df(O)
     df_ox, _ = oxide_to_oxide(df_ox)
-    ox_maps = _df_to_maps(df_ox, shape)
+    ox_maps = df_to_maps(df_ox, shape)
 
     if renormalize:
         ox_maps = renormalize_maps(ox_maps)
@@ -219,9 +169,9 @@ def convert_dir_to_oxide_maps(path, renormalize=False):
         ox_maps (dict): Dictionary mapping oxide names (str) to 2D numpy arrays (float).
     """
     E = load_element_maps(path)
-    df_el, shape = _maps_to_df(E)
+    df_el, shape = maps_to_df(E)
     df_ox, _ = element_to_oxide(df_el)
-    ox_maps = _df_to_maps(df_ox, shape)
+    ox_maps = df_to_maps(df_ox, shape)
 
     if renormalize:
         ox_maps = renormalize_maps(ox_maps)
@@ -249,6 +199,125 @@ def pick_common_phases(mineral_map, top_k=None):
     phases = list(freqs.index)
 
     return phases[:top_k] if top_k else phases
+
+
+# %% 
+
+
+
+def _ensure_columns(df, expected=OXIDES):
+    """
+    Aligns DataFrame columns to the expected list in one fast operation.
+    """
+    out = df.copy()
+    if "FeO" in out.columns:
+        out.rename(columns={"FeO": "FeOt"}, inplace=True)
+
+    # Reindex aligns columns and fills missing ones with NaN
+    return out.reindex(columns=expected)
+
+
+def _clean_labels_1d(arr):
+    """
+    Flatten labels and de-noise (drop NaN/empties, strip), returning clean strings.
+
+    Parameters:
+        arr (array-like): 1D/2D labels (e.g., (H,W) mineral map or flat vector).
+
+    Returns:
+        labels (pd.Series): Cleaned string labels (index not meaningful).
+    """
+    s = pd.Series(np.asarray(arr).ravel())
+    s = s[~s.isna()].astype(str).str.strip()
+    return s[~s.str.lower().isin({"", "nan", "none", "null"})]
+
+
+def _make_palette(labels, cmap_name="tab20"):
+    """
+    Map labels to RGB tuples sampled from a matplotlib colormap.
+
+    Parameters:
+        labels (list[str]): Unique labels in display order.
+        cmap_name (str): Matplotlib colormap name to sample.
+
+    Returns:
+        palette (dict[str, tuple]): {label: (r,g,b)} with values in [0,1].
+    """
+    n_labels = len(labels)
+    cmap = plt.get_cmap(cmap_name, max(n_labels, 1))
+    cols = []
+    for i in range(len(labels)):
+        r, g, b, _ = cmap(i)
+        cols.append((min(r, 0.95), min(g, 0.95), min(b, 0.95)))
+    return {lab: cols[i] for i, lab in enumerate(labels)}
+
+
+def _annotate_stacked_bar(
+    ax, y, phases, props, phase_colors=None, fmt="{:.1f}%", fs=10,
+    min_inside=0.03, dy_inside=0.0, dy_out=0.35, alternate=True,
+    x_jitter=1.0, force_outside=None, force_dx=None,
+):
+    """
+    Label each segment of a stacked horizontal bar with its percentage.
+
+    Values above ``min_inside`` are placed inside the bar; smaller slices get
+    staggered callout annotations above/below.
+
+    Parameters:
+        ax (matplotlib.axes.Axes): Axes containing the stacked bar.
+        y (float): Vertical position of the bar in data coordinates.
+        phases (list[str]): Phase names in bar-segment order.
+        props (list[float]): Proportions (0-1) corresponding to each phase.
+        phase_colors (dict|None): {phase: color} used to tint annotation boxes.
+        fmt (str): Format string for the percentage label.
+        fs (int): Font size for annotations.
+        min_inside (float): Minimum proportion to place the label inside the bar.
+        dy_inside (float): Vertical offset for inside labels.
+        dy_out (float): Vertical offset magnitude for outside callouts.
+        alternate (bool): If True, alternate callout direction (above/below).
+        x_jitter (float): Horizontal jitter scale for forced-outside labels.
+        force_outside (set|None): Phase names always placed outside.
+        force_dx (dict|None): {phase: signed_offset} for manual x-nudging.
+    """
+    force_outside = set(force_outside or [])
+    force_dx = dict(force_dx or {})
+    phase_colors = dict(phase_colors or {})
+    bbox = dict(boxstyle="round,pad=0.10", fc="white", ec="none", alpha=1, lw=1.0)
+
+    left, out_i = 0.0, 0
+    for p, prop in zip(phases, props):
+        prop_pct = prop * 100
+        x = left + prop_pct / 2.0
+        left += prop_pct
+        txt = fmt.format(prop_pct)
+
+        ec_color = phase_colors.get(p, "none")
+        bb = {**bbox, "ec": ec_color}
+
+        if prop >= min_inside and p not in force_outside:
+            ax.text(
+                x, y + dy_inside, txt, ha="center", va="center",
+                fontsize=fs, color="black", bbox=bb, clip_on=False, zorder=10,
+            )
+            continue
+
+        sgn_y = 1 if (not alternate or out_i % 2 == 0) else -1
+        dx = (
+            float(np.sign(force_dx[p])) * x_jitter * float(abs(force_dx[p]))
+            if (p in force_outside and x_jitter and p in force_dx)
+            else 0.0
+        )
+        x_txt = float(np.clip(x + dx, 0.0, 100.0))
+
+        ax.annotate(
+            txt, xy=(x, y), xycoords="data",
+            xytext=(x_txt, y + sgn_y * dy_out), textcoords="data",
+            ha="center", va="bottom" if sgn_y > 0 else "top",
+            fontsize=fs, color="black", bbox=bb,
+            arrowprops=dict(arrowstyle="-", lw=0.9, color="k", shrinkA=0, shrinkB=0),
+            clip_on=False, zorder=20,
+        )
+        out_i += 1
 
 
 def _auto_figsize_from_array(
@@ -342,6 +411,8 @@ def _auto_limits(data, mode="percentile", percentile=(5, 95)):
         mu, sigma = np.mean(vals), np.std(vals)
         return mu - 2 * sigma, mu + 2 * sigma
 
+
+# %% 
 
 def remove_islands(
     mineral_map,
@@ -672,7 +743,8 @@ def plot_phase_map(
 
 
 def plot_phase_counts(
-    mineral_map_2d, title="Mineral Phases (count)", phases=None, normalize=True, ax=None
+    mineral_map_2d, title="Mineral Phases (count)", phases=None, normalize=True, 
+    min_frac=0.0001, ax=None
 ):
     """
     Bar chart of pixel counts (or fractions) per phase with auto figure width.
@@ -681,6 +753,7 @@ def plot_phase_counts(
         mineral_map_2d (array-like): (H,W) or (N,) labels.
         title (str): Axes title text.
         phases (list[str]|None): Subset of phases to plot (None→auto).
+        min_frac (float): Minimum pixel fraction required to include a phase.
         normalize (bool): True, plot fraction of total pixels.
 
     Returns:
@@ -705,6 +778,11 @@ def plot_phase_counts(
     else:
         counts = counts.sort_values(ascending=False)
 
+    # Drop phases below min_frac
+    total = counts.sum()
+    if total > 0 and min_frac is not None:
+        counts = counts[counts / total >= min_frac]
+
     if normalize:
         total = counts.sum()
         if total > 0:
@@ -726,6 +804,125 @@ def plot_phase_counts(
     ax.set_ylabel(ylabel)
     ax.tick_params(axis="x", rotation=45, pad=1)
     plt.setp(ax.get_xticklabels(), ha="right", rotation_mode="anchor")
+
+    return fig, ax
+
+
+def plot_phase_proportions(
+    mineral_map_2d,
+    title="Phase Proportions",
+    phases=None,
+    min_frac=0.0001,
+    phase_colors=None,
+    cmap_name="tab20",
+    annotate=True,
+    annotate_kw=None,
+    ax=None,
+):
+    """
+    Stacked horizontal bar of phase area proportions.
+    Proportions are normalized to classified pixels only. The fraction of
+    unclassified pixels (NaN, epoxy, low-confidence) is printed below the
+    x-axis as a note.
+
+    Parameters:
+        mineral_map_2d (array-like): (H,W) or (N,) phase labels.
+        title (str): Axes title / y-label for the bar.
+        phases (list[str]|None): Subset of phases in display order (None→auto).
+        min_frac (float): Minimum pixel fraction required to include a phase.
+        phase_colors (dict|None): {PhaseName: color}. Falls back to cmap_name.
+        cmap_name (str): Matplotlib colormap used when phase_colors is incomplete.
+        annotate (bool): If True, label each segment with its percentage.
+        annotate_kw (dict|None): Extra keyword arguments forwarded to
+            ``_annotate_stacked_bar``.
+        ax (matplotlib.axes.Axes|None): Axes to plot on (None→create new).
+
+    Returns:
+        fig_ax (tuple): (fig, ax) with the stacked bar chart.
+    """
+    arr = np.asarray(mineral_map_2d, dtype=object)
+
+    labels = _clean_labels_1d(arr)
+    if labels.empty:
+        fig, ax = plt.subplots(figsize=(14, 2))
+        ax.text(0.5, 0.5, "No valid labels", ha="center", va="center")
+        ax.axis("off")
+        return fig, ax
+
+    counts = labels.value_counts()
+    total_classified = counts.sum()
+
+    # Proportions relative to classified pixels only
+    props = counts / total_classified
+
+    # Filter by min_frac
+    if min_frac is not None:
+        props = props[props >= min_frac]
+
+    # Restrict / reorder to requested phases
+    if phases is not None:
+        seen = set()
+        ordered = [p for p in phases if p not in seen and not seen.add(p)]
+        props = props.reindex(ordered).dropna()
+    else:
+        props = props.sort_values(ascending=False)
+
+    phase_list = list(props.index)
+    prop_vals = list(props.values)
+
+    remainder = 1.0 - sum(prop_vals)
+    remainder_label = "Other"
+    if remainder > 1e-6:
+        phase_list.append(remainder_label)
+        prop_vals.append(remainder)
+
+    # Build color mapping
+    palette = _make_palette(phase_list, cmap_name=cmap_name)
+    if phase_colors:
+        for p, c in phase_colors.items():
+            if p in palette:
+                palette[p] = c
+    # Always force remainder to grey
+    if remainder_label in palette:
+        palette[remainder_label] = "#cccccc"
+
+    # Plot
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(14, 2), constrained_layout=True)
+    else:
+        fig = ax.get_figure()
+
+    left = 0.0
+    for p, prop in zip(phase_list, prop_vals):
+        c = palette.get(p, "#999999")
+        ax.barh(
+            y=title, width=prop * 100, left=left, color=c,
+            edgecolor="white", height=0.5,
+        )
+        left += prop * 100
+
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Area %")
+    for spine in ("top", "right", "left"):
+        ax.spines[spine].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+
+    # Legend
+    handles = [
+        mpatches.Patch(facecolor=palette[p], label=f"{p} ({v * 100:.1f}%)")
+        for p, v in zip(phase_list, prop_vals)
+    ]
+    ax.legend(
+        handles=handles, loc="center left", bbox_to_anchor=(1.02, 0.5),
+        fontsize=8, frameon=False, title="Phases",
+    )
+
+    # Annotations
+    if annotate:
+        kw = dict(phase_colors=palette)
+        if annotate_kw:
+            kw.update(annotate_kw)
+        _annotate_stacked_bar(ax, y=0, phases=phase_list, props=prop_vals, **kw)
 
     return fig, ax
 
@@ -830,6 +1027,7 @@ def run_map(
     phases=None,
     exclude_phases=None,
     phase_colors=None,
+    bar_style="vertical",
     components_spec=None,
     remove_islands_flag=False,
     fill_holes_flag=False,
@@ -856,6 +1054,9 @@ def run_map(
         phases (list[str]|None): Explicit phases to plot (overrides auto-pick).
         exclude_phases (list[str]|None): Phases to remove from auto-pick.
         phase_colors (dict|None): Manual color mapping {PhaseName: HexColor}.
+        bar_style (str): "vertical" for the default bar chart
+            (``plot_phase_counts``), or "stacked" for a stacked horizontal
+            bar (``plot_phase_proportions``).
         components_spec (dict|None): Custom mineral formula logic.
         show (bool): If True, calls plt.show().
     """
@@ -886,7 +1087,7 @@ def run_map(
     if renormalize:
         ox_maps = renormalize_maps(ox_maps)
 
-    df_ox_flat, shape = _maps_to_df(ox_maps)
+    df_ox_flat, shape = maps_to_df(ox_maps)
     expected_with_zr = list(OXIDES) + ["ZrO2"]
     df_ordered = _ensure_columns(df_ox_flat, expected=expected_with_zr)
 
@@ -894,9 +1095,7 @@ def run_map(
     df_pred, prob_matrix = predict_class_prob_nnwr(
         df_ordered, n_iterations=n_iterations
     )
-    # ----------------------------------------------------
-    # Intercept Neural Network Int Codes to String Mapping
-    # ----------------------------------------------------
+
     if "Predict_Class" in df_pred.columns and "Predict_Mineral" not in df_pred.columns:
         # NN returned integers, translate them
         raw_classes = df_pred["Predict_Class"].to_numpy()
@@ -950,15 +1149,28 @@ def run_map(
         pixel_size_um=pixel_size_um,
     )
 
-    fig_counts, _ = plot_phase_counts(
-        mineral_map, phases=kept, title=f"Mineral Phases: {title_suffix}"
-    )
+    if bar_style == "stacked":
+        fig_counts, _ = plot_phase_proportions(
+            mineral_map,
+            phases=kept,
+            min_frac=min_frac,
+            phase_colors=phase_colors,
+            title=f"Phase\nProportions:\n{title_suffix}",
+        )
+    else:
+        fig_counts, _ = plot_phase_counts(
+            mineral_map,
+            phases=kept,
+            min_frac=min_frac,
+            title=f"Mineral Phases: {title_suffix}",
+        )
 
     fig_hists, _ = plot_probability_histograms(
         prob_map,
         mineral_map,
         phases=kept,
         prob_threshold=prob_threshold,
+        min_frac=min_frac,
         title=f"Prediction Probabilities: {title_suffix}",
     )
 
