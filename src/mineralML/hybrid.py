@@ -1611,8 +1611,8 @@ def predict_class_prob_nnwr(
 
     if "Total" not in df.columns:
         df["Total"] = (
-            df[OXIDES].sum(axis=1, skipna=True)
-            if all(c in df.columns for c in OXIDES)
+            df[oxides_plus_zr].sum(axis=1, skipna=True)
+            if all(c in df.columns for c in oxides_plus_zr)
             else pd.Series(0, index=df.index)
         )
 
