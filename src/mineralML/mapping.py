@@ -116,6 +116,16 @@ def _make_palette(labels, cmap_name="tab20"):
 # %% Map Loading
 
 
+def renormalize_maps(ox_maps):
+    """Scale each pixel so oxide totals sum to 100 wt%."""
+    keys = list(ox_maps.keys())
+    stack = np.stack([ox_maps[k] for k in keys], axis=0) # (n_oxides, rows, cols)
+    totals = np.nansum(stack, axis=0, keepdims=True) # (1, rows, cols)
+    totals[totals == 0] = np.nan # avoid div-by-zero
+    stack = stack / totals * 100.0
+    return {k: stack[i] for i, k in enumerate(keys)}
+
+
 def load_element_maps(path, drop_trailing_blank=False, verbose=True):
     """
     Load element maps from a directory of CSVs into a dictionary of 2D arrays.
@@ -177,7 +187,7 @@ def load_element_maps(path, drop_trailing_blank=False, verbose=True):
     return out
 
 
-def load_dir_to_oxide_maps(path):
+def load_dir_to_oxide_maps(path, renormalize=False):
     """
     Load per-oxide CSV maps from a directory, no conversion needed.
 
@@ -192,10 +202,13 @@ def load_dir_to_oxide_maps(path):
     df_ox, _ = oxide_to_oxide(df_ox)
     ox_maps = _df_to_maps(df_ox, shape)
 
+    if renormalize:
+        ox_maps = renormalize_maps(ox_maps)
+
     return ox_maps
 
 
-def convert_dir_to_oxide_maps(path):
+def convert_dir_to_oxide_maps(path, renormalize=False):
     """
     Load per-element CSV maps from a directory, convert to oxide wt% maps.
 
@@ -209,6 +222,9 @@ def convert_dir_to_oxide_maps(path):
     df_el, shape = _maps_to_df(E)
     df_ox, _ = element_to_oxide(df_el)
     ox_maps = _df_to_maps(df_ox, shape)
+
+    if renormalize:
+        ox_maps = renormalize_maps(ox_maps)
 
     return ox_maps
 
@@ -804,6 +820,8 @@ def plot_probability_histograms(
 
 def run_map(
     sample_input,
+    renormalize=False,
+    epoxy_threshold=10.0,
     n_iterations=50,
     min_frac=0.00001,
     prob_threshold=0.6,
@@ -826,6 +844,11 @@ def run_map(
 
     Parameters:
         sample_input (str | Path | dict): Directory path or a dict of oxide maps.
+        renormalize (bool): If True, scale each pixel so oxides sum to 100 wt%.
+            Applied after epoxy masking.
+        epoxy_threshold (float | None): Pixels with SiO2 below this value (wt%)
+            are set to NaN before renormalization and prediction. Set to None
+            to disable masking.
         n_iterations (int): MC forward passes for prediction.
         prob_threshold (float): Set label to NaN where max probability < threshold.
         min_frac_to_show (float): Ignore phases with area fraction < this value.
@@ -854,6 +877,14 @@ def run_map(
 
     if not ox_maps:
         raise ValueError(f"No oxide maps found or provided in: {sample_dir}")
+
+    if epoxy_threshold is not None and "SiO2" in ox_maps:
+        epoxy_mask = ox_maps["SiO2"] < epoxy_threshold
+        for key in ox_maps:
+            ox_maps[key] = np.where(epoxy_mask, np.nan, ox_maps[key])
+
+    if renormalize:
+        ox_maps = renormalize_maps(ox_maps)
 
     df_ox_flat, shape = _maps_to_df(ox_maps)
     expected_with_zr = list(OXIDES) + ["ZrO2"]
