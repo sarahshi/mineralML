@@ -130,21 +130,8 @@ def load_element_maps(path, drop_trailing_blank=False, verbose=True):
     if not os.path.isdir(path):
         raise NotADirectoryError(path)
 
-    ELEMENTS = {
-        "Na",
-        "Mg",
-        "Al",
-        "Si",
-        "P",
-        "K",
-        "Ca",
-        "Ti",
-        "Cr",
-        "Mn",
-        "Fe",
-        "Ni",
-        "Zr",
-    }
+
+    ELEMENTS = ["Si", "Ti", "Al", "Fe", "Mn", "Mg", "Ca", "Na", "Cr", "Ni", "Zr", "P", "K"]
     files = [f for f in os.listdir(path) if f.lower().endswith(".csv")]
     out = {}
 
@@ -885,7 +872,7 @@ def run_map(
         df_pred["Predict_Mineral"] = class2mineral_nn(raw_classes)
 
     labels = df_pred["Predict_Mineral"].astype(object)
-    probs = df_pred["Predict_Probability"].astype(float)
+    probs = df_pred["Prediction_Score"].astype(float)
 
     labels = labels.mask(probs < prob_threshold)
     labels_flat, probs_flat = labels.to_numpy(), probs.to_numpy()
@@ -1041,7 +1028,7 @@ def _compute_component_maps(
     maps, frames = {}, {}
     H, W = shape
     probs = (
-        pd.to_numeric(df_pred["Predict_Probability"], errors="coerce")
+        pd.to_numeric(df_pred["Prediction_Score"], errors="coerce")
         .fillna(0.0)
         .to_numpy()
     )
@@ -1105,7 +1092,7 @@ def plot_component_composite(
     mask_config=None,
     phase_colors=None,
     smooth_sigma=0.0,
-    limits_mode="percentile",
+    limits_mode="std",
     percentile=(5, 95),
     legend_on=True,
     legend_cols=1,

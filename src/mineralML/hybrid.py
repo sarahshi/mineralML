@@ -4,6 +4,7 @@ __author__ = "Sarah Shi"
 
 import os
 import re
+import math
 import copy
 import random
 
@@ -1576,19 +1577,19 @@ def predict_class_prob_nnwr(
 
     pred_cols = [
         "Predict_Mineral",
-        "Predict_Probability",
-        "Predict_Probability_Sigma",
+        "Prediction_Score",
+        "Prediction_Score_Sigma",
         "Second_Predict_Mineral",
-        "Second_Predict_Probability",
+        "Second_Prediction_Score",
     ]
     for col in pred_cols:
         result_df[col] = np.nan
 
     result_df["Predict_Mineral"] = pd.Series(index=df.index, dtype="object")
     result_df["Second_Predict_Mineral"] = pd.Series(index=df.index, dtype="object")
-    result_df["Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
-    result_df["Predict_Probability_Sigma"] = pd.Series(index=df.index, dtype="float64")
-    result_df["Second_Predict_Probability"] = pd.Series(index=df.index, dtype="float64")
+    result_df["Prediction_Score"] = pd.Series(index=df.index, dtype="float64")
+    result_df["Prediction_Score_Sigma"] = pd.Series(index=df.index, dtype="float64")
+    result_df["Second_Prediction_Score"] = pd.Series(index=df.index, dtype="float64")
 
     # --- detect rows with fewer than 1 valid (non-zero) oxide values ---
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
@@ -1603,9 +1604,25 @@ def predict_class_prob_nnwr(
     # explicitly set outputs to nan for invalid rows
     result_df.loc[invalid_mask, "Predict_Mineral"] = np.nan
     result_df.loc[invalid_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[invalid_mask, "Predict_Probability"] = np.nan
-    result_df.loc[invalid_mask, "Predict_Probability_Sigma"] = np.nan
-    result_df.loc[invalid_mask, "Second_Predict_Probability"] = np.nan
+    result_df.loc[invalid_mask, "Prediction_Score"] = np.nan
+    result_df.loc[invalid_mask, "Prediction_Score_Sigma"] = np.nan
+    result_df.loc[invalid_mask, "Second_Prediction_Score"] = np.nan
+    # ------------------------------------------------------------
+
+    if "Total" not in df.columns:
+        df["Total"] = (
+            df[OXIDES].sum(axis=1, skipna=True)
+            if all(c in df.columns for c in OXIDES)
+            else pd.Series(0, index=df.index)
+        )
+
+    invalid_mask = invalid_mask | (df["Total"] < 50)
+    result_df.loc[invalid_mask, "Predict_Mineral"] = np.nan
+    result_df.loc[invalid_mask, "Second_Predict_Mineral"] = np.nan
+    result_df.loc[invalid_mask, "Prediction_Score"] = np.nan
+    result_df.loc[invalid_mask, "Prediction_Score_Sigma"] = np.nan
+    result_df.loc[invalid_mask, "Second_Prediction_Score"] = np.nan
+
     # ------------------------------------------------------------
 
     # Identify and classify zircons
@@ -1614,10 +1631,10 @@ def predict_class_prob_nnwr(
     )
     zircon_mask = zircon_mask & ~invalid_mask
     result_df.loc[zircon_mask, "Predict_Mineral"] = "Zircon"
-    result_df.loc[zircon_mask, "Predict_Probability"] = np.nan
-    result_df.loc[zircon_mask, "Predict_Probability_Sigma"] = np.nan
+    result_df.loc[zircon_mask, "Prediction_Score"] = np.nan
+    result_df.loc[zircon_mask, "Prediction_Score_Sigma"] = np.nan
     result_df.loc[zircon_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[zircon_mask, "Second_Predict_Probability"] = np.nan
+    result_df.loc[zircon_mask, "Second_Prediction_Score"] = np.nan
 
     # Identify and classify si-polymorphs (quartz + coesite + stishovite + tridymite + cristobalite)
     quartz_mask = (
@@ -1625,18 +1642,12 @@ def predict_class_prob_nnwr(
     )
     quartz_mask = quartz_mask & ~invalid_mask
     result_df.loc[quartz_mask, "Predict_Mineral"] = "SiO2_Polymorph"
-    result_df.loc[quartz_mask, "Predict_Probability"] = np.nan
-    result_df.loc[quartz_mask, "Predict_Probability_Sigma"] = np.nan
+    result_df.loc[quartz_mask, "Prediction_Score"] = np.nan
+    result_df.loc[quartz_mask, "Prediction_Score_Sigma"] = np.nan
     result_df.loc[quartz_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
+    result_df.loc[quartz_mask, "Second_Prediction_Score"] = np.nan
 
     # Identify and classify carbonates (calcite + dolomite + magnesite + siderite)
-    if "Total" not in df.columns:
-        df["Total"] = (
-            df[OXIDES].sum(axis=1, skipna=True)
-            if all(c in df.columns for c in OXIDES)
-            else pd.Series(0, index=df.index)
-        )
     carbonate_mask = (
         (df["SiO2"] < 5) & (df["Total"] < 70)
         if "CaO" in df.columns
@@ -1644,10 +1655,10 @@ def predict_class_prob_nnwr(
     )
     carbonate_mask = carbonate_mask & ~invalid_mask
     result_df.loc[carbonate_mask, "Predict_Mineral"] = "Carbonate"
-    result_df.loc[carbonate_mask, "Predict_Probability"] = np.nan
-    result_df.loc[carbonate_mask, "Predict_Probability_Sigma"] = np.nan
+    result_df.loc[carbonate_mask, "Prediction_Score"] = np.nan
+    result_df.loc[carbonate_mask, "Prediction_Score_Sigma"] = np.nan
     result_df.loc[carbonate_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[quartz_mask, "Second_Predict_Probability"] = np.nan
+    result_df.loc[quartz_mask, "Second_Prediction_Score"] = np.nan
 
     non_zircon_mask = (
         (~zircon_mask) & (~quartz_mask) & (~carbonate_mask) & (~invalid_mask)
@@ -1832,10 +1843,10 @@ def predict_class_prob_nnwr(
         second_mins = class2mineral_nn(top_two_indices[:, 0])
 
         result_df.loc[non_zircon_mask, "Predict_Mineral"] = first_mins
-        result_df.loc[non_zircon_mask, "Predict_Probability"] = first_probs
-        result_df.loc[non_zircon_mask, "Predict_Probability_Sigma"] = first_uncertainty
+        result_df.loc[non_zircon_mask, "Prediction_Score"] = first_probs
+        result_df.loc[non_zircon_mask, "Prediction_Score_Sigma"] = first_uncertainty
         result_df.loc[non_zircon_mask, "Second_Predict_Mineral"] = second_mins
-        result_df.loc[non_zircon_mask, "Second_Predict_Probability"] = second_probs
+        result_df.loc[non_zircon_mask, "Second_Prediction_Score"] = second_probs
 
     # Process specialized classifiers (unchanged, but could also be optimized)
     oxide_cols = [c for c in result_df.columns if c in OXIDES]
@@ -1872,7 +1883,7 @@ def predict_class_prob_nnwr(
 
     cols = list(result_df.columns)
     for col, after in [
-        ("Predict_Probability_Sigma", "Predict_Probability"),
+        ("Prediction_Score_Sigma", "Prediction_Score"),
         ("Submineral", "Predict_Mineral"),
     ]:
         if col in cols and after in cols:

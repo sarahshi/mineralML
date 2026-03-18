@@ -853,14 +853,14 @@ class ClinopyroxeneCalculator(BaseMineralCalculator):
         sites["Al_VI"] = sites["Al_VI"].clip(lower=0) # Al_VI can't be negative
 
         # Fe3+, Fe2+ Calculation
-        sites["Fe3_Lindley"] = (
+        sites["Fe3_Lindsley"] = (
             Na + sites["Al_IV"]
             - sites["Al_VI"]
             - (2 * Ti) - Cr
         ).clip(lower=0, upper=Fe) # Fe3 can't be negative or greater than Fe
-        sites.loc[sites["Fe3_Lindley"] < 1e-10, "Fe3_Lindley"] = 0
-        sites["Fe2_Lindley"] = Fe - sites["Fe3_Lindley"]
-        sites["Fe3_prop_Lindley"] = (sites["Fe3_Lindley"] / Fe).replace(0, np.nan)
+        sites.loc[sites["Fe3_Lindsley"] < 1e-10, "Fe3_Lindsley"] = 0
+        sites["Fe2_Lindsley"] = Fe - sites["Fe3_Lindsley"]
+        sites["Fe3_prop_Lindsley"] = (sites["Fe3_Lindsley"] / Fe).replace(0, np.nan)
 
         # Independent cpx components
         sites["CrCaTs"] = 0.5 * Cr
@@ -1805,8 +1805,12 @@ class OxideClassifier:
         if not subclass:
             return df_class
 
-        df_class["Mineral"] = df_class[self.mineral_col].astype(str)
-        df_class["Submineral"] = None
+        # df_class["Mineral"] = df_class[self.mineral_col].astype(str)
+        # df_class["Submineral"] = None
+
+        df_class["Mineral"] = "Oxide"
+        df_class["Submineral"] = df_class[self.mineral_col].astype(str)
+
         required_cols = ["XR3", "XTi", "XR2"]
         has_required_cols = all(col in df_class.columns for col in required_cols)
         rhomb_mask, spinel_mask = self._name_masks(df_class)
@@ -2104,14 +2108,14 @@ class PyroxeneClassifier(BaseMineralCalculator):
         sites["Fe2_oxdef"] = (Fe - sites["Fe3_oxdef"]).clip(lower=0)
 
         # Fe3+, Fe2+ Calculation
-        sites["Fe3_Lindley"] = (
+        sites["Fe3_Lindsley"] = (
             Na + sites["Al_IV"]
             - sites["Al_VI"]
             - (2 * Ti) - Cr
         ).clip(lower=0, upper=Fe) # Fe3 can't be negative or greater than Fe
-        sites.loc[sites["Fe3_Lindley"] < 1e-10, "Fe3_Lindley"] = 0
-        sites["Fe2_Lindley"] = Fe - sites["Fe3_Lindley"]
-        sites["Fe3_prop_Lindley"] = (sites["Fe3_Lindley"] / Fe).replace(0, np.nan)
+        sites.loc[sites["Fe3_Lindsley"] < 1e-10, "Fe3_Lindsley"] = 0
+        sites["Fe2_Lindsley"] = Fe - sites["Fe3_Lindsley"]
+        sites["Fe3_prop_Lindsley"] = (sites["Fe3_Lindsley"] / Fe).replace(0, np.nan)
 
         # Independent cpx components
         sites["CrCaTs"] = 0.5 * Cr
@@ -2717,14 +2721,14 @@ class SodicPyroxeneCalculator(BaseMineralCalculator):
         sites["Fe2_oxdef"] = (Fe - sites["Fe3_oxdef"]).clip(lower=0)
 
         # Fe3+, Fe2+ Calculation
-        sites["Fe3_Lindley"] = (
+        sites["Fe3_Lindsley"] = (
             Na + sites["Al_IV"]
             - sites["Al_VI"]
             - (2 * Ti) - Cr
         ).clip(lower=0, upper=Fe) # Fe3 can't be negative or greater than Fe
-        sites.loc[sites["Fe3_Lindley"] < 1e-10, "Fe3_Lindley"] = 0
-        sites["Fe2_Lindley"] = Fe - sites["Fe3_Lindley"]
-        sites["Fe3_prop_Lindley"] = (sites["Fe3_Lindley"] / Fe).replace(0, np.nan)
+        sites.loc[sites["Fe3_Lindsley"] < 1e-10, "Fe3_Lindsley"] = 0
+        sites["Fe2_Lindsley"] = Fe - sites["Fe3_Lindsley"]
+        sites["Fe3_prop_Lindsley"] = (sites["Fe3_Lindsley"] / Fe).replace(0, np.nan)
 
         # Independent cpx components
         sites["CrCaTs"] = 0.5 * Cr
