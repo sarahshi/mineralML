@@ -1971,7 +1971,7 @@ class OxideClassifier:
         if df is None:
             df = self.classify().copy()
 
-        sp_mask = df["Suboxide"].astype(str).str.contains("spinel", case=False, na=False)
+        sp_mask = df[self.mineral_col].astype(str).str.contains("spinel", case=False, na=False)
         sp = df.loc[sp_mask].copy()
         if sp.empty:
             return (None, None)
