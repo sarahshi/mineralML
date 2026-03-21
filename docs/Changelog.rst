@@ -2,6 +2,12 @@
 Change Log
 ==========
 
+
+Version 0.0.3.6
+===============
+Clean up code docstrings and update RTD documentation.
+
+
 Version 0.0.3.5
 ===============
 Add map renormalization and additional epoxy filtering. When processing EDS oxide maps, pixel compositions can optionally be renormalized to 100 wt.% after loading, improving classification consistency across pixels with variable analytical totals. Additional filtering identifies and removes pixels of epoxy with very low totals, preventing misclassification of mounting material as mineral phases.
