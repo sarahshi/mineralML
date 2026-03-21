@@ -31,14 +31,14 @@ Welcome to mineralML's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Supervised ML Predictions for Data
+   :caption: ML Predictions for Tabular Data
 
-   examples/mineralML_supervised
+   examples/mineralML_neuralnetwork
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: Supervised ML Predictions for Mapped Data
+   :caption: ML Predictions for Mapped Data
 
    examples/mineralML_mapping
 

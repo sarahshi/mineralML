@@ -45,7 +45,7 @@ def load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz"):
     Returns:
         min_cat (list): A list of mineral class names.
         mapping (dict): A dictionary that maps each integer code to its
-            corresponding class name.
+        corresponding class name.
     """
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -484,7 +484,7 @@ def unique_mapping_nn(pred_class):
     Returns:
         unique (ndarray): Array of unique class codes found in pred_class.
         valid_mapping (dict): Dictionary mapping class codes to their corresponding
-            mineral names, including 'Unknown' for code -1.
+        mineral names, including 'Unknown' for code -1.
 
         
     Generates a mapping of unique class codes from predicted class labels.
