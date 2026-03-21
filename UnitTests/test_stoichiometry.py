@@ -496,20 +496,22 @@ class TestOxidePlot(unittest.TestCase):
             dict(R["Spinel"],   Predict_Mineral="Spinels"),
         ]
         df = pd.DataFrame(rows)
-
         ox = mm.OxideClassifier(df)
 
         # Main ternary plot
-        fig, tax = ox.plot(figsize=(6, 6), include_unclassified=True)
+        result = ox.plot(figsize=(6, 6), include_unclassified=True)
+        fig, tax = result["ternary"]
+        fig_spinel, ax_spinel = result["spinel"]
+
         try:
             ax = tax.get_axes()
             self.assertIsNotNone(ax)
-            # Should draw guide lines and some points
             self.assertTrue(len(ax.lines) > 0 or len(ax.collections) > 0)
-            # Legend on axes
             self.assertIsNotNone(ax.get_legend())
         finally:
             plt.close(fig)
+            if fig_spinel is not None:
+                plt.close(fig_spinel)
 
         # Spinel sub-plot should return a valid (fig, ax) for spinel rows
         fig2, ax2 = ox.plot_spinel()
