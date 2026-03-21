@@ -1803,7 +1803,6 @@ class OxideClassifier:
     def classify(self, eps=0.1, subclass=True):
         comps = self.calculate_components()
         df_class = comps.copy()
-        display(df_class)
 
         if not subclass:
             return df_class
