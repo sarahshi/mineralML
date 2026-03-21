@@ -186,8 +186,10 @@ class TestSolidSolutionGenerator(unittest.TestCase):
             "MgO": np.random.normal(loc=41, scale=2, size=60),
             "SiO2": np.random.normal(loc=59, scale=2, size=60),
         })
-        stats = ssg.compare_distributions(base_df=base, synth_df=synth, ncols=2, figsize_per=(3, 2))
+        fig, stats = ssg.compare_distributions(base_df=base, synth_df=synth, ncols=2, figsize_per=(3, 2))
+        self.assertIsInstance(fig, plt.Figure) 
         self.assertIsInstance(stats, pd.DataFrame)
+        plt.close(fig)
         self.assertTrue({"ks_stat", "p_value", "mean_base", "mean_synth", "std_base", "std_synth"}.issubset(stats.columns))
         self.assertTrue(all(idx.endswith(suffix) for idx in stats.index))
 

@@ -1664,6 +1664,8 @@ class OxideClassifier:
             self.mineral_col = "Submineral"
         elif "Mineral" in self.df.columns:
             self.mineral_col = "Mineral"
+        elif "Predict_Mineral" in self.df.columns:
+            self.mineral_col = "Predict_Mineral"
         else:
             raise ValueError(
                 "Dataframe must contain a 'Submineral' column"
