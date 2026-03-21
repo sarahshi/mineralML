@@ -1,9 +1,4 @@
-.nboutput .output_area {
-    width: 100%;
-}
-
-.nboutput .output_area img,
-.nboutput .output_area svg {
+.nboutput img {
     max-width: 100%;
     height: auto;
 }
