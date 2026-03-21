@@ -69,6 +69,7 @@ def confusion_matrix_df(given_min, pred_min):
     parent_map = {
         "Feldspar": {"Alkali_Feldspar", "Plagioclase"},
         "Pyroxene": {"Clinopyroxene", "Orthopyroxene"},
+        "Oxide": {"Rhombohedral_Oxides", "Spinel_Group"},
     }
 
     given = pd.Series(given_min)
