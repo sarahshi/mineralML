@@ -1476,8 +1476,8 @@ def plot_component_composite(
             fill_val="nan",
             phase_min_sizes={"Glass": 20},
             grouped_phases=[
-                ("Spinels", "Rhombohedral_Oxides"),
-                ("KFeldspar", "Plagioclase"),
+                ("Spinel_Group", "Rhombohedral_Oxides"),
+                ("Alkali_Feldspar", "Plagioclase"),
                 ("Clinopyroxene", "Orthopyroxene"),
             ],
         )
