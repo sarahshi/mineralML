@@ -1402,7 +1402,7 @@ def plot_component_composite(
     scalebar_loc="lower left",
     scalebar_col="black",
     gap=0.015,
-    cbar_gap=-0.01,
+    cbar_gap=-0.05,
     cbar_height=0.03,
     dpi=300,
 ):

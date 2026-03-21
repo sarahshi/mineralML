@@ -54,22 +54,20 @@ def confusion_matrix_df(given_min, pred_min):
         "Nepheline",
         "Olivine",
         "Orthopyroxene",
+        "Oxide",
         "Plagioclase",
-        "Rhombohedral_Oxides",
         "Rutile",
         "Serpentine",
         "SiO2_Polymorph",
-        "Spinel_Group",
         "Titanite",
         "Tourmaline",
         "Zircon",
     ]
 
-    # Parent-group mapping: parent label → set of child labels
+    # Parent-group mapping: parent label -> set of child labels
     parent_map = {
         "Feldspar": {"Alkali_Feldspar", "Plagioclase"},
         "Pyroxene": {"Clinopyroxene", "Orthopyroxene"},
-        "Oxide": {"Rhombohedral_Oxides", "Spinel_Group"},
     }
 
     given = pd.Series(given_min)
@@ -106,6 +104,13 @@ def confusion_matrix_df(given_min, pred_min):
             return "Rhombohedral_Oxides"
         return x
 
+    def _merge_to_oxide(x):
+        if pd.isna(x):
+            return x
+        if x in {"Rhombohedral_Oxides", "Spinel_Group"}:
+            return "Oxide"
+        return x
+
     def _merge_to_clinopyroxene(x):
         if pd.isna(x):
             return x
@@ -116,9 +121,11 @@ def confusion_matrix_df(given_min, pred_min):
 
     given = given.map(_merge_to_spinel_group)
     given = given.map(_merge_to_rhomb_oxide)
+    given = given.map(_merge_to_oxide)
     given = given.map(_merge_to_clinopyroxene)
     pred = pred.map(_merge_to_spinel_group)
     pred = pred.map(_merge_to_rhomb_oxide)
+    pred = pred.map(_merge_to_oxide)
     pred = pred.map(_merge_to_clinopyroxene)
 
     # --- Dynamic parent-group merges ---
