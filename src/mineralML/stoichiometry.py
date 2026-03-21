@@ -1886,9 +1886,9 @@ class OxideClassifier:
         if sp_rows.any():
             sp_df = df_class.loc[sp_rows].copy()
             x, y = self._spinel_axes(sp_df)
-            df_class.loc[sp_rows, "Subspinel"] = self._classify_subspinel(x, y)
+            df_class.loc[sp_rows, "Suboxide"] = self._classify_subspinel(x, y)
         else:
-            df_class["Subspinel"] = np.nan
+            df_class["Suboxide"] = np.nan
 
         return df_class
 
@@ -1903,12 +1903,12 @@ class OxideClassifier:
         valid = (df[["XR2", "XR3", "XTi"]].sum(axis=1) > 0)
         df = df[valid].copy()
 
-        if "Submineral" not in df.columns:
-            df["Submineral"] = "Unclassified"
+        if "Suboxide" not in df.columns:
+            df["Suboxide"] = "Unclassified"
         if not include_unclassified:
-            df = df[df["Submineral"] != "Unclassified"]
+            df = df[df["Suboxide"] != "Unclassified"]
 
-        groups = df["Submineral"].astype(str).fillna("(unknown)").unique()
+        groups = df["Suboxide"].astype(str).fillna("(unknown)").unique()
         cmap = plt.get_cmap("tab10")
 
         fig, tax = ternary.figure()
@@ -1937,7 +1937,7 @@ class OxideClassifier:
         tax.line((0, 2/3, 1/3), (1/2, 1/2, 0), color="k", **kw)
 
         for i, phase in enumerate([g for g in groups if g != "Unclassified"]):
-            pts = df[df["Submineral"] == phase][["XR3","XTi","XR2"]].values.tolist()
+            pts = df[df["Suboxide"] == phase][["XR3","XTi","XR2"]].values.tolist()
             if not pts:
                 continue
             tax.scatter(pts, marker='o', label=phase, color=cmap(i % 10), edgecolor='k',
@@ -1945,7 +1945,7 @@ class OxideClassifier:
 
         # unclassified last 
         if "Unclassified" in groups:
-            pts = df[df["Submineral"] == "Unclassified"][["XR3","XTi","XR2"]].values.tolist()
+            pts = df[df["Suboxide"] == "Unclassified"][["XR3","XTi","XR2"]].values.tolist()
             if pts:
                 tax.scatter(pts, marker='x', label="Unclassified", color='0.35',
                             s=30, alpha=0.9, zorder=30)
@@ -1971,7 +1971,7 @@ class OxideClassifier:
         if df is None:
             df = self.classify().copy()
 
-        sp_mask = df["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        sp_mask = df["Suboxide"].astype(str).str.contains("spinel", case=False, na=False)
         sp = df.loc[sp_mask].copy()
         if sp.empty:
             return (None, None)
