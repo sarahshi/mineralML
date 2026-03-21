@@ -1956,7 +1956,7 @@ class OxideClassifier:
         tax.legend(bbox_to_anchor=(0.98, 1)) # fontsize=10,
         tax.get_axes().axis("off")
 
-        sp_mask = df["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        sp_mask = df[self.mineral_col].astype(str).str.contains("spinel", case=False, na=False)
         fig_spinel, ax_spinel = None, None
         if sp_mask.any():
             fig_spinel, ax_spinel = self.plot_spinel(df=df, figsize=(9, 6), hue="Subspinel")
