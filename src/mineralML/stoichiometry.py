@@ -1882,7 +1882,7 @@ class OxideClassifier:
         mineral_col = self.mineral_col
         df_class["Suboxide"] = df_class["Suboxide"].fillna(df_class[mineral_col].astype(str))
 
-        sp_rows = df_class["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        sp_rows = df_class[self.mineral_col].astype(str).str.contains("spinel", case=False, na=False)
         if sp_rows.any():
             sp_df = df_class.loc[sp_rows].copy()
             x, y = self._spinel_axes(sp_df)

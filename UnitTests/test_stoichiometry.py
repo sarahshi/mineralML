@@ -492,8 +492,8 @@ class TestOxidePlot(unittest.TestCase):
     def test_oxide_plot_main_and_spinel_subplot(self):
         # Build a small dataframe with one rhombohedral oxide and one spinel
         rows = [
-            dict(R["Rhombohedral_Oxide"], Predict_Mineral="Rhombohedral_Oxide"),
-            dict(R["Spinel_Group"],   Predict_Mineral="Spinel_Group"),
+            dict(R["Hematite"], Predict_Mineral="Hematite"),
+            dict(R["Spinel"],   Predict_Mineral="Spinels"),
         ]
         df = pd.DataFrame(rows)
         ox = mm.OxideClassifier(df)
