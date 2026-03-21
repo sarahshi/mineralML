@@ -1660,13 +1660,13 @@ class OxideClassifier:
 
     def __init__(self, df):
         self.df = df.copy()
-        if "Predict_Mineral" in self.df.columns:
-            self.mineral_col = "Predict_Mineral"
+        if "Submineral" in self.df.columns:
+            self.mineral_col = "Submineral"
         elif "Mineral" in self.df.columns:
             self.mineral_col = "Mineral"
         else:
             raise ValueError(
-                "Dataframe must contain a 'Predict_Mineral' column"
+                "Dataframe must contain a 'Submineral' column"
             )
 
     def _name_masks(self, frame):
@@ -1801,15 +1801,13 @@ class OxideClassifier:
     def classify(self, eps=0.1, subclass=True):
         comps = self.calculate_components()
         df_class = comps.copy()
+        display(df_class)
 
         if not subclass:
             return df_class
 
-        # df_class["Mineral"] = df_class[self.mineral_col].astype(str)
-        # df_class["Submineral"] = None
-
-        df_class["Mineral"] = "Oxide"
-        df_class["Submineral"] = df_class[self.mineral_col].astype(str)
+        df_class["Mineral"] = df_class[self.mineral_col].astype(str)
+        df_class["Suboxide"] = None
 
         required_cols = ["XR3", "XTi", "XR2"]
         has_required_cols = all(col in df_class.columns for col in required_cols)
@@ -1823,7 +1821,7 @@ class OxideClassifier:
                 H = np.array([1.0, 0.0, 0.0])  # Hematite
                 I = np.array([0.0, 0.5, 0.5])  # Ilmenite
                 t_hi, on_hi, dist_hi = self._project_to_line(P, H, I, eps)            
-                df_class.loc[idx[on_hi], "Submineral"] = np.where(
+                df_class.loc[idx[on_hi], "Suboxide"] = np.where(
                     t_hi[on_hi] <= 0.5, "Hematite", "Ilmenite"
                 )
                 # df_class.loc[idx[on_hi], "Classification_Confidence"] = 1 - (dist_hi[on_hi]/eps)
@@ -1835,7 +1833,7 @@ class OxideClassifier:
                 M = np.array([2/3, 0.0, 1/3]) # Magnetite (Fe3O4)
                 U = np.array([0.0, 1/3, 2/3]) # Ulvöspinel (Fe2TiO4)
                 t_mu, on_mu, dist_mu = self._project_to_line(P, M, U, eps/4)
-                df_class.loc[idx[on_mu], "Submineral"] = np.where(
+                df_class.loc[idx[on_mu], "Suboxide"] = np.where(
                     t_mu[on_mu] <= 0.5, "Spinel", "Ulvöspinel"
                 )
                 # df_class.loc[idx[on_mu], "Classification_Confidence"] = 1 - (dist_mu[on_mu]/eps)
@@ -1859,32 +1857,31 @@ class OxideClassifier:
             #     df_class.loc[idx[spinel_mask], "Submineral"] = "Spinel Group"
 
             # FeO-TiO2-Pseudobrookite System
-            unl = df_class["Submineral"].isna()
+            unl = df_class["Suboxide"].isna()
             if unl.any():
                 idx = df_class.index[unl]
                 P = df_class.loc[idx, ["XR3","XTi","XR2"]].to_numpy()
                 A = np.array([0.0, 2/3, 1/3]) # FeO·2TiO2
                 B = np.array([1/2, 1/2, 0.0]) # Pseudobrookite
                 t_fp, on_fp, dist_fp = self._project_to_line(P, A, B, eps)
-                df_class.loc[idx[on_fp], "Submineral"] = "FeO·2TiO2-Pseudobrookite"
+                df_class.loc[idx[on_fp], "Suboxide"] = "FeO·2TiO2-Pseudobrookite"
                 # df_class.loc[idx[on_fp], "Classification_Confidence"] = 1 - (dist_fp[on_fp]/eps)
 
             end_tol = 0.05
-            unl = df_class["Submineral"].isna()
+            unl = df_class["Suboxide"].isna()
             if unl.any():
                 idx = df_class.index[unl]
                 near_tio2 = df_class.loc[idx, "XTi"] >= (1.0 - end_tol)
                 near_feo = df_class.loc[idx, "XR2"]  >= (1.0 - end_tol)
                 near_fe2o3  = df_class.loc[idx, "XR3"]  >= (1.0 - end_tol)
-                df_class.loc[idx[near_tio2], "Submineral"] = "Rutile"
-                df_class.loc[idx[near_feo], "Submineral"] = "FeO"
-                df_class.loc[idx[near_fe2o3], "Submineral"] = "Hematite"
-
+                df_class.loc[idx[near_tio2], "Suboxide"] = "Rutile"
+                df_class.loc[idx[near_feo], "Suboxide"] = "FeO"
+                df_class.loc[idx[near_fe2o3], "Suboxide"] = "Hematite"
 
         mineral_col = self.mineral_col
-        df_class["Submineral"] = df_class["Submineral"].fillna(df_class[mineral_col].astype(str))
+        df_class["Suboxide"] = df_class["Suboxide"].fillna(df_class[mineral_col].astype(str))
 
-        sp_rows = df_class["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        sp_rows = df_class["Suboxide"].astype(str).str.contains("spinel", case=False, na=False)
         if sp_rows.any():
             sp_df = df_class.loc[sp_rows].copy()
             x, y = self._spinel_axes(sp_df)
@@ -1917,16 +1914,16 @@ class OxideClassifier:
         fs = 14
         fig.set_size_inches(figsize)
         tax.boundary(linewidth=1.5, zorder=0)
-        tax.right_corner_label("R$\\mathregular{^{3+}}$\n$\\mathregular{Fe^{3+}+Cr+Mn}$\nHematite, $\\mathregular{Fe_2O_3}$", offset=-0.075) #fontsize=fs, 
-        tax.top_corner_label("Rutile, anatase, brookite\n$\\mathregular{TiO_2}$", offset=0.175)
-        tax.left_corner_label("R$\\mathregular{^{2+}}$\n$\\mathregular{Fe^{2+}+Mg+Mn}$\n FeO ", offset=-0.075)
-        tax.bottom_axis_label("Magnetite\n$\\mathregular{Fe_3O_4}$", offset=0)
+        tax.right_corner_label("R$\\mathregular{^{3+}}$\n$\\mathregular{Fe^{3+}+Cr+Mn}$\nHematite, $\\mathregular{Fe_2O_3}$", offset=-0.075, fontsize=fs)
+        tax.top_corner_label("Rutile, anatase, brookite\n$\\mathregular{TiO_2}$", offset=0.175, fontsize=fs)
+        tax.left_corner_label("R$\\mathregular{^{2+}}$\n$\\mathregular{Fe^{2+}+Mg+Mn}$\n FeO ", offset=-0.075,  fontsize=fs)
+        tax.bottom_axis_label("Magnetite\n$\\mathregular{Fe_3O_4}$", offset=0,  fontsize=fs)
 
         ax = tax.get_axes()
-        ax.text(0.86, 0.45, "Pseudobrookite\n$\\mathregular{FeTi_2O_5}$", ha="center", va="center")
-        ax.text(0.24, 0.59, "FeO$\\cdot$${\\mathregular{2TiO_2}}$", ha="center", va="center")
-        ax.text(0.17, 0.44, "Ilmenite\n$\\mathregular{FeTiO_3}$", ha="center", va="center")
-        ax.text(0.06, 0.30, "Ulvöspinel\n2FeO$\\cdot$${\\mathregular{TiO_2}}$", ha="center", va="center")
+        ax.text(0.86, 0.45, "Pseudobrookite\n$\\mathregular{FeTi_2O_5}$", ha="center", va="center", fontsize=fs)
+        ax.text(0.24, 0.59, "FeO$\\cdot$${\\mathregular{2TiO_2}}$", ha="center", va="center", fontsize=fs)
+        ax.text(0.17, 0.44, "Ilmenite\n$\\mathregular{FeTiO_3}$", ha="center", va="center", fontsize=fs)
+        ax.text(0.06, 0.30, "Ulvöspinel\n2FeO$\\cdot$${\\mathregular{TiO_2}}$", ha="center", va="center", fontsize=fs)
 
         tax.gridlines(multiple=0.2, ls=":", lw=0.5, c="k", alpha=0.25, zorder=0)
         tax.gridlines(multiple=0.05, lw=0.25, c="lightgrey", alpha=0.25, zorder=0)
@@ -1959,11 +1956,13 @@ class OxideClassifier:
         tax.get_axes().axis("off")
 
         sp_mask = df["Submineral"].astype(str).str.contains("spinel", case=False, na=False)
+        fig_spinel, ax_spinel = None, None
         if sp_mask.any():
-            self._last_spinel_figax = self.plot_spinel(df=df, figsize=(9, 6), hue="Subspinel")
+            fig_spinel, ax_spinel = self.plot_spinel(df=df, figsize=(9, 6), hue="Subspinel")
 
-        return fig, tax
-    
+        return {"ternary": (fig, tax), "spinel": (fig_spinel, ax_spinel)}
+
+
     def plot_spinel(self, df=None, figsize=(9, 6), hue=None):
 
         import matplotlib.pyplot as plt

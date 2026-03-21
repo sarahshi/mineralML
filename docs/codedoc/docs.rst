@@ -15,28 +15,19 @@ Constants
    :members:
 
 
-Supervised Machine Learning Functions
-=====================================
-
-.. automodule:: mineralML.supervised
-   :members:
-   :exclude-members: forward
-
-
-Unsupervised Machine Learning Functions
-=======================================
-
-.. automodule:: mineralML.unsupervised
-   :members:
-   :exclude-members: forward
-
-
-Hybrid Machine Learning Functions
-=======================================
+Sequential, Transfer-Learning Machine Learning Functions
+========================================================
 
 .. automodule:: mineralML.hybrid
    :members:
    :exclude-members: forward
+
+
+Mapping Functions
+=================
+
+.. automodule:: mineralML.mapping
+   :members:
 
 
 Stoichiometric Functions

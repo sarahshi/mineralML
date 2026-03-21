@@ -2,10 +2,74 @@
 Change Log
 ==========
 
+Version 0.0.3.5
+===============
+Add map renormalization and additional epoxy filtering. When processing EDS oxide maps, pixel compositions can optionally be renormalized to 100 wt.% after loading, improving classification consistency across pixels with variable analytical totals. Additional filtering identifies and removes pixels of epoxy with very low totals, preventing misclassification of mounting material as mineral phases.
+
+
+Version 0.0.3.4
+===============
+Fix totals issue to include ZrO2. Previously, ZrO2 was excluded from the oxide total calculation, causing analyses with reported ZrO2 (e.g., zircon) to be classified as carbonate given low totals. ZrO2 is now properly included in the total logic.
+
+
+Version 0.0.3.3
+===============
+Add ``Predict_Probability_Sigma`` from forward passes. Prediction uncertainty is now estimated via Monte Carlo dropout forward passes through the neural network, returning a standard deviation (sigma) on prediction scores for each analysis. This provides a per-analysis measure of model confidence beyond the single-pass prediction score. Correct ``mineral_classes_nn_v0030`` to include ``Spinel_Group``. General repository cleanup removes deprecated code. 
+
+
+Version 0.0.3.2
+===============
+Fix totals issue — compute from ``OXIDES`` rather than ``oxides``. The oxide total calculation was referencing a local or incorrectly scoped variable rather than the module-level constant ``OXIDES``, which defines the full set of input oxides used by the neural network.
+
+
+Version 0.0.3.1
+===============
+Update NaN row handling in ``mm.prep_df_nn``. Update ``hybrid.py`` for the correct number of input oxides, ensuring consistency between the hybrid prediction model and the expected feature count.
+
+
+Version 0.0.3.0
+===============
+Introduce new amphibole, garnet, and pyroxene training data to the model. These mineral groups have expanded compositions and coverage. SiO2 polymorphs (e.g., quartz, cristobalite, tridymite) and carbonates (e.g., calcite, dolomite) are separated out from the main neural network and are instead classified via empirical compositional rules, since their oxide signatures are sufficiently distinctive. Includes updates to the nearest-weighted-residual (``nnwr``) prediction pathway and associated unit tests.
+
+
+Version 0.0.2.6
+===============
+Fix ``mm.plot_z2_overlay`` for overly granular labels. Previously, z2 overlay plots displayed specific submineral labels (e.g., individual pyroxene or feldspar species) rather than the broader group labels (Pyroxene, Feldspar). Labels are now mapped to their parent mineral groups for clearer visualization.
+
+
+Version 0.0.2.5
+===============
+Added functionality in pyroxene component plotting (Wo-En-Fs ternary) to plot the full ternary diagram, rather than the limited quadrilateral. 
+
+
+Version 0.0.2.4
+===============
+Added functionality in Harker plotting, providing new Harker-style variation diagrams for exploring oxide-oxide relationships across mineral data.
+
+
+Version 0.0.2.3
+===============
+Added functionality in ``mapping.py``. Includes increased optionality for map generation, support for parsing ``.ctf`` files (EBSD crystal orientation data), and updates to z2 plotting to support pre-classification visualization. Update GEOROC dataset with citations.
+
+
+Version 0.0.2.2
+===============
+Fix latent space plotting, add legend for all minerals. The latent space visualization now returns the full legend by default, showing all mineral groups.
+
+
+Version 0.0.2.1
+===============
+Add latent space overlay functionality, enabling users to project their data onto the autoencoder's latent space for visual comparison against the training distribution. Also adds ``reset_index`` call in ``mm.prep_df_nn`` for cleaner DataFrame handling.
+
+
+Version 0.0.2.0
+===============
+Built hybrid model functionality with a sequential, transfer learning neural network architecture. This release introduces a two-stage prediction model that refines initial classifications. Updated mapping functions and resolved compatibility issues with NumPy 2 and scikit-image. Updated ``supervised.py``, ``unsupervised.py``, and ``stoichiometry.py`` for the new architecture. Bug fixes and unit test updates.
+
 
 Version 0.0.1.9
 ===============
-Update mineralML calibration for specific amphiboles (tremolite and actinolite).
+Update mineralML calibration for specific amphiboles (tremolite and actinolite). Updates to unique mapping functions (``unique_mapping_nn``) and unit test scaler adjustments.
 
 
 Version 0.0.1.8

@@ -16,7 +16,6 @@ dependencies:
     - matplotlib
     - scikit-learn
     - seaborn
-    - hdbscan
     - openpyxl
     - ipython
     - ipykernel

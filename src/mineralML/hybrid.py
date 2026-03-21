@@ -38,14 +38,14 @@ def load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz"):
     Loads mineral classes and their corresponding mappings from a .npz file.
     The file is expected to contain an array of class names under the 'classes' key.
     This function creates a dictionary that maps an integer code to each class name.
-
-    Parameters: 
-    minclass_path (str): Filename or relative path (relative to this file).
+ 
+    Parameters:
+        minclass_path (str): Filename or relative path (relative to this module).
  
     Returns:
         min_cat (list): A list of mineral class names.
-        mapping (dict): A dictionary that maps each integer code to its corresponding
-        class name in the 'min_cat' list.
+        mapping (dict): A dictionary that maps each integer code to its
+            corresponding class name.
     """
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,16 +65,18 @@ def load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz"):
 
 def prep_df_nn(df):
     """
-    Prepares a DataFrame for analysis by performing data cleaning specific to mineralogical data.
-    It handles missing values and ensures the presence of required oxide columns.
-    The function defines a list of oxide column names and fills missing values with zero,
-    while preserving all original columns in the dataset.
+    Prepares a DataFrame for analysis by performing data cleaning specific
+    to mineralogical data. Handles missing values and ensures the presence
+    of required oxide columns. Fills missing oxide values with zero while
+    preserving all original columns in the dataset.
 
     Parameters:
-        df (DataFrame): The input DataFrame containing mineral composition data.
-
+        df (pd.DataFrame): Input DataFrame containing mineral composition data.
+            Metadata columns ('Mineral', 'Source', 'SampleID', 'Sample',
+            'Sample Name', 'Sample ID') are preserved in the output when present.
+ 
     Returns:
-        df (DataFrame): The cleaned DataFrame with 'NaN' filled with zero for oxides.
+        df (pd.DataFrame): Cleaned DataFrame with NaN filled with zero for oxides.
     """
 
     if "FeO" in df.columns:
@@ -93,7 +95,7 @@ def prep_df_nn(df):
     oxides = OXIDES
     oxides_plus_zr = oxides + ["ZrO2"]
 
-    sample_cols = ["SampleID", "Sample", "Sample Name"]
+    sample_cols = ["SampleID", "Sample", "Sample Name", "Sample ID"]
     present_sample_cols = [c for c in sample_cols if c in df.columns]
     
     # ensure required columns exist
@@ -126,18 +128,16 @@ def prep_df_nn(df):
 
 def norm_data_nn(df, scaler_path="scaler_nn_v0030.npz"):
     """
-
-    Normalizes the oxide composition data in the input DataFrame using a predefined StandardScaler.
-    It ensures that the dataframe has been preprocessed accordingly before applying the transformation.
-    The function expects that the scaler is already fitted and available for use as defined in the
-    'load_scaler' function.
-
+    Normalizes oxide composition data using a predefined StandardScaler.
+    Ensures that the DataFrame has been preprocessed before applying the
+    transformation.
+ 
     Parameters:
-        df (DataFrame): The input DataFrame containing the oxide composition data.
-
+        df (pd.DataFrame): Input DataFrame containing oxide composition data.
+        scaler_path (str): Filename or relative path to the saved scaler .npz file.
+ 
     Returns:
-        array_x (ndarray): An array of the transformed oxide composition data.
-
+        array_x (ndarray): Transformed oxide composition data.
     """
 
     oxides = OXIDES    
@@ -171,7 +171,6 @@ def norm_data_nn(df, scaler_path="scaler_nn_v0030.npz"):
 
 def balance(df, n=1000):
     """
-
     Groups to 2000 total:
     - Pyroxene group (clinopyroxene + orthopyroxene -> 'pyroxene'), kmeans for representative sampling
     - Feldspar group (plagioclase + k-feldspar -> 'feldspar'), kmeans for representative sampling
@@ -184,6 +183,13 @@ def balance(df, n=1000):
     Groups to 1000 total:
     - Garnet group
     - All other classes get standard n samples (default 1000). If count <1250, shuffle+oversample. 
+
+    Parameters:
+        df (pd.DataFrame): Input DataFrame with a 'Mineral' column and oxide columns.
+        n (int): Base target sample count per member class (default 1000).
+ 
+    Returns:
+        df_balanced (pd.DataFrame): Resampled DataFrame with balanced class counts.
 
     """
 
@@ -389,43 +395,27 @@ def balance(df, n=1000):
 
 
 class VariationalLayer(nn.Module):
-
     """
-
-    The VariationalLayer class implements a Bayesian approach to linear layers
-    in neural networks, which allows for the incorporation
-    of uncertainty in the weights and biases. This is achieved by modeling the
-    parameters as distributions rather than point estimates. The layer utilizes
-    variational inference to learn the parameters of these distributions.
+    Bayesian linear layer using variational inference. Models weights and
+    biases as Gaussian distributions rather than point estimates, enabling
+    uncertainty quantification through weight sampling
 
     Parameters:
-        in_features (int): The number of input features to the layer.
-        out_features (int): The number of output features from the layer.
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
 
     Attributes:
-        weight_mu (Parameter): The mean of the Gaussian distributions of the weights.
-        weight_rho (Parameter): The rho parameters (unconstrained) for the standard
-                                deviations of the Gaussian distributions of the weights.
-        bias_mu (Parameter): The mean of the Gaussian distributions of the biases.
-        bias_rho (Parameter): The rho parameters (unconstrained) for the standard
-                              deviations of the Gaussian distributions of the biases.
-        softplus (nn.Softplus): A Softplus activation function used for ensuring the
-                                standard deviation is positive.
+        weight_mu (Parameter): Mean of the weight distributions.
+        weight_rho (Parameter): Unconstrained std parameters for weight distributions.
+        bias_mu (Parameter): Mean of the bias distributions.
+        bias_rho (Parameter): Unconstrained std parameters for bias distributions.
+        softplus (nn.Softplus): Softplus activation ensuring positive standard deviations.
 
     Methods:
-        reset_parameters(): Initializes the parameters based on the number of input features.
-        forward(input): Performs the forward pass using a sampled weight and bias according
-                        to their respective distributions.
-        kl_divergence(): Computes the Kullback-Leibler divergence of the layer's
-                         parameters, which can be used as a part of the loss function
-                         to regulate the learning of the distribution parameters.
-
-    The forward computation of this layer is equivalent to a standard linear layer
-    with sampled weights and biases. The KL divergence method returns a value that
-    quantifies the difference between the prior and variational distributions of the
-    layer's parameters, which encourages the learning of plausible weights and biases
-    while controlling complexity.
-
+        reset_parameters(): Initializes parameters based on the number of input features.
+        forward(input): Performs a forward pass using sampled weights and biases.
+        kl_divergence(): Computes KL divergence between the variational posterior
+            and a standard normal prior, used as a regularization term in the loss.
     """
 
     def __init__(self, in_features, out_features):
@@ -482,23 +472,27 @@ class VariationalLayer(nn.Module):
         return kl_div
 
 
-
 def unique_mapping_nn(pred_class):
     """
-    Generates a mapping of unique class codes from given and predicted class labels,
-    considering only the classes present in both input arrays. It loads a predefined
-    category list and mapping, encodes the 'given_class' labels into categorical codes,
-    and creates a subset mapping for the unique classes found. It also handles unknown
-    classes by assigning them a code of -1 and mapping the 'Unknown' label to them.
+    Generates a mapping of unique class codes from predicted class labels.
+    Loads a predefined category list and creates a subset mapping for the
+    unique classes found. Unknown classes are assigned a code of -1.
 
     Parameters:
-        pred_class (array-like): The array of predicted class labels.
+        pred_class (array-like): Array of predicted class labels (integer codes).
 
     Returns:
-        unique (ndarray): Array of unique class codes found in both given and predicted classes.
-        valid_mapping (dict): Dictionary mapping class codes to their corresponding labels,
-        including 'Unknown' for any class code of -1.
+        unique (ndarray): Array of unique class codes found in pred_class.
+        valid_mapping (dict): Dictionary mapping class codes to their corresponding
+            mineral names, including 'Unknown' for code -1.
+
+        
+    Generates a mapping of unique class codes from predicted class labels.
+    Loads a predefined category list and creates a subset mapping for the
+    unique classes found. Unknown classes are assigned a code of -1.
+ 
     """
+
 
     _, mapping = load_minclass_nn()
     unique = np.unique(pred_class)
@@ -511,17 +505,15 @@ def unique_mapping_nn(pred_class):
 
 def class2mineral_nn(pred_class):
     """
-
-    Translates predicted class codes into mineral names using a mapping obtained from the
-    unique classes present in the 'pred_class' array. It utilizes the 'unique_mapping_nn'
-    function to establish the relevant class-to-mineral name mapping.
+    Translates predicted class codes into mineral names using a mapping from the
+    trained neural network.
 
     Parameters:
-        pred_class (array-like): The array of predicted class codes to be translated into mineral names.
-
+        pred_class (array-like): Array of predicted class codes (integers).
+ 
     Returns:
-        pred_mineral (ndarray): An array of mineral names corresponding to the predicted class codes.
-
+        pred_mineral (ndarray): Array of mineral names corresponding to the
+            predicted class codes.
     """
 
     _, valid_mapping = unique_mapping_nn(pred_class)
@@ -531,10 +523,16 @@ def class2mineral_nn(pred_class):
 
 def format_oxide_label(label):
     """
-    Converts 'SiO2' -> '$\mathregular{SiO_2}$'
-    Converts 'FeOt' -> '$\mathregular{FeO_t}$'
-    Converts 'Al2O3' -> '$\mathregular{Al_2O_3}$'
+    Converts an oxide string to a matplotlib mathregular label with subscripts
+    (e.g., 'SiO2' -> '$\\mathregular{SiO_2}$', 'FeOt' -> '$\\mathregular{FeO_t}$').
+ 
+    Parameters:
+        label (str): Oxide name string.
+ 
+    Returns:
+        formatted (str): LaTeX-formatted label for matplotlib.
     """
+
     if label == "Total":
         return label
 
@@ -549,8 +547,18 @@ def format_oxide_label(label):
 
 class NNWRFeatureExtractor(nn.Module):
     """
-    Stage A: classifier-only.
-    Returns logits, and optionally h (feature embedding).
+    Stage A classifier: extracts features and returns logits, optionally
+    with the intermediate feature embedding h.
+ 
+    Parameters:
+        input_dim (int): Number of input oxide features.
+        classes (int): Number of output mineral classes.
+        hidden_layer_sizes (list[int]): Sizes of hidden layers.
+        dropout_rate (float): Dropout probability.
+        use_bayesian_feature_layer (bool): If True, the final feature layer
+            is a VariationalLayer instead of a standard Linear layer.
+        use_bayesian_classifier (bool): If True, the classification head
+            is a VariationalLayer.
     """
 
     def __init__(
@@ -606,7 +614,13 @@ class NNWRFeatureExtractor(nn.Module):
 
 class NNWRLatentProjector(nn.Module):
     """
-    Stage B: trainable mapper h -> z2 (2D).
+    Stage B: trainable mapper from feature embedding h to a 2D latent space z2.
+ 
+    Parameters:
+        feat_dim (int): Dimensionality of the input feature embedding.
+        hidden (int): Hidden layer size for the nonlinear projection.
+        dropout_rate (float): Dropout probability (0.0 = no dropout).
+        nonlinear (bool): If True, uses a two-layer MLP; otherwise a single linear map.
     """
 
     def __init__(self, feat_dim, hidden=32, dropout_rate=0.0, nonlinear=True):
@@ -637,7 +651,13 @@ class NNWRLatentProjector(nn.Module):
 
 class NNWRReconstructionDecoder(nn.Module):
     """
-    Stage B: trainable decoder z2 -> x
+    Stage B: trainable decoder from 2D latent z2 back to oxide space x.
+ 
+    Parameters:
+        z_dim (int): Dimensionality of the latent input (typically 2).
+        output_dim (int): Number of output features (number of oxides).
+        decoder_hidden_sizes (list[int]): Sizes of hidden layers in the decoder.
+        dropout_rate (float): Dropout probability (0.0 = no dropout).
     """
 
     def __init__(
@@ -672,8 +692,13 @@ class NNWRReconstructionDecoder(nn.Module):
 
 class NNWRReconstructionWrapper(nn.Module):
     """
-    Inference wrapper: returns (logits, recon, z_plot).
-    z_plot is the true z2 (2D) so latent plotting will not PCA.
+    Inference wrapper combining classifier, mapper, and decoder.
+    Returns (logits, reconstructed oxides, z2) on forward pass.
+ 
+    Parameters:
+        classifier (NNWRFeatureExtractor): Trained Stage A classifier.
+        mapper2d (NNWRLatentProjector): Trained Stage B latent projector.
+        decoder (NNWRReconstructionDecoder): Trained Stage B decoder.
     """
 
     def __init__(
@@ -710,6 +735,32 @@ def train_nn_hybrid_bottleneck(
     max_plot_points=10000,
     plot_on="valid",
 ):
+    """
+    Stage B training: freezes the classifier and trains the mapper (h -> z2)
+    and decoder (z2 -> x) with MSE reconstruction loss.
+ 
+    Parameters:
+        classifier (NNWRFeatureExtractor): Frozen Stage A classifier.
+        mapper2d (NNWRLatentProjector): Trainable latent projector.
+        decoder (NNWRReconstructionDecoder): Trainable reconstruction decoder.
+        optimizer (torch.optim.Optimizer): Optimizer for mapper + decoder parameters.
+        train_loader (DataLoader): Training data loader.
+        valid_loader (DataLoader): Validation data loader.
+        n_epoch (int): Maximum number of training epochs.
+        criterion_recon (nn.Module|None): Reconstruction loss function. Defaults to MSELoss.
+        patience (int): Early stopping patience (epochs without improvement).
+        plot_latent (bool): If True, periodically plot the 2D latent space.
+        plot_every (int): Plot interval in epochs.
+        max_plot_points (int): Maximum number of points to plot.
+        plot_on (str): 'valid' or 'train' — which dataset to plot.
+ 
+    Returns:
+        train_losses (dict): Training reconstruction loss history.
+        valid_losses (dict): Validation reconstruction loss history.
+        best_valid (float): Best validation reconstruction loss achieved.
+        best_mapper_state (dict): State dict of the best mapper.
+        best_decoder_state (dict): State dict of the best decoder.
+    """
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     min_cat, _ = load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz")
@@ -873,9 +924,13 @@ def train_nn_hybrid_bottleneck(
 
 def plot_loss_curves(train_losses, valid_losses, filename):
     """
-    Plot losses:
-      - cls_total, cls_classification, cls_kl
-      - dec_reconstruction
+    Plots Stage A (classification, KL, total) and Stage B (reconstruction)
+    loss curves, then saves to disk.
+ 
+    Parameters:
+        train_losses (dict): Training loss histories keyed by loss component.
+        valid_losses (dict): Validation loss histories keyed by loss component.
+        filename (str): Output filepath for the saved figure.
     """
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes = axes.flatten()
@@ -930,7 +985,16 @@ def plot_loss_curves(train_losses, valid_losses, filename):
 
 
 def kl_divergence_sum(model):
-    """Sum KL divergences across all VariationalLayer modules."""
+    """
+    Sums KL divergences across all VariationalLayer modules in a model.
+ 
+    Parameters:
+        model (nn.Module): PyTorch model containing VariationalLayer submodules.
+ 
+    Returns:
+        kl_div (float): Total KL divergence.
+    """
+
     kl_div = 0.0
     for module in model.modules():
         if isinstance(module, VariationalLayer):
@@ -949,6 +1013,27 @@ def train_nn_hybrid_classifier(
     kl_decay_epochs=750,
     patience=50,
 ):
+    """
+    Stage A training: trains the classifier with cross-entropy loss and
+    annealed KL divergence regularization from VariationalLayers.
+ 
+    Parameters:
+        model (NNWRFeatureExtractor): Classifier model to train.
+        optimizer (torch.optim.Optimizer): Optimizer for model parameters.
+        train_loader (DataLoader): Training data loader.
+        valid_loader (DataLoader): Validation data loader.
+        n_epoch (int): Maximum number of training epochs.
+        criterion_cls (nn.Module|None): Classification loss. Defaults to CrossEntropyLoss.
+        kl_weight_decay (float): Maximum KL weight after annealing.
+        kl_decay_epochs (int): Number of epochs over which to anneal the KL weight.
+        patience (int): Early stopping patience (epochs without improvement).
+ 
+    Returns:
+        train_losses (dict): Training loss histories ('total', 'classification', 'kl').
+        valid_losses (dict): Validation loss histories.
+        best_valid (float): Best validation classification loss achieved.
+        best_state (dict): State dict of the best model.
+    """
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -1050,18 +1135,21 @@ def plot_latent_space_hybrid(
     batch_size=256,
 ):
     """
-    Plot latent space representations (z) for a dataset.
-
-    If latent_dim > 2, uses PCA to reduce to 2D for visualization only.
-    Saves a PDF to `filename`.
-
-    Returns
-    -------
-    latents : np.ndarray
-        Latent vectors with shape (N, latent_dim).
-    labels : np.ndarray
-        Integer labels with shape (N,).
+    Plots latent space representations (z) for a dataset. If latent_dim > 2,
+    uses PCA to reduce to 2D for visualization. Saves a PDF to filename.
+ 
+    Parameters:
+        model (nn.Module): Trained NNWRReconstructionWrapper model.
+        dataset (TensorDataset): Dataset of (features, labels) tensors.
+        title (str): Plot title.
+        filename (str): Output filepath for the saved figure.
+        batch_size (int): Batch size for inference.
+ 
+    Returns:
+        latents (ndarray): Latent vectors with shape (N, latent_dim).
+        labels (ndarray): Integer labels with shape (N,).
     """
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model.eval()
@@ -1173,15 +1261,38 @@ def neuralnetwork_wr(
     plot_on="valid",
 ):
     """
-    Training function for neural network classifier with recon:
-
-    Stage A:
-      Train classifier only: CE + KL anneal
-      Picks best by validation CE (classification loss)
-
-    Stage B:
-      Freeze classifier.
-      Train mapper h->z2 (2D) + decoder z2->x with MSE.
+    Full training pipeline for the neural network classifier with reconstruction.
+ 
+    Stage A trains the classifier (CE + KL annealing), picking the best model
+    by validation CE. Stage B freezes the classifier and trains a mapper
+    (h -> z2) plus decoder (z2 -> x) with MSE reconstruction loss.
+ 
+    Parameters:
+        df (pd.DataFrame): Training DataFrame with 'Mineral' column and oxide columns.
+        hls_list (list[list[int]]): Hidden layer size configurations to sweep.
+        kl_weight_decay_list (list[float]): KL weight decay values to sweep.
+        lr (float): Learning rate for Stage A.
+        wd (float): Weight decay for Stage A.
+        dr (float): Dropout rate.
+        ep (int): Number of epochs for Stage A.
+        n (int): Validation split size (number of samples).
+        balanced (bool): If True, balance the training set via ``balance()``.
+        ep_bottle (int): Number of epochs for Stage B.
+        lr_bottle (float): Learning rate for Stage B.
+        wd_bottle (float): Weight decay for Stage B.
+        mapper_hidden (int): Hidden layer size for the latent projector.
+        mapper_nonlinear (bool): If True, use a nonlinear mapper.
+        decoder_hidden_sizes (tuple[int]): Hidden layer sizes for the decoder.
+        kl_decay_epochs (int): Number of epochs over which to anneal the KL weight.
+        use_bayesian_feature_layer (bool): If True, use VariationalLayer for features.
+        use_bayesian_classifier (bool): If True, use VariationalLayer for the classifier head.
+        name (str): Run name used for output filenames.
+        plot_latent_during_training (bool): If True, plot z2 during Stage B training.
+        plot_every (int): Plot interval in epochs during Stage B.
+        plot_on (str): 'valid' or 'train' — which dataset to plot during training.
+ 
+    Returns:
+        best_model_state (dict): State dict of the best NNWRReconstructionWrapper.
     """
 
     path_beg = os.getcwd() + "/"
@@ -1541,39 +1652,37 @@ def predict_class_prob_nnwr(
     scaler_path="scaler_nn_v0030.npz",
 ):
     """
-    Version of predict_class_prob_nn with reconstruction:
-      - neural network with reconstruction (nnwr)
-      - Uses classifier for logits
-      - Monte Carlo averages softmax over n_iterations
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-    n_iterations : int
-        Number of MC forward passes for probability averaging.
-    model_path : str | None
-        Path to _best_model.pt
-        If None, defaults to a file in the same directory as this module.
-    hidden_layer_sizes : list[int] | None
-        Usually leave None (use checkpoint config). Only override if matches.
-    mc_dropout : bool
-        If True, runs classifier in train() mode during inference to sample dropout too.
-    batch_chunk : int
-        Chunk size to avoid GPU OOM.
-
-    Returns
-    -------
-    result_df : pd.DataFrame
-    probability_matrix : np.ndarray
+    Predicts mineral classes with Monte Carlo Bayesian averaging using the
+    neural network with reconstruction (NNWR) classifier.
+ 
+    Parameters:
+        df (pd.DataFrame): Input oxide compositions. Metadata columns ('Mineral',
+            'Source', 'SampleID', 'Sample', 'Sample Name', 'Sample ID') are
+            preserved in the output when present.
+        n_iterations (int): Number of MC forward passes for probability averaging.
+        model_path (str|None): Path to the .pt checkpoint. If None, defaults to the
+            bundled model in the same directory as this module.
+        hidden_layer_sizes (list[int]|None): Override hidden layer sizes. Usually
+            leave None to use the checkpoint configuration.
+        mc_dropout (bool): If True, enables dropout during inference for MC sampling.
+        return_recon_oxides (bool): If True, appends reconstructed oxide columns
+            to the output DataFrame.
+        scaler_path (str): Filename or relative path to the saved scaler .npz file.
+ 
+    Returns:
+        result_df (pd.DataFrame): Predictions including 'Predict_Mineral',
+            'Prediction_Score', 'Prediction_Score_Sigma', 'Second_Predict_Mineral',
+            and 'Second_Prediction_Score'.
+        probability_matrix (ndarray): (N, C) array of class probabilities for
+            non-empirical rows; empty array if all rows are empirical.
     """
 
     # ---- set up result DataFrame  ----
     oxides = OXIDES
     oxides_plus_zr = oxides + ["ZrO2"]
-    # result_df = df[oxides_plus_zr].copy()
-    cols = oxides_plus_zr + [c for c in ["Mineral", "Source"] if c in df.columns]
+    metadata = ["Mineral", "Source", "SampleID", "Sample", "Sample Name", "Sample ID"]
+    cols = oxides_plus_zr + [c for c in metadata if c in df.columns]
     result_df = df[cols].copy()
-
 
     pred_cols = [
         "Predict_Mineral",
@@ -1875,8 +1984,15 @@ def predict_class_prob_nnwr(
     _merge_subclass(fspar_mask, FeldsparClassifier, want_sub=True)
 
     # Oxide classification
-    ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinel_Group"])
-    _merge_subclass(ox_mask, OxideClassifier, want_sub=True)
+    # ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinel_Group", "Oxide"])
+    # # ox_mask = result_df["Predict_Mineral"].isin(["Oxide"])
+    # _merge_subclass(ox_mask, OxideClassifier, want_sub=True)
+    ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinel_Group", "Oxide"])
+    if ox_mask.any():
+        # Preserve the original NN label as the Submineral
+        result_df.loc[ox_mask, "Submineral"] = result_df.loc[ox_mask, "Predict_Mineral"].values
+        # Collapse Predict_Mineral to "Oxide"
+        result_df.loc[ox_mask, "Predict_Mineral"] = "Oxide"
 
     if "Submineral" not in result_df.columns:
         result_df["Submineral"] = pd.Series(index=result_df.index, dtype="object")
@@ -1900,10 +2016,15 @@ def predict_class_prob_nnwr(
 def enable_mc_sampling(model, *, enable_dropout: bool):
     """
     Enables stochasticity for MC inference without breaking BatchNorm.
-
-    - Always keeps BatchNorm in eval() mode (stable running stats)
-    - Enables VariationalLayer sampling (train mode) if it samples only when training
-    - Optionally enables Dropout (train mode) if enable_dropout=True
+    Keeps BatchNorm in eval() mode, enables VariationalLayer sampling,
+    and optionally enables Dropout.
+ 
+    Parameters:
+        model (nn.Module): The model to configure for MC sampling.
+        enable_dropout (bool): If True, sets Dropout layers to train() mode.
+ 
+    Returns:
+        model (nn.Module): The configured model (modified in-place).
     """
     model.eval()  # baseline
 
@@ -1931,7 +2052,19 @@ def enable_mc_sampling(model, *, enable_dropout: bool):
 
 
 def _downsample(Z, labels=None, max_points=250_000):
-    """Helper function to cleanly downsample large arrays."""
+    """
+    Randomly downsamples arrays to at most max_points rows.
+ 
+    Parameters:
+        Z (ndarray|None): 2D array to downsample.
+        labels (ndarray|None): Corresponding label array.
+        max_points (int): Maximum number of rows to keep.
+ 
+    Returns:
+        Z (ndarray|None): Downsampled array (or original if already small enough).
+        labels (ndarray|None): Downsampled labels (or None).
+    """
+
     if Z is None or Z.shape[0] <= max_points:
         return Z, labels
     idx = np.random.choice(Z.shape[0], size=max_points, replace=False)
@@ -1940,12 +2073,19 @@ def _downsample(Z, labels=None, max_points=250_000):
 
 def load_nnwr_wrapper_for_latents(model_path=None, device=None):
     """
-    Loads the trained NNWRReconstructionWrapper, along with configuration.
-
+    Loads the trained NNWRReconstructionWrapper from a checkpoint.
+ 
+    Parameters:
+        model_path (str|None): Path to the .pt checkpoint. If None, defaults
+            to the bundled model in the same directory as this module.
+        device (str|None): Device string (e.g., 'cpu', 'cuda'). If None,
+            auto-detects GPU availability.
+ 
     Returns:
         wrapper (nn.Module): The loaded model in evaluation mode.
-        model_config (dict): The configuration dictionary from the checkpoint.
+        model_config (dict): Configuration dictionary from the checkpoint.
     """
+
     # Device Setup
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -2000,8 +2140,19 @@ def load_nnwr_wrapper_for_latents(model_path=None, device=None):
 @torch.inference_mode()
 def compute_z2_from_df(df, wrapper, batch_size=256, device=None):
     """
-    Computes 2D latent representations (z2) AND predicted labels for a dataframe.
+    Computes 2D latent representations (z2) and predicted class labels for a DataFrame.
+ 
+    Parameters:
+        df (pd.DataFrame): Input DataFrame with oxide columns.
+        wrapper (NNWRReconstructionWrapper): Loaded NNWR model wrapper.
+        batch_size (int): Batch size for inference.
+        device (str|None): Device string. If None, uses the wrapper's current device.
+ 
+    Returns:
+        Z2_out (ndarray): (N, 2) array of 2D latent coordinates.
+        Preds_out (ndarray): (N,) array of predicted class indices.
     """
+
     device = torch.device(device) if device else next(wrapper.parameters()).device
     wrapper.eval()
 
@@ -2049,38 +2200,20 @@ def plot_z2_overlay(
 ):
     """
     Plots a 2D latent space overlaying new data on top of reference (training) data.
-
-    This function loads pre-computed training latents as a background reference and
-    plots the provided dataframe samples as a foreground overlay. It supports
-    custom styling for both layers and handles up to 40 distinct classes using a
-    combined 'tab20' and 'tab20b' colormap.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The input data to be projected into the latent space.
-    label_column : str, default="Predict_Mineral"
-        The column name in `df` representing the pre-computed labels.
-    title : str, default="Latent Space (z2) Overlay"
-        The title displayed at the top of the plot.
-    ref_kws : dict, optional
-        Keyword arguments passed to `ax.scatter` for the background (training)
-        data. Useful for adjusting 's' (size), 'marker', and 'alpha'.
-        Defaults to: {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}.
-    new_kws : dict, optional
-        Keyword arguments passed to `ax.scatter` for the foreground (new)
-        data. Useful for highlighting specific points.
-    max_points : int, default=250,000
-        The maximum number of points to plot for both reference and new data
-        combined to prevent memory issues and slow rendering.
-    filename : str, optional
-        The path/filename to save the figure. If None, the plot is shown
-        interactively via `plt.show()`.
-    Returns
-    -------
-    None: Displays the plot or saves it to disk if `filename` is provided.
+    Loads pre-computed training latents as a background and projects the provided
+    DataFrame samples as a foreground overlay.
+ 
+    Parameters:
+        df (pd.DataFrame): Input data to be projected into the latent space.
+        label_column (str): Column name in df representing pre-computed labels.
+        title (str): Title displayed at the top of the plot.
+        ref_kws (dict|None): Keyword arguments for the background (training) scatter.
+            Defaults to {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}.
+        new_kws (dict|None): Keyword arguments for the foreground (new data) scatter.
+        max_points (int): Maximum number of points to plot per layer.
+        filename (str|None): Path to save the figure. If None, displays interactively.
     """
-
+ 
     # Load Training Background
     latent_path = os.path.join(
         os.path.dirname(__file__), "nnwr_latent_data_v0030.npz"
@@ -2239,32 +2372,25 @@ def plot_harker(
     new_kws=None,
 ):
     """
-    Dynamically plots Harker diagrams for training data and overlays study datasets.
-
-    Parameters
-    ----------
-    df_train : pd.DataFrame
-        The primary dataset containing training geochemical data.
-    train_minerals : list
-        Specific mineral phases to filter and plot as background points.
-    overlay_datasets : dict
-        {study_name: DataFrame} for datasets plotted at full opacity.
-    oxides : list
-        Oxide names to be plotted on the Y-axes against the x_oxide.
-    x_oxide : str, optional
-        Independent variable on the X-axis. Defaults to "SiO2".
-    extra_pairs : list of tuples, optional
-        Additional specific plots, e.g., [("CaO", "Na2O")].
-    plot_totals : bool, optional
-        If True, calculates and plots x_oxide vs. the sum of all oxides.
-    train_mineral_col : str, optional
-    train_kws : dict, optional
-        Kws for the background training data.
-        Defaults: {"s": 20, "alpha": 0.1, "ec": "k", "lw": 0.25}
-    new_kws : dict, optional
-        Default kws for all overlay datasets.
-        Defaults: {"s": 60, "alpha": 1.0, "ec": "k", "lw": 1}
+    Plots Harker diagrams for training data with optional study dataset overlays.
+ 
+    Parameters:
+        df_train (pd.DataFrame|None): Primary dataset containing training geochemical data.
+        train_minerals (list|None): Mineral phases to filter and plot as background points.
+        overlay_datasets (dict|None): {study_name: DataFrame} or
+            {study_name: (DataFrame, kws_dict)} for datasets plotted at full opacity.
+        oxides (list): Oxide names to plot on the Y-axes against x_oxide.
+        x_oxide (str): Independent variable on the X-axis.
+        extra_pairs (list[tuple]|None): Additional specific plots, e.g., [("CaO", "Na2O")].
+        plot_totals (bool): If True, calculates and plots x_oxide vs. oxide sum.
+        title (str|None): Figure suptitle.
+        train_mineral_col (str): Column name for mineral labels in df_train.
+        train_kws (dict|None): Scatter keywords for training data.
+            Defaults to {"s": 20, "alpha": 0.1, "ec": "k", "lw": 0.25}.
+        new_kws (dict|None): Default scatter keywords for overlay datasets.
+            Defaults to {"s": 60, "alpha": 1.0, "ec": "k", "lw": 1}.
     """
+
     overlay_datasets = overlay_datasets or {}
     train_minerals = train_minerals or []
 
@@ -2378,7 +2504,3 @@ def plot_harker(
     plt.tight_layout()
     plt.show()
 
-
-# %%
-
-# %%

@@ -20,6 +20,4 @@ dependencies:
     - pip
     - pip:
         - pyrolite
-        - PyIRoGlass
-        - hdbscan
         - python-ternary

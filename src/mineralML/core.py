@@ -11,8 +11,6 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 
-# from hdbscan.flat import (HDBSCAN_flat, approximate_predict_flat)
-
 # %% 
 
 

@@ -56,6 +56,9 @@ feldspathoids = feldspathoids[~feldspathoids.applymap(str).apply(lambda x: x.str
 garnets = pd.read_csv('../GEOROC_minerals/2024-12-SGFTFN_GARNETS.csv', encoding='latin-1')
 garnets = garnets[~garnets.applymap(str).apply(lambda x: x.str.contains(r'\\')).any(axis=1)]
 
+glass = pd.read_csv('../GEOROC_minerals/2025-12-7JW6XU_MELT_INCLUSIONS.csv', encoding='latin-1')
+glass = glass[~glass.applymap(str).apply(lambda x: x.str.contains(r'\\')).any(axis=1)]
+
 ilmenites = pd.read_csv('../GEOROC_minerals/2024-12-SGFTFN_ILMENITES.csv', encoding='latin-1')
 ilmenites = ilmenites[~ilmenites.applymap(str).apply(lambda x: x.str.contains(r'\\')).any(axis=1)]
 
@@ -88,133 +91,135 @@ zircons = zircons[~zircons.applymap(str).apply(lambda x: x.str.contains(r'\\')).
 
 # %% 
 
-# def extract_citations_from_georoc_df(df: pd.DataFrame, first_col: str | None = None):
-#     """
-#     GEOROC-style: citation rows have ONLY col0 populated (all other cols NaN/empty).
-#     Return:
-#       - df_data: rows before the citation block
-#       - citations_df: citation block (as rows)
-#       - citations: list[str] of citation strings (from col0)
-#     """
-#     if first_col is None:
-#         col0 = df.columns[0]
-#     else:
-#         col0 = first_col
+def extract_citations_from_georoc_df(df: pd.DataFrame, first_col: str | None = None):
+    """
+    GEOROC-style: citation rows have ONLY col0 populated (all other cols NaN/empty).
+    Return:
+      - df_data: rows before the citation block
+      - citations_df: citation block (as rows)
+      - citations: list[str] of citation strings (from col0)
+    """
+    if first_col is None:
+        col0 = df.columns[0]
+    else:
+        col0 = first_col
 
-#     # Treat empty strings as missing to make the "only col0 has value" test work
-#     d = df.replace(r"^\s*$", np.nan, regex=True)
+    # Treat empty strings as missing to make the "only col0 has value" test work
+    d = df.replace(r"^\s*$", np.nan, regex=True)
 
-#     # Citation rows: col0 not-null AND all other columns null
-#     other_cols = [c for c in d.columns if c != col0]
-#     is_citation_row = d[col0].notna() & d[other_cols].isna().all(axis=1)
+    # Citation rows: col0 not-null AND all other columns null
+    other_cols = [c for c in d.columns if c != col0]
+    is_citation_row = d[col0].notna() & d[other_cols].isna().all(axis=1)
 
-#     if not is_citation_row.any():
-#         return df.copy(), df.iloc[0:0].copy(), []
+    if not is_citation_row.any():
+        return df.copy(), df.iloc[0:0].copy(), []
 
-#     # Citation block starts at first citation row and goes to end of sheet
-#     start = np.where(is_citation_row.to_numpy())[0].min()
+    # Citation block starts at first citation row and goes to end of sheet
+    start = np.where(is_citation_row.to_numpy())[0].min()
 
-#     df_data = df.iloc[:start].copy()
-#     citations_df = df.iloc[start:].copy()
+    df_data = df.iloc[:start].copy()
+    citations_df = df.iloc[start:].copy()
 
-#     citations = (
-#         citations_df[col0]
-#         .dropna()
-#         .astype(str)
-#         .str.strip()
-#         .tolist()
-#     )
+    citations = (
+        citations_df[col0]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .tolist()
+    )
 
-#     return df_data, citations_df, citations
-
-
-# def merge_citations_across_loaded(dfs: dict[str, pd.DataFrame]):
-#     """
-#     dfs: {"amphiboles": amphiboles, "apatites": apatites, ...}
-#     Returns:
-#       - citations_all: list[str] merged (order preserved by file order)
-#       - citations_unique: list[str] unique, preserving first-seen order
-#       - citation_id_map: dict[int,str] mapping [ID] -> citation text (last wins if repeated)
-#       - data_dfs: dict[str, pd.DataFrame] with citation blocks removed
-#     """
-#     citations_all = []
-#     data_dfs = {}
-#     citation_id_map = {}
-
-#     id_pat = re.compile(r"^\[(\d+)\]\s*(.*)$")
-
-#     for name, df in dfs.items():
-#         df_data, _, cites = extract_citations_from_georoc_df(df)
-#         data_dfs[name] = df_data
-#         citations_all.extend(cites)
-
-#         # optional: build [id] -> citation mapping
-#         for c in cites:
-#             m = id_pat.match(c)
-#             if m:
-#                 citation_id_map[int(m.group(1))] = m.group(2).strip()
-
-#     # unique list preserving order
-#     seen = set()
-#     citations_unique = []
-#     for c in citations_all:
-#         if c not in seen:
-#             seen.add(c)
-#             citations_unique.append(c)
-
-#     return citations_all, citations_unique, citation_id_map, data_dfs
+    return df_data, citations_df, citations
 
 
-# dfs = {
-#     "amphiboles": amphiboles,
-#     "apatites": apatites,
-#     "carbonates": carbonates,
-#     "chalcogenides": chalcogenides,
-#     "clays": clays,
-#     "clinopyroxenes": clinopyroxenes,
-#     "feldspars": feldspars,
-#     "feldspathoids": feldspathoids,
-#     "garnets": garnets,
-#     "ilmenites": ilmenites,
-#     "micas": micas,
-#     "olivines": olivines,
-#     "orthopyroxenes": orthopyroxenes,
-#     "perovskites": perovskites,
-#     "pyroxenes": pyroxenes,
-#     "quartz": quartz,
-#     "spinels": spinels,
-#     "titanites": titanites,
-#     "zircons": zircons,
-# }
+def merge_citations_across_loaded(dfs: dict[str, pd.DataFrame]):
+    """
+    dfs: {"amphiboles": amphiboles, "apatites": apatites, ...}
+    Returns:
+      - citations_all: list[str] merged (order preserved by file order)
+      - citations_unique: list[str] unique, preserving first-seen order
+      - citation_id_map: dict[int,str] mapping [ID] -> citation text (last wins if repeated)
+      - data_dfs: dict[str, pd.DataFrame] with citation blocks removed
+    """
+    citations_all = []
+    data_dfs = {}
+    citation_id_map = {}
 
-# citations_all, citations_unique, citation_id_map, data_dfs = merge_citations_across_loaded(dfs)
+    id_pat = re.compile(r"^\[(\d+)\]\s*(.*)$")
 
-# # examples
-# len(citations_all), len(citations_unique), len(citation_id_map)
+    for name, df in dfs.items():
+        df_data, _, cites = extract_citations_from_georoc_df(df)
+        data_dfs[name] = df_data
+        citations_all.extend(cites)
 
-# citations_out = pd.DataFrame({"citation": citations_unique})
+        # optional: build [id] -> citation mapping
+        for c in cites:
+            m = id_pat.match(c)
+            if m:
+                citation_id_map[int(m.group(1))] = m.group(2).strip()
+
+    # unique list preserving order
+    seen = set()
+    citations_unique = []
+    for c in citations_all:
+        if c not in seen:
+            seen.add(c)
+            citations_unique.append(c)
+
+    return citations_all, citations_unique, citation_id_map, data_dfs
 
 
-# # %% 
-# # keep the bracketed form in a separate column
-# split = citations_out["citation"].astype(str).str.extract(r"^\s*\[(\d+)\]\s*(.*)\s*$")
+dfs = {
+    "amphiboles": amphiboles,
+    "apatites": apatites,
+    "carbonates": carbonates,
+    "chalcogenides": chalcogenides,
+    "clays": clays,
+    "clinopyroxenes": clinopyroxenes,
+    "feldspars": feldspars,
+    "feldspathoids": feldspathoids,
+    "garnets": garnets,
+    "glass": glass,
+    "ilmenites": ilmenites,
+    "micas": micas,
+    "olivines": olivines,
+    "orthopyroxenes": orthopyroxenes,
+    "perovskites": perovskites,
+    "pyroxenes": pyroxenes,
+    "quartz": quartz,
+    "spinels": spinels,
+    "titanites": titanites,
+    "zircons": zircons,
+}
 
-# # citations_out["citation_id_int"] = split[0].astype("Int64")                 # optional numeric id
-# citations_out["citation_id"] = "[" + split[0].astype(str) + "]"             # bracketed id as text
-# citations_out["citation_text"] = split[1].astype(str).str.strip()
+citations_all, citations_unique, citation_id_map, data_dfs = merge_citations_across_loaded(dfs)
 
-# # if you don't want the numeric helper column:
-# # citations_out = citations_out.drop(columns=["citation_id_int"])
+# examples
+len(citations_all), len(citations_unique), len(citation_id_map)
 
-# # map with bracketed keys: {"[46]": "SPENGLER ..."}
-# citation_id_map = (
-#     citations_out.dropna(subset=["citation_id"])
-#     .set_index("citation_id")["citation_text"]
-#     .to_dict()
-# )
+citations_out = pd.DataFrame({"citation": citations_unique})
 
-# citations_out.head()
-# citations_out.to_csv("GEOROC_citations_merged.csv", index=False)
+
+# %% 
+
+# keep the bracketed form in a separate column
+split = citations_out["citation"].astype(str).str.extract(r"^\s*\[(\d+)\]\s*(.*)\s*$")
+
+# citations_out["citation_id_int"] = split[0].astype("Int64")                 # optional numeric id
+citations_out["citation_id"] = "[" + split[0].astype(str) + "]"             # bracketed id as text
+citations_out["citation_text"] = split[1].astype(str).str.strip()
+
+# if you don't want the numeric helper column:
+# citations_out = citations_out.drop(columns=["citation_id_int"])
+
+# map with bracketed keys: {"[46]": "SPENGLER ..."}
+citation_id_map = (
+    citations_out.dropna(subset=["citation_id"])
+    .set_index("citation_id")["citation_text"]
+    .to_dict()
+)
+
+citations_out.head()
+citations_out.to_csv("GEOROC_citations_merged.csv", index=False)
 
 
 # %% 
@@ -253,6 +258,7 @@ clinopyroxenes.to_csv('../GEOROC_minerals/GEOROC_clinopyroxene.csv')
 feldspars.to_csv('../GEOROC_minerals/GEOROC_feldspar.csv')
 feldspathoids.to_csv('../GEOROC_minerals/GEOROC_feldspathoid.csv')
 garnets.to_csv('../GEOROC_minerals/GEOROC_garnet.csv')
+glass.to_csv('../GEOROC_minerals/GEOROC_glass.csv')
 ilmenites.to_csv('../GEOROC_minerals/GEOROC_ilmenite.csv')
 micas.to_csv('../GEOROC_minerals/GEOROC_mica.csv')
 olivines.to_csv('../GEOROC_minerals/GEOROC_olivine.csv')
@@ -285,6 +291,9 @@ clinopyroxenes_lim = clinopyroxenes.loc[:, lim_oxides]
 feldspars_lim = feldspars.loc[:, lim_oxides]
 feldspathoids_lim = feldspathoids.loc[:, lim_oxides]
 garnets_lim = garnets.loc[:, lim_oxides]
+glass['TECTONIC SETTING'] = np.nan
+glass['MINERAL'] = 'Glass'
+glass_lim = glass.loc[:, lim_oxides]
 ilmenites_lim = ilmenites.loc[:, lim_oxides]
 micas_lim = micas.loc[:, lim_oxides]
 olivines_lim = olivines.loc[:, lim_oxides]
@@ -319,6 +328,8 @@ feldspars_sub['MINERAL'] = 'Feldspar'
 feldspathoids_sub = feldspathoids_lim.dropna(subset=subset_ox, thresh=4)
 garnets_sub = garnets_lim.dropna(subset=subset_ox, thresh=4)
 garnets_sub['MINERAL'] = 'Garnet'
+glass_sub = glass_lim.dropna(subset=subset_ox, thresh=4)
+glass_sub['MINERAL'] = 'Glass'
 ilmenites_sub = ilmenites_lim.dropna(subset=subset_ox, thresh=4)
 ilmenites_sub['MINERAL'] = 'Ilmenite'
 micas_sub = micas_lim.dropna(subset=subset_ox, thresh=4)
@@ -336,8 +347,8 @@ titanites_sub['MINERAL'] = 'Titanite'
 zircons_sub = zircons_lim.dropna(subset=subset_ox_zr, thresh=4)
 zircons_sub['MINERAL'] = 'Zircon'
 
-min_df = pd.concat([amphiboles_sub, apatites_sub, carbonates_sub, clinopyroxenes_sub, feldspars_sub, feldspathoids_sub, garnets_sub, ilmenites_sub, 
-                    micas_sub, olivines_sub, orthopyroxenes_sub, pyroxenes_sub, quartz_sub, spinels_sub, titanites_sub, zircons_sub])
+min_df = pd.concat([amphiboles_sub, apatites_sub, carbonates_sub, clinopyroxenes_sub, feldspars_sub, feldspathoids_sub, garnets_sub, glass_sub,
+                    ilmenites_sub, micas_sub, olivines_sub, orthopyroxenes_sub, pyroxenes_sub, quartz_sub, spinels_sub, titanites_sub, zircons_sub])
 
 min_df.rename(columns = {'MINERAL':'Mineral', 'SIO2(WT%)':'SiO2', 'TIO2(WT%)':'TiO2', 'AL2O3(WT%)':'Al2O3', 'FE2O3T(WT%)':'Fe2O3T', 'FE2O3(WT%)':'Fe2O3', 
                          'FEOT(WT%)':'FeOT', 'FEO(WT%)':'FeO', 'MNO(WT%)':'MnO', 'MGO(WT%)':'MgO', 'CAO(WT%)':'CaO', 'NA2O(WT%)':'Na2O', 'K2O(WT%)':'K2O', 

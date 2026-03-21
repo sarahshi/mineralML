@@ -34,7 +34,6 @@ setup(
             'matplotlib',
             'scikit-learn',
             'torch',
-            'hdbscan', 
             'python-ternary',
             'scikit-image'
             ],

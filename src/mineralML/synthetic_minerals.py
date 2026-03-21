@@ -143,7 +143,7 @@ class SolidSolutionGenerator:
 
         # Perform oxygen-basis renormalization
         current_total_oxygens = sum(
-            noisy_cations[elt] * self.OXYGEN_NUMBERS[self.element_to_oxide[elt]]
+            noisy_cations[elt] * self.OXYGEN_NUMBERS[self.element_to_oxide[elt]] / self.CATION_NUMBERS[self.element_to_oxide[elt]]
             for elt in noisy_cations
         )
         scale_factor = self.oxygen_basis / current_total_oxygens
@@ -284,6 +284,7 @@ class SolidSolutionGenerator:
         ncols=3,
         figsize_per=(4, 3),
         suptitle=None,
+        savefig_path=None,
     ):
         """
         Compare cation-count distributions between base_df and synth_df.
@@ -338,13 +339,13 @@ class SolidSolutionGenerator:
                 [base_c, synth_c], positions=[1, 2], showmeans=True, showmedians=False
             )
 
-            # Style the violins
-            for pc in parts["bodies"]:
-                pc.set_facecolor("#0C7BDC")
+            # Natural = blue, Synthetic = red
+            for pc, color in zip(parts["bodies"], ["#0C7BDC", "#E42211"]):
+                pc.set_facecolor(color)
                 pc.set_edgecolor("black")
                 pc.set_alpha(0.7)
 
-            parts["cmeans"].set_color("red")
+            parts["cmeans"].set_color("black")
             parts["cmins"].set_color("black")
             parts["cmaxes"].set_color("black")
             parts["cbars"].set_color("black")
@@ -366,18 +367,18 @@ class SolidSolutionGenerator:
                     showmedians=False,
                 )
 
-                # Style the second set of violins
-                for pc in parts2["bodies"]:
-                    pc.set_facecolor("#FF7F0E")
+                # Natural = blue, Synthetic = red
+                for pc, color in zip(parts2["bodies"], ["#0C7BDC", "#E42211"]):
+                    pc.set_facecolor(color)
                     pc.set_edgecolor("black")
                     pc.set_alpha(0.7)
 
-                parts2["cmeans"].set_color("red")
+                parts2["cmeans"].set_color("black")
                 parts2["cmins"].set_color("black")
                 parts2["cmaxes"].set_color("black")
                 parts2["cbars"].set_color("black")
 
-                ax2.set_ylabel("Oxide wt%", fontsize=10)
+                ax2.set_ylabel("Oxide (wt.%)", fontsize=10)
                 ax.set_xticks([1, 2, 4, 5])
                 ax.set_xticklabels(
                     [
@@ -386,23 +387,26 @@ class SolidSolutionGenerator:
                         "Natural\nOxide",
                         "Synthetic\nOxide",
                     ],
-                    fontsize=8,
+                    fontsize=10,
                 )
             else:
                 ax.set_xticks([1, 2])
                 ax.set_xticklabels(
-                    ["Natural\nCations", "Synthetic\nCations"], fontsize=8
+                    ["Natural\nCations", "Synthetic\nCations"], fontsize=10
                 )
             ax.set_title(el, fontsize=12, pad=10)
 
         if suptitle:
-            fig.suptitle(suptitle, fontsize=14, y=1.02)
+            fig.suptitle(suptitle, fontsize=14, y=1.0)
         for extra_ax in axes[len(valid) :]:
             extra_ax.axis("off")
         plt.tight_layout()
+        if savefig_path:
+            fig.savefig(savefig_path, bbox_inches="tight", pad_inches=0.025, dpi=300)
+
         plt.show()
 
-        return pd.DataFrame(stats).set_index("cation")
+        return fig, pd.DataFrame(stats).set_index("cation")
 
 
 # %%

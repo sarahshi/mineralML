@@ -8,20 +8,23 @@ import pandas as pd
 import sys
 sys.path.append('../src/')
 import mineralML as mm
+mm.same_seeds(42)
 
 import matplotlib.pyplot as plt
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
+# plt.style.use('../style.mplstyle')
+
 plt.rcParams.update({
     'xtick.major.size': 4,
     'ytick.major.size': 4,
-    'xtick.labelsize': 12,
-    'ytick.labelsize': 12,
-    'axes.titlesize': 16,
-    'axes.labelsize': 12,
+    'xtick.labelsize': 16,
+    'ytick.labelsize': 16,
+    'axes.titlesize': 18,
+    'axes.labelsize': 16,
     'pdf.fonttype': 42,
     'font.family': 'Avenir',
-    'font.size': 12,
+    'font.size': 20,
     'xtick.direction': 'in',  # Set x-tick direction to 'in'
     'ytick.direction': 'in',  # Set y-tick direction to 'in'
     'xtick.major.size': 5,    # Set x-tick length
@@ -92,7 +95,7 @@ gt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Garnet.xlsx', dtyp
 hem_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Hematite.xlsx', dtype=dtypes)) # 9
 ilm_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Ilmenite.xlsx', dtype=dtypes)) # 10
 ks_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Kalsilite.xlsx', dtype=dtypes)) # 11
-ksp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/KFeldspar.xlsx', dtype=dtypes)) # 12
+ksp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/AlkaliFeldspar.xlsx', dtype=dtypes)) # 12
 lc_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Leucite.xlsx', dtype=dtypes)) # 13
 mt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Magnetite.xlsx', dtype=dtypes)) # 14
 ml_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Melilite.xlsx', dtype=dtypes)) # 15
@@ -110,6 +113,9 @@ trm_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Tourmaline.xlsx',
 zr_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Zircon.xlsx', dtype=dtypes)) # 27
 gl_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Glass_withMI.xlsx', dtype=dtypes)) # 28
 
+cal_df['Mineral'] = 'Carbonate'
+qz_df['Mineral'] = 'SiO2_Polymorph'
+
 min_df_all = pd.concat([amp_df, ap_df, bt_df, cal_df, chl_df, cpx_df, ep_df, gt_df, hem_df,                        
                         ilm_df, ks_df, ksp_df, lc_df, mt_df, ml_df, ms_df, ne_df, ol_df, 
                         opx_df, pl_df, qz_df, rt_df, srp_df, sp_df, tit_df, trm_df, zr_df, gl_df], axis = 0)
@@ -121,22 +127,32 @@ min_df_work = min_df_all[['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO',
 min_df = min_df_work.copy()
 min_df.rename(columns={"FeOt_F": "FeOt"}, inplace=True)
 
-min_df.to_csv('../Training_Data/min_df_v3.csv', index=False)
+min_df.to_csv('../Training_Data/min_df_v4.csv', index=False)
 constants = ['Sample Name', 'Total', 'Tectonic Setting', 'Mineral', 'Sample Type', 'Volcano', 'Source']
-
-min_df = pd.read_csv('../Training_Data/min_df_v3.csv') 
+source_const = ['Source']
+min_df = pd.read_csv('../Training_Data/min_df_v4.csv') 
 
 # %% 
 
+amp_meta = min_df.loc[min_df.Mineral == "Amphibole", source_const]
 amp_calc = mm.AmphiboleCalculator(min_df[min_df.Mineral=='Amphibole'])
 amp_comp = amp_calc.calculate_components()
+amp_comp['Source'] = amp_meta
+
 display(amp_comp)
 
-amp_comp_filt = amp_comp.loc[((amp_comp['Cation_Sum'].between(15, 16)) & 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Amphibole'])
+
+mm.AmphiboleClassifier(amp_comp).plot()
+
+amp_comp_filt = amp_comp.loc[((amp_comp['Cation_Sum'].between(14.8, 16.2)) & 
                               (amp_comp['Si_T_leake'].between(5.5, 8)) & 
-                              (amp_comp['Mgno_leake'].between(0.3, 1)) )]
-                            #   (amp_comp['Ca_B_leake'].between(1.5, 2.1)) & 
-                            #   (amp_comp['Al_T_leake'].between(0.5, 2.25)))]
+                              (amp_comp['MnO']<8) )]
+
+mm.plot_harker(df_train=amp_comp_filt,
+               train_minerals=['Amphibole'])
+mm.AmphiboleClassifier(amp_comp_filt).plot()
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -151,7 +167,6 @@ ax[1].set_xlabel('Cation_Sum')
 ax[1].set_ylabel('Ca_B_leake (B-site)')
 plt.tight_layout()
 
-
 plt.subplots(1, 1, figsize = (5, 5))
 plt.scatter(amp_comp['Si_T_leake'], amp_comp['Mgno_leake'], s = 5, color = 'r')
 plt.scatter(amp_comp_filt['Si_T_leake'], amp_comp_filt['Mgno_leake'], s = 5, color = 'g')
@@ -161,11 +176,18 @@ plt.tight_layout()
 
 # %% 
 
+ap_meta = min_df.loc[min_df.Mineral == "Apatite", source_const]
 ap_calc = mm.ApatiteCalculator(min_df[min_df.Mineral=='Apatite'])
 ap_comp = ap_calc.calculate_components()
+ap_comp['Source'] = ap_meta
 display(ap_comp)
 
-ap_comp_filt = ap_comp.loc[((ap_comp.Ca_cat_13ox.between(4.9, 5.3)) & (ap_comp.P_cat_13ox.between(3, 3.2)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Apatite'])
+
+ap_comp_filt = ap_comp.loc[((ap_comp.Ca_cat_13ox.between(4.8, 5.3)) & (ap_comp.P_cat_13ox.between(3, 3.2)))]
+mm.plot_harker(df_train=ap_comp_filt,
+               train_minerals=['Apatite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -182,11 +204,21 @@ plt.tight_layout()
 
 # %%
 
+bt_meta = min_df.loc[min_df.Mineral == "Biotite", source_const]
 bt_calc = mm.BiotiteCalculator(min_df[min_df.Mineral=='Biotite'])
 bt_comp = bt_calc.calculate_components()
+bt_comp['Source'] = bt_meta
 display(bt_comp)
 
-bt_comp_filt = bt_comp.loc[((bt_comp.Cation_Sum.between(7.6, 8.1)) & (bt_comp.M_site.between(2.25, 2.85)) & (bt_comp.T_site.between(3.8, 4.2)) )]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Biotite'])
+
+bt_comp_filt = bt_comp.loc[((bt_comp.Cation_Sum.between(7.6, 8.1)) & 
+                            (bt_comp.M_site.between(2.25, 2.85)) & 
+                            (bt_comp.T_site.between(3.8, 4.2)) &
+                            (bt_comp.CaO < 2))]
+mm.plot_harker(df_train=bt_comp_filt,
+               train_minerals=['Biotite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -200,14 +232,19 @@ ax[1].set_xlabel('Cation_Sum')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
-
 # %%
 
-cal_calc = mm.CalciteCalculator(min_df[min_df.Mineral=='Calcite'])
+cal_meta = min_df.loc[min_df.Mineral == "Carbonate", source_const]
+cal_calc = mm.CalciteCalculator(min_df[min_df.Mineral=='Carbonate'])
 cal_comp = cal_calc.calculate_components()
+cal_comp['Source'] = cal_meta
 display(cal_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Carbonate'])
 cal_comp_filt = cal_comp.loc[((cal_comp.Cation_Sum.between(0.98, 1.02)) & (cal_comp.C_site.between(0.99, 1.05)))]
+mm.plot_harker(df_train=cal_comp_filt,
+               train_minerals=['Carbonate'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -223,11 +260,19 @@ plt.tight_layout()
 
 # %%
 
+chl_meta = min_df.loc[min_df.Mineral == "Chlorite", source_const]
 chl_calc = mm.ChloriteCalculator(min_df[min_df.Mineral=='Chlorite'])
 chl_comp = chl_calc.calculate_components()
+chl_comp['Source'] = chl_meta
 display(chl_comp)
 
-chl_comp_filt = chl_comp.loc[((chl_comp.Cation_Sum.between(9, 10.25)) & (chl_comp.T_site.between(5.3, 6)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Chlorite'])
+chl_comp_filt = chl_comp.loc[((chl_comp.Cation_Sum.between(9, 10.25)) & 
+                              (chl_comp.T_site.between(5.3, 6)) & 
+                              (chl_comp.TiO2<1))]
+mm.plot_harker(df_train=chl_comp_filt,
+               train_minerals=['Chlorite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -243,12 +288,23 @@ plt.tight_layout()
 
 # %% 
 
-cpx_calc = mm.ClinopyroxeneCalculator(min_df[min_df.Mineral=='Clinopyroxene'])
+cpx_meta = min_df.loc[min_df.Mineral == "Clinopyroxene", source_const]
+cpx_calc = mm.PyroxeneClassifier(min_df[min_df.Mineral=='Clinopyroxene'])
 cpx_comp = cpx_calc.calculate_components()
+cpx_comp['Source'] = cpx_meta
 jd_comp = cpx_comp[cpx_comp["Jd"] > 0.1]
 display(cpx_comp)
 
-cpx_comp_filt = cpx_comp.loc[((cpx_comp.Cation_Sum.between(3.95, 4.05)) & (cpx_comp.Wo.between(0.35, 0.525)))]
+mm.PyroxeneClassifier(cpx_comp).plot()
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Clinopyroxene'])
+cpx_comp_filt = cpx_comp.loc[((cpx_comp.Cation_Sum.between(3.9, 4.3)))]
+cpx_comp_filt = mm.PyroxeneClassifier(cpx_comp_filt).classify()
+cpx_comp_filt = cpx_comp_filt[cpx_comp_filt.Submineral!='Enstatite']
+cpx_comp_filt.loc[cpx_comp_filt.Mineral=="Na-Pyroxene", "Mineral"] = "Clinopyroxene"
+mm.plot_harker(df_train=cpx_comp_filt,
+               train_minerals=['Clinopyroxene'])
+mm.PyroxeneClassifier(cpx_comp_filt).plot()
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -265,13 +321,23 @@ plt.tight_layout()
 
 # %% 
 
+ep_meta = min_df.loc[min_df.Mineral == "Epidote", source_const]
 ep_calc = mm.EpidoteCalculator(min_df[min_df.Mineral=='Epidote'])
 ep_comp = ep_calc.calculate_components()
+ep_comp['Source'] = ep_meta
 display(ep_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Epidote'])
 fe_conversion = 159.688 / (2 * 71.8464)
-ep_comp_filt = ep_comp.loc[((ep_comp.Cation_Sum.between(7.9, 8.1)) & (ep_comp.M_site.between(2.8, 3.3)) & (ep_comp.Z_site.between(2.85, 3.15)))]
+ep_comp_filt = ep_comp.loc[((ep_comp.Cation_Sum.between(7.9, 8.1)) & 
+                            (ep_comp.M_site.between(2.8, 3.3)) & 
+                            (ep_comp.Z_site.between(2.85, 3.15)) & 
+                            (ep_comp.TiO2<1) & 
+                            (ep_comp.MgO<1) )]
 ep_comp_filt["FeOt"] = (ep_comp_filt["Fe2O3t"] / fe_conversion)
+mm.plot_harker(df_train=ep_comp_filt,
+               train_minerals=['Epidote'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -285,15 +351,24 @@ ax[1].set_xlabel('M_site')
 ax[1].set_ylabel('Z_site')
 plt.tight_layout()
 
+# ep_comp_filt = pd.concat([ep_comp_filt, min_df[min_df.Mineral=='Epidote'][constants]], axis=1)
+
 # %% 
 
+gt_meta = min_df.loc[min_df.Mineral == "Garnet", source_const]
 gt_calc = mm.GarnetCalculator(min_df[min_df.Mineral=='Garnet'])
 gt_comp = gt_calc.calculate_components()
+gt_comp['Source'] = gt_meta
 display(gt_comp)
 
-gt_comp_filt = gt_comp.loc[((gt_comp.Cation_Sum.between(7.96, 8.04)) & (gt_comp.X_site.between(2.9, 3.05)) & (gt_comp.T_site.between(4.3, 5.1)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Garnet'])
+gt_comp_filt = gt_comp.loc[((gt_comp.Cation_Sum.between(7.9, 8.1)) & 
+                            (gt_comp.X_site.between(2.9, 3.4)))] # (gt_comp.T_site.between(4.3, 5.1))
 fe_conversion = 159.688 / (2 * 71.8464)
 gt_comp_filt["FeOt"] = (gt_comp_filt["FeO"] + gt_comp_filt["Fe2O3"] / fe_conversion)
+mm.plot_harker(df_train=gt_comp_filt,
+               train_minerals=['Garnet'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -307,14 +382,25 @@ ax[1].set_xlabel('Y_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# gt_comp_filt = pd.concat([gt_comp_filt, min_df[min_df.Mineral=='Garnet'][constants]], axis=1)
+
 # %% 
 
+hem_meta = min_df.loc[min_df.Mineral == "Hematite", source_const]
 hem_calc = mm.RhombohedralOxideCalculator(min_df[min_df.Mineral=='Hematite'])
 hem_comp = hem_calc.calculate_components(Fe_correction="All_Fe3")
 hem_comp['Mineral'] = 'Hematite'
+hem_comp['Source'] = hem_meta
 display(hem_comp)
 
-hem_comp_filt = hem_comp.loc[((hem_comp.Cation_Sum.between(1.975, 2.3))) & (hem_comp.Fe_Ti.between(1.9, 2.0))] # & (hem_comp.Fe_Ti.between(2.05, 2.3)) & (hem_comp.A_site_expanded.between(0.66, 0.76)))
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Hematite'],
+               x_oxide="FeOt",)
+hem_comp_filt = hem_comp.loc[((hem_comp.Cation_Sum.between(1.975, 2.3))) & 
+                             (hem_comp.Fe_Ti.between(1.9, 2.0))] # & (hem_comp.Fe_Ti.between(2.05, 2.3)) & (hem_comp.A_site_expanded.between(0.66, 0.76)))
+mm.plot_harker(df_train=hem_comp_filt,
+               train_minerals=['Hematite'],
+               x_oxide="Fe2O3",)
 
 fe_conversion = 159.688 / (2 * 71.8464)
 hem_comp_filt["FeOt"] = (hem_comp_filt["FeO"] + hem_comp_filt["Fe2O3"] / fe_conversion)
@@ -331,15 +417,27 @@ ax[1].set_xlabel('A_site_expanded')
 ax[1].set_ylabel('B_site')
 plt.tight_layout()
 
+# hem_comp_filt = pd.concat([hem_comp_filt, min_df[min_df.Mineral=='Hematite'][constants]], axis=1)
+
 # %% 
 
+ilm_meta = min_df.loc[min_df.Mineral == "Ilmenite", source_const]
 ilm_calc = mm.RhombohedralOxideCalculator(min_df[min_df.Mineral=='Ilmenite'])
 ilm_comp = ilm_calc.calculate_components()
+ilm_comp['Source'] = hem_meta
 display(ilm_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Ilmenite'],
+               x_oxide="FeOt",)
 fe_conversion = 159.688 / (2 * 71.8464)
-ilm_comp_filt = ilm_comp.loc[((ilm_comp.Cation_Sum.between(2.0, 2.15)) & (ilm_comp.Fe_Ti.between(1.95, 2.05)))]
+ilm_comp_filt = ilm_comp.loc[((ilm_comp.Cation_Sum.between(2.0, 2.15)) & 
+                              (ilm_comp.Fe_Ti.between(1.95, 2.05)) &
+                              (ilm_comp.Al2O3<0.6))]
 ilm_comp_filt["FeOt"] = (ilm_comp_filt["FeO"] + ilm_comp_filt["Fe2O3"] / fe_conversion)
+mm.plot_harker(df_train=ilm_comp_filt,
+               train_minerals=['Ilmenite'],
+               x_oxide="FeOt",)
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -353,13 +451,22 @@ ax[1].set_xlabel('A_site_expanded')
 ax[1].set_ylabel('B_site')
 plt.tight_layout()
 
+# ilm_comp_filt = pd.concat([ilm_comp_filt, min_df[min_df.Mineral=='Ilmenite'][constants]], axis=1)
+
 # %%
 
+ks_meta = min_df.loc[min_df.Mineral == "Kalsilite", source_const]
 ks_calc = mm.KalsiliteCalculator(min_df[min_df.Mineral=='Kalsilite'])
 ks_comp = ks_calc.calculate_components()
+ks_comp['Source'] = ks_meta
 display(ks_comp)
 
-ks_comp_filt = ks_comp.loc[((ks_comp.Cation_Sum.between(2.95, 3.05)) & (ks_comp.A_site.between(0.95, 1.05)) & (ks_comp.T_site.between(1.95, 2.05)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Kalsilite'])
+ks_comp_filt = ks_comp.loc[((ks_comp.Cation_Sum.between(2.95, 3.05)) & 
+                            (ks_comp.A_site.between(0.95, 1.05)) & (ks_comp.T_site.between(1.95, 2.05)))]
+mm.plot_harker(df_train=ks_comp_filt,
+               train_minerals=['Kalsilite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -373,16 +480,29 @@ ax[1].set_xlabel('A_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# ks_comp_filt = pd.concat([ks_comp_filt, min_df[min_df.Mineral=='Kalsilite'][constants]], axis=1)
+
 # %% 
 
-ksp_calc = mm.FeldsparClassifier(min_df[min_df.Mineral=='KFeldspar'])
+ksp_meta = min_df.loc[min_df.Mineral == "Alkali_Feldspar", source_const]
+ksp_calc = mm.FeldsparClassifier(min_df[min_df.Mineral=='Alkali_Feldspar'])
 ksp_comp = ksp_calc.classify()
+ksp_comp['Source'] = ksp_meta
 ksp_comp = ksp_comp[ksp_comp.Submineral!='Feldspar_Miscibility_Gap']
-ksp_comp = ksp_comp[ksp_comp.Submineral!='Albite']
+
+# ksp_comp = ksp_comp[ksp_comp.Submineral!='Albite']
 display(ksp_comp)
 
-
-ksp_comp_filt = ksp_comp.loc[((ksp_comp.Cation_Sum.between(4.9, 5.1)) & (ksp_comp.T_site.between(3.96, 4.04)) & (ksp_comp.SiO2.between(40, 80)) & (ksp_comp.K2O.between(5, 17)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['KFeldspar'])
+mm.FeldsparClassifier(ksp_comp).plot()
+ksp_comp_filt = ksp_comp.loc[((ksp_comp.Cation_Sum.between(4.9, 5.1)) & 
+                              (ksp_comp.T_site.between(3.96, 4.04)) & 
+                              (ksp_comp.SiO2.between(40, 80)) & 
+                              (ksp_comp.K2O.between(2, 17)))]
+mm.plot_harker(df_train=ksp_comp_filt,
+               train_minerals=['KFeldspar'])
+mm.FeldsparClassifier(ksp_comp_filt).plot()
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -396,13 +516,23 @@ ax[1].set_xlabel('Cation_Sum')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# ksp_comp_filt = pd.concat([ksp_comp_filt, min_df[min_df.Mineral=='KFeldspar'][constants]], axis=1)
+
 # %% 
 
+lc_meta = min_df.loc[min_df.Mineral == "Leucite", source_const]
 lc_calc = mm.LeuciteCalculator(min_df[min_df.Mineral=='Leucite'])
 lc_comp = lc_calc.calculate_components()
+lc_comp['Source'] = lc_meta
 display(lc_comp)
 
-lc_comp_filt = lc_comp.loc[((lc_comp.Cation_Sum.between(3.90, 4.1)) & (lc_comp.T_site.between(2.9, 3.1)) & (lc_comp.Channel_site.between(0.9, 1.05)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Leucite'])
+lc_comp_filt = lc_comp.loc[((lc_comp.Cation_Sum.between(3.90, 4.1)) & 
+                            (lc_comp.T_site.between(2.9, 3.1)) & 
+                            (lc_comp.Channel_site.between(0.9, 1.05)))]
+mm.plot_harker(df_train=lc_comp_filt,
+               train_minerals=['Leucite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -416,13 +546,24 @@ ax[1].set_xlabel('Channel_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# lc_comp_filt = pd.concat([lc_comp_filt, min_df[min_df.Mineral=='Leucite'][constants]], axis=1)
+
 # %%
 
+mt_meta = min_df.loc[min_df.Mineral == "Magnetite", source_const]
 mt_calc = mm.SpinelCalculator(min_df[min_df.Mineral=='Magnetite'])
 mt_comp = mt_calc.calculate_components(Fe_correction='All_Fe2')
+mt_comp['Source'] = mt_meta
 display(mt_comp)
 
-mt_comp_filt = mt_comp.loc[((mt_comp.Cation_Sum.between(3.2, 3.8)) & (mt_comp.A_site.between(2.6, 3.6)) & (mt_comp.B_site.between(0.2, 0.8)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Magnetite'])
+mt_comp_filt = mt_comp.loc[((mt_comp.Cation_Sum.between(3.2, 3.8)) & 
+                            (mt_comp.A_site.between(2.6, 3.6)) & 
+                            (mt_comp.B_site.between(0.2, 0.8)) &
+                            (mt_comp.SiO2.between(0.05, 0.5)) )]
+mm.plot_harker(df_train=mt_comp_filt,
+               train_minerals=['Magnetite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -436,13 +577,21 @@ ax[1].set_xlabel('A_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# mt_comp_filt = pd.concat([mt_comp_filt, min_df[min_df.Mineral=='Magnetite'][constants]], axis=1)
+
 # %% 
 
+ml_meta = min_df.loc[min_df.Mineral == "Melilite", source_const]
 ml_calc = mm.MeliliteCalculator(min_df[min_df.Mineral=='Melilite'])
 ml_comp = ml_calc.calculate_components()
+ml_comp['Source'] = ml_meta
 display(ml_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Melilite'])
 ml_comp_filt = ml_comp.loc[((ml_comp.Cation_Sum.between(4.95, 5.05)) & (ml_comp.T_site.between(1.9, 2.1)))]
+mm.plot_harker(df_train=ml_comp_filt,
+               train_minerals=['Melilite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -456,13 +605,22 @@ ax[1].set_xlabel('A_site')
 ax[1].set_ylabel('B_site')
 plt.tight_layout()
 
+# ml_comp_filt = pd.concat([ml_comp_filt, min_df[min_df.Mineral=='Melilite'][constants]], axis=1)
+
 # %% 
 
+ms_meta = min_df.loc[min_df.Mineral == "Muscovite", source_const]
 ms_calc = mm.MuscoviteCalculator(min_df[min_df.Mineral=='Muscovite'])
 ms_comp = ms_calc.calculate_components()
+ms_comp['Source'] = ms_meta
 display(ms_comp)
 
-ms_comp_filt = ms_comp.loc[((ms_comp.Cation_Sum.between(6.9, 7.1)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Muscovite'])
+ms_comp_filt = ms_comp.loc[((ms_comp.Cation_Sum.between(6.9, 7.1)) &
+                            (ms_comp.Na2O<3))]
+mm.plot_harker(df_train=ms_comp_filt,
+               train_minerals=['Muscovite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -476,13 +634,21 @@ ax[1].set_xlabel('A_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# ms_comp_filt = pd.concat([ms_comp_filt, min_df[min_df.Mineral=='Muscovite'][constants]], axis=1)
+
 # %% 
 
+ne_meta = min_df.loc[min_df.Mineral == "Nepheline", source_const]
 ne_calc = mm.NephelineCalculator(min_df[min_df.Mineral=='Nepheline'])
 ne_comp = ne_calc.calculate_components()
+ne_comp['Source'] = ne_meta
 display(ne_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Nepheline'])
 ne_comp_filt = ne_comp.loc[((ne_comp.Cation_Sum > 23) & (ne_comp.T_site.between(15.6, 16.4)))]
+mm.plot_harker(df_train=ne_comp_filt,
+               train_minerals=['Nepheline'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -496,13 +662,22 @@ ax[1].set_xlabel('A_site')
 ax[1].set_ylabel('B_site')
 plt.tight_layout()
 
+# ne_comp_filt = pd.concat([ne_comp_filt, min_df[min_df.Mineral=='Nepheline'][constants]], axis=1)
+
 # %% 
 
+ol_meta = min_df.loc[min_df.Mineral == "Olivine", source_const]
 ol_calc = mm.OlivineCalculator(min_df[min_df.Mineral=='Olivine'])
 ol_comp = ol_calc.calculate_components()
+ol_comp['Source'] = ol_meta
 display(ol_comp)
 
-ol_comp_filt = ol_comp.loc[((ol_comp.Cation_Sum.between(2.95, 3.05)) & (ol_comp.M_site_expanded.between(1.95, 2.05) )) ]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Olivine'])
+ol_comp_filt = ol_comp.loc[((ol_comp.Cation_Sum.between(2.95, 3.05)) & 
+                            (ol_comp.M_site_expanded.between(1.95, 2.05) )) ]
+mm.plot_harker(df_train=ol_comp_filt,
+               train_minerals=['Olivine'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -516,13 +691,24 @@ ax[1].set_xlabel('Ol_Cation_Sum')
 ax[1].set_ylabel('M_site_expanded')
 plt.tight_layout()
 
+# ol_comp_filt = pd.concat([ol_comp_filt, min_df[min_df.Mineral=='Olivine'][constants]], axis=1)
+
 # %%
 
+opx_meta = min_df.loc[min_df.Mineral == "Orthopyroxene", source_const]
 opx_calc = mm.OrthopyroxeneCalculator(min_df[min_df.Mineral=='Orthopyroxene'])
 opx_comp = opx_calc.calculate_components()
+opx_comp['Source'] = opx_meta
 display(opx_comp)
 
-opx_comp_filt = opx_comp.loc[((opx_comp.Cation_Sum.between(3.95, 4.05)) & (opx_comp.Wo.between(-0.01, 0.05) )) ]
+mm.PyroxeneClassifier(opx_comp).plot()
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Orthopyroxene'])
+opx_comp_filt = opx_comp.loc[((opx_comp.Cation_Sum.between(3.95, 4.05)) & 
+                              (opx_comp.Wo<0.15)) ]
+mm.plot_harker(df_train=opx_comp_filt,
+               train_minerals=['Orthopyroxene'])
+mm.PyroxeneClassifier(opx_comp_filt).plot()
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -536,15 +722,25 @@ ax[1].set_xlabel('Cation_Sum')
 ax[1].set_ylabel('Wo')
 plt.tight_layout()
 
+# opx_comp_filt = pd.concat([opx_comp_filt, min_df[min_df.Mineral=='Orthopyroxene'][constants]], axis=1)
+
 # %% 
 
+pl_meta = min_df.loc[min_df.Mineral == "Plagioclase", source_const]
 pl_calc = mm.FeldsparClassifier(min_df[min_df.Mineral=='Plagioclase'])
 pl_comp = pl_calc.classify()
+pl_comp['Source'] = pl_meta
 pl_comp = pl_comp[pl_comp.Submineral!='Feldspar_Miscibility_Gap']
-pl_comp = pl_comp[pl_comp.Submineral!='Anorthoclase']
+# pl_comp = pl_comp[pl_comp.Submineral!='Anorthoclase']
 display(pl_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Plagioclase'])
+mm.FeldsparClassifier(pl_comp).plot()
 pl_comp_filt = pl_comp.loc[((pl_comp.Cation_Sum.between(4.95, 5.05)) & (pl_comp.M_site.between(0.9, 1.05)))]
+mm.plot_harker(df_train=pl_comp_filt,
+               train_minerals=['Plagioclase'])
+mm.FeldsparClassifier(pl_comp_filt).plot()
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -558,13 +754,22 @@ ax[1].set_xlabel('M_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# pl_comp_filt = pd.concat([pl_comp_filt, min_df[min_df.Mineral=='Plagioclase'][constants]], axis=1)
+
 # %% 
 
-qz_calc = mm.QuartzCalculator(min_df[min_df.Mineral=='Quartz'])
+qz_meta = min_df.loc[min_df.Mineral == "SiO2_Polymorph", source_const]
+qz_calc = mm.QuartzCalculator(min_df[min_df.Mineral=='SiO2_Polymorph'])
 qz_comp = qz_calc.calculate_components()
+qz_comp['Source'] = qz_meta
 display(qz_comp)
+# qz_comp['Mineral'] = 'SiO2_Polymorph'
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['SiO2_Polymorph'])
 qz_comp_filt = qz_comp.loc[((qz_comp.Cation_Sum.between(0.9975, 1.0025)))]
+mm.plot_harker(df_train=qz_comp_filt,
+               train_minerals=['SiO2_Polymorph'])
 
 fig, ax = plt.subplots(1, 1, figsize = (5, 5))
 ax.scatter(qz_comp['Cation_Sum'], qz_comp['T_site'], s = 5, color = 'r')
@@ -573,13 +778,21 @@ ax.set_xlabel('Cation_Sum')
 ax.set_ylabel('T_site')
 plt.tight_layout()
 
+# qz_comp_filt = pd.concat([qz_comp_filt, min_df[min_df.Mineral=='SiO2_Polymorph'][constants]], axis=1)
+
 # %%
 
+rt_meta = min_df.loc[min_df.Mineral == "Rutile", source_const]
 rt_calc = mm.RutileCalculator(min_df[min_df.Mineral=='Rutile'])
 rt_comp = rt_calc.calculate_components()
+rt_comp['Source'] = rt_meta
 display(rt_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Rutile'])
 rt_comp_filt = rt_comp.loc[((rt_comp.Cation_Sum.between(0.9975, 1.005)) & (rt_comp.M_site.between(0.994, 1.005)))]
+mm.plot_harker(df_train=rt_comp_filt,
+               train_minerals=['Rutile'])
 
 fig, ax = plt.subplots(1, 1, figsize = (5, 5))
 ax.scatter(rt_comp['Cation_Sum'], rt_comp['M_site'], s = 5, color = 'r')
@@ -588,13 +801,21 @@ ax.set_xlabel('Cation_Sum')
 ax.set_ylabel('M_site')
 plt.tight_layout()
 
+# rt_comp_filt = pd.concat([rt_comp_filt, min_df[min_df.Mineral=='Rutile'][constants]], axis=1)
+
 # %% 
 
+srp_meta = min_df.loc[min_df.Mineral == "Serpentine", source_const]
 srp_calc = mm.SerpentineCalculator(min_df[min_df.Mineral=='Serpentine'])
 srp_comp = srp_calc.calculate_components()
+srp_comp['Source'] = srp_meta
 display(srp_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Serpentine'])
 srp_comp_filt = srp_comp.loc[((srp_comp.Cation_Sum.between(9.5, 10.5)) & (srp_comp.T_site.between(3.5, 4.5)))]
+mm.plot_harker(df_train=srp_comp_filt,
+               train_minerals=['Serpentine'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -608,15 +829,24 @@ ax[1].set_xlabel('M_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# srp_comp_filt = pd.concat([srp_comp_filt, min_df[min_df.Mineral=='Serpentine'][constants]], axis=1)
+
 # %% 
 
+sp_meta = min_df.loc[min_df.Mineral == "Spinel", source_const]
 sp_calc = mm.SpinelCalculator(min_df[min_df.Mineral=='Spinel'])
 sp_comp = sp_calc.calculate_components(Fe_correction='All_Fe2')
+sp_comp['Source'] = sp_meta
 display(sp_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Spinel'])
 fe_conversion = 159.688 / (2 * 71.8464)
-sp_comp_filt = sp_comp.loc[((sp_comp.Cation_Sum.between(2.95, 3.45)) & (sp_comp.B_site.between(0.75, 2.05)))]
+sp_comp_filt = sp_comp.loc[((sp_comp.Cation_Sum.between(2.95, 3.45)) & 
+                            (sp_comp.B_site.between(0.75, 2.05)))]
 sp_comp_filt["FeOt"] = (sp_comp_filt["FeO"] + sp_comp_filt["Fe2O3"] / fe_conversion)
+mm.plot_harker(df_train=sp_comp_filt,
+               train_minerals=['Spinel'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -630,15 +860,24 @@ ax[1].set_xlabel('A_site')
 ax[1].set_ylabel('B_site')
 plt.tight_layout()
 
+# sp_comp_filt = pd.concat([sp_comp_filt, min_df[min_df.Mineral=='Spinel'][constants]], axis=1)
+
 # %%
 
+tit_meta = min_df.loc[min_df.Mineral == "Titanite", source_const]
 tit_calc = mm.TitaniteCalculator(min_df[min_df.Mineral=='Titanite'])
 tit_comp = tit_calc.calculate_components()
+tit_comp['Source'] = tit_meta
 display(tit_comp)
 
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Titanite'])
 fe_conversion = 159.688 / (2 * 71.8464)
-tit_comp_filt = tit_comp.loc[((tit_comp.Cation_Sum.between(2.95, 3.1)) & (tit_comp.T_site.between(0.9, 1.1)))]
+tit_comp_filt = tit_comp.loc[((tit_comp.Cation_Sum.between(2.95, 3.1)) & 
+                              (tit_comp.T_site.between(0.9, 1.1)))]
 tit_comp_filt["FeOt"] = (tit_comp_filt["Fe2O3t"] / fe_conversion)
+mm.plot_harker(df_train=tit_comp_filt,
+               train_minerals=['Titanite'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -652,13 +891,23 @@ ax[1].set_xlabel('M_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# tit_comp_filt = pd.concat([tit_comp_filt, min_df[min_df.Mineral=='Titanite'][constants]], axis=1)
+
 # %%
 
+trm_meta = min_df.loc[min_df.Mineral == "Tourmaline", source_const]
 trm_calc = mm.TourmalineCalculator(min_df[min_df.Mineral=='Tourmaline'])
 trm_comp = trm_calc.calculate_components()
+trm_comp['Source'] = trm_meta
 display(trm_comp)
 
-trm_comp_filt = trm_comp.loc[((trm_comp.Cation_Sum.between(19.75, 20.25)) & (trm_comp.Y_site.between(9.25, 9.75)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Tourmaline'])
+trm_comp_filt = trm_comp.loc[((trm_comp.Cation_Sum.between(19.5, 20.5)) & 
+                              (trm_comp.Y_site.between(9.2, 9.8)) &
+                              (trm_comp.SiO2 > 30))]
+mm.plot_harker(df_train=trm_comp_filt,
+               train_minerals=['Tourmaline'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -672,13 +921,22 @@ ax[1].set_xlabel('X_site')
 ax[1].set_ylabel('Y_site')
 plt.tight_layout()
 
+# trm_comp_filt = pd.concat([trm_comp_filt, min_df[min_df.Mineral=='Tourmaline'][constants]], axis=1)
+
 # %% 
 
+zr_meta = min_df.loc[min_df.Mineral == "Zircon", source_const]
 zr_calc = mm.ZirconCalculator(min_df[min_df.Mineral=='Zircon'])
 zr_comp = zr_calc.calculate_components()
+zr_comp['Source'] = zr_meta
 display(zr_comp)
 
-zr_comp_filt = zr_comp.loc[((zr_comp.Cation_Sum.between(1.99, 2.01)) & (zr_comp.T_site.between(0.96, 1.02)))]
+mm.plot_harker(df_train=min_df,
+               train_minerals=['Zircon'])
+zr_comp_filt = zr_comp.loc[((zr_comp.Cation_Sum.between(1.99, 2.01)) & 
+                            (zr_comp.T_site.between(0.96, 1.02)))]
+mm.plot_harker(df_train=zr_comp,
+               train_minerals=['Zircon'])
 
 fig, ax = plt.subplots(1, 2, figsize = (10, 5))
 ax = ax.flatten()
@@ -692,13 +950,15 @@ ax[1].set_xlabel('M_site')
 ax[1].set_ylabel('T_site')
 plt.tight_layout()
 
+# zr_comp_filt = pd.concat([zr_comp_filt, min_df[min_df.Mineral=='Zircon'][constants]], axis=1)
+
 # %% 
 
 from pyrolite.util.classification import TAS
 
 gl_df = min_df[min_df.Mineral=='Glass']
 gl_df = gl_df[gl_df.SiO2 > 40]
-gl_df = gl_df[['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'Mineral']]
+gl_df = gl_df[['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'Mineral', 'Source']]
 
 cm = TAS()
 gl_df['Na2O + K2O'] = gl_df['Na2O'] + gl_df['K2O']
@@ -736,37 +996,40 @@ display(gl_comp_filt)
 
 gl_df.to_csv('../Training_Data/glasses_df.csv', index=False)
 
-
-oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'Mineral']
+oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'Mineral', 'Source']
 gl_comp_filt = gl_comp_filt[oxideslab]
 gl_comp_filt.to_csv('../Training_Data/glasses_df_sampled.csv', index=False)
 
 # %%
+# %%
 
-min_df_all = pd.concat([amp_comp_filt, ap_comp_filt, bt_comp_filt, cal_comp_filt, chl_comp_filt, cpx_comp_filt, ep_comp_filt, gt_comp_filt, hem_comp_filt,                        
+min_df_all = pd.concat([amp_comp_filt, ap_comp_filt, bt_comp_filt, 
+                        cal_comp_filt, chl_comp_filt, cpx_comp_filt,
+                        ep_comp_filt, gt_comp_filt, hem_comp_filt,                        
                         ilm_comp_filt, ks_comp_filt, ksp_comp_filt, lc_comp_filt, mt_comp_filt, ml_comp_filt, ms_comp_filt, ne_comp_filt, ol_comp_filt, 
                         opx_comp_filt, pl_comp_filt, qz_comp_filt, rt_comp_filt, srp_comp_filt, sp_comp_filt, tit_comp_filt, trm_comp_filt, zr_comp_filt, gl_df], axis = 0)
 display(min_df_all)
 
 display(min_df_all.Mineral.value_counts())
 
-oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'ZrO2', 'Mineral']
+oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'ZrO2', 'Mineral', 'Source']
 min_df_lim = min_df_all[oxideslab]
-min_df_lim.to_csv('../Training_Data/min_df_v3_natural.csv', index=False)
+min_df_lim.to_csv('../Training_Data/min_df_v4_natural.csv', index=False)
 
 # %% 
 
 pl_endmembers = {
-    # Albite: NaAlSi₃O₈
+    # Albite: NaAlSi3O8
     'Ab': {'Na': 1, 'Al': 1, 'Si': 3, 'O': 8},
-    # Anorthite: CaAl₂Si₂O₈
+    # Anorthite: CaAl2Si2O8
     'An': {'Ca': 1, 'Al': 2, 'Si': 2, 'O': 8},
 }
 
 # define coupled sites
 pl_sites = {
     'M': {'elements': ['Na', 'Ca'], 'total': 1,
-          'coupling': {'T': {'Na': ['Al', 1], 'Ca': ['Al', 2]}}},
+          'coupling': {'T': {'Na': ['Al', 1], 
+                             'Ca': ['Al', 2]}}},
     'T': {'elements': ['Al', 'Si'], 'total': 4}
 }
 
@@ -781,36 +1044,56 @@ pl_gen = mm.SolidSolutionGenerator(
     min_site_fraction=0.2,
     minor_elements=pl_minors,
     mixing_dist='beta',
-    mixing_params={'a': 2, 'b': 2}
+    mixing_params={'a': 1, 'b': 1}
 )
 
 # generate samples
-df_pl = pl_gen.generate(1000)
+df_pl = pl_gen.generate(5000)
 pl_calc_synth = mm.FeldsparCalculator(df_pl)
 pl_comp_synth = pl_calc_synth.calculate_components()
 display(pl_comp_synth)
 
-stats_pl = pl_gen.compare_distributions(base_df=pl_comp_filt, synth_df=pl_comp_synth, suptitle="Plagioclase")
+mm.FeldsparClassifier(pl_comp_synth).plot()
+pl_comp_synth = mm.FeldsparClassifier(pl_comp_synth).classify()
+pl_comp_synth['Source'] = 'Synthetic'
+
+stats_pl = pl_gen.compare_distributions(base_df=pl_comp_filt, synth_df=pl_comp_synth, suptitle="Plagioclase", savefig_path='plag_synth_dist.pdf')
 display(stats_pl)
 
 # Example scatter‐plot comparing base vs. synthetic oxide proportions
 fig, ax = plt.subplots(1, 3, figsize=(18, 5))
-ax[0].scatter(pl_comp_filt["Na2O"],  pl_comp_filt["CaO"],  s=5, c="g")
-ax[0].scatter(pl_comp_synth["Na2O"], pl_comp_synth["CaO"], s=5, c="r")
-ax[0].set_xlabel("Na2O")
-ax[0].set_ylabel("CaO")
+ax[0].scatter(pl_comp_filt["Na2O"],  pl_comp_filt["CaO"],  s=20, marker='o', c="#0C7BDC", ec='k', lw=0.1, rasterized=True)
+ax[0].scatter(pl_comp_synth["Na2O"], pl_comp_synth["CaO"], s=20, marker='o', c="#E42211", alpha=0.25, ec='k', lw=0.1, rasterized=True)
+ax[0].set_xlabel("Na2O (wt.%)")
+ax[0].set_ylabel("CaO (wt.%)")
 
-ax[1].scatter(pl_comp_filt["Al2O3"],  pl_comp_filt["SiO2"],  s=5, c="g")
-ax[1].scatter(pl_comp_synth["Al2O3"], pl_comp_synth["SiO2"], s=5, c="r")
-ax[1].set_xlabel("Al2O3")
-ax[1].set_ylabel("SiO2")
+ax[1].scatter(pl_comp_filt["Al2O3"],  pl_comp_filt["SiO2"],  s=20, marker='o', c="#0C7BDC", ec='k', lw=0.1, rasterized=True)
+ax[1].scatter(pl_comp_synth["Al2O3"], pl_comp_synth["SiO2"], s=20, marker='o', c="#E42211", alpha=0.25, ec='k', lw=0.1, rasterized=True)
+ax[1].set_xlabel("Al2O3 (wt.%)")
+ax[1].set_ylabel("SiO2 (wt.%)")
 
-ax[2].scatter(pl_comp_filt["An"], pl_comp_filt["Ab"], s=5, c="g", label="Base")
-ax[2].scatter(pl_comp_synth["An"], pl_comp_synth["Ab"], s=5, c="r", label="Synth")
+ax[2].scatter(pl_comp_filt["An"], pl_comp_filt["Ab"], s=20, marker='o', c="#0C7BDC", ec='k', lw=0.1, label="Base", rasterized=True)
+ax[2].scatter(pl_comp_synth["An"], pl_comp_synth["Ab"], s=20, marker='o', c="#E42211", alpha=0.25, ec='k', lw=0.1, label="Synth", rasterized=True)
 ax[2].set_xlabel("An (Ca/(Ca+Na))")
 ax[2].set_ylabel("Ab (Na/(Ca+Na))")
 ax[2].legend()
 plt.tight_layout()
+plt.savefig('plag_synth.pdf', bbox_inches='tight', pad_inches=0.025, dpi=300)
+
+# %% 
+
+
+plag_endmember_comps = pl_comp_synth[(pl_comp_synth["Submineral"]=="Albite") | 
+                               (pl_comp_synth["Submineral"]=="Anorthite")]
+plag_endmember_comps["Sample Name"] = [
+    f"Synth_Plag_{i}" for i in range(1, len(plag_endmember_comps) + 1)
+]
+mm.FeldsparClassifier(plag_endmember_comps).plot()
+
+mm.FeldsparClassifier(pl_comp_filt).plot()
+
+
+# %%
 
 # %%
 
@@ -839,33 +1122,44 @@ ol_gen = mm.SolidSolutionGenerator(
 )
 
 # generate samples
-df_ol = ol_gen.generate(1000)
+df_ol = ol_gen.generate(2000)
 ol_calc_synth = mm.OlivineCalculator(df_ol)
 ol_comp_synth = ol_calc_synth.calculate_components()
 ol_comp_synth['Mineral'] = 'Olivine'
+ol_comp_synth['Source'] = 'Synthetic'
 display(ol_comp_synth)
 
-stats_ol = ol_gen.compare_distributions(base_df=ol_comp_filt, synth_df=ol_comp_synth, suptitle="Olivine")
+stats_ol = ol_gen.compare_distributions(base_df=ol_comp_filt, synth_df=ol_comp_synth, suptitle="Olivine", savefig_path='ol_synth_dist.pdf')
 display(stats_ol)
 
 # scatter‐plot comparing base vs. synthetic oxide proportions
 fig, ax = plt.subplots(1, 3, figsize=(18, 5))
-ax[0].scatter(ol_comp_filt["FeOt"],  ol_comp_filt["MgO"],  s=5, c="g")
-ax[0].scatter(ol_comp_synth["FeOt"], ol_comp_synth["MgO"], s=5, c="r")
-ax[0].set_xlabel("FeO")
-ax[0].set_ylabel("MgO")
+ax[0].scatter(ol_comp_filt["FeOt"],  ol_comp_filt["MgO"],  s=20, marker='o', c="#0C7BDC", ec='k', lw=0.1, rasterized=True)
+ax[0].scatter(ol_comp_synth["FeOt"], ol_comp_synth["MgO"], s=20, marker='o', c="#E42211", alpha=0.25, ec='k', lw=0.1, rasterized=True)
+ax[0].set_xlabel("FeO (wt.%)")
+ax[0].set_ylabel("MgO (wt.%)")
 
-ax[1].scatter(ol_comp_filt["SiO2"],  ol_comp_filt["MgO"],  s=5, c="g")
-ax[1].scatter(ol_comp_synth["SiO2"], ol_comp_synth["MgO"], s=5, c="r")
-ax[1].set_xlabel("SiO2")
-ax[1].set_ylabel("MgO")
+ax[1].scatter(ol_comp_filt["SiO2"],  ol_comp_filt["MgO"],  s=20, marker='o', c="#0C7BDC", ec='k', lw=0.1, rasterized=True)
+ax[1].scatter(ol_comp_synth["SiO2"], ol_comp_synth["MgO"], s=20, marker='o', c="#E42211", alpha=0.25, ec='k', lw=0.1, rasterized=True)
+ax[1].set_xlabel("SiO2 (wt.%)")
+ax[1].set_ylabel("MgO (wt.%)")
 
-ax[2].scatter(ol_comp_filt["XFo"], ol_comp_filt["M_site_expanded"], s=5, c="g", label="Base")
-ax[2].scatter(ol_comp_synth["XFo"], ol_comp_synth["M_site_expanded"], s=5, c="r", label="Synth")
+ax[2].scatter(ol_comp_filt["XFo"], ol_comp_filt["M_site_expanded"], s=20, marker='o', c="#0C7BDC", ec='k', lw=0.1, label="Base", rasterized=True)
+ax[2].scatter(ol_comp_synth["XFo"], ol_comp_synth["M_site_expanded"], s=20, marker='o', c="#E42211", alpha=0.25, ec='k', lw=0.1, label="Synth", rasterized=True)
 ax[2].set_xlabel("XFo (Mg/(Mg+Fe))")
 ax[2].set_ylabel("M-site Expanded")
 ax[2].legend()
 plt.tight_layout()
+plt.savefig('ol_synth.pdf', bbox_inches='tight', pad_inches=0.025, dpi=300)
+
+# %% 
+
+ol_intermediate_comps = ol_comp_synth[(ol_comp_synth.XFo.between(0.1, 1.0)) & 
+                                      (ol_comp_synth.M_site_expanded.between(1.95, 2.05))]
+ol_intermediate_comps["Sample Name"] = [
+    f"Synth_Ol_{i}" for i in range(1, len(ol_intermediate_comps) + 1)
+]
+plt.scatter(ol_intermediate_comps["XFo"], ol_intermediate_comps["M_site_expanded"])
 
 # %% 
 
@@ -912,9 +1206,10 @@ df_zr = zr_gen.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='Zirc
 zr_calc_synth = mm.ZirconCalculator(df_zr)
 zr_comp_synth = zr_calc_synth.calculate_components()
 zr_comp_synth['Mineral'] = 'Zircon'
+zr_comp_synth['Source'] = 'Synthetic'
 display(zr_comp_synth)
 
-stats_zr = zr_gen.compare_distributions(base_df=zr_comp_filt,synth_df=zr_comp_synth, suptitle="Zircon")
+stats_zr = zr_gen.compare_distributions(base_df=zr_comp_filt,synth_df=zr_comp_synth, suptitle="Zircon", savefig_path='zr_synth_dist.pdf')
 display(stats_zr)
 
 zr_comp_synth['Hf_per'] = zr_comp_synth['Hf_cat_4ox'] / (zr_comp_synth['Zr_cat_4ox'] + zr_comp_synth['Hf_cat_4ox'])
@@ -944,7 +1239,7 @@ C.VALENCES.pop("Hf", None)
 # %% 
 
 ks_endmembers = {
-    "Ks": {"K":  1, "Al": 1, "Si": 1, "O": 4},
+    "Ks": {"K":  1, "Al": 0.98, "Si": 1, "O": 4},
     "Ne": {"Na": 1, "Al": 1, "Si": 1, "O": 4}
 }
 
@@ -966,9 +1261,10 @@ df_ks = gen_ks.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='Kals
 ks_calc_synth = mm.KalsiliteCalculator(df_ks)
 ks_comp_synth = ks_calc_synth.calculate_components()
 ks_comp_synth['Mineral'] = 'Kalsilite'
+ks_comp_synth['Source'] = 'Synthetic'
 display(ks_comp_synth)
 
-stats_ks = gen_ks.compare_distributions(base_df=ks_comp_filt, synth_df=ks_comp_synth, suptitle="Kalsilite")
+stats_ks = gen_ks.compare_distributions(base_df=ks_comp_filt, synth_df=ks_comp_synth, suptitle="Kalsilite", savefig_path='ks_synth_dist.pdf')
 display(stats_ks)
 
 fig, ax = plt.subplots(1, 4, figsize = (20, 5))
@@ -996,8 +1292,8 @@ plt.show()
 # %% 
 
 quartz_endmembers = {
-    "Qz1": {"Si": 0.95, "O": 2},
-    "Qz2": {"Si": 1, "O": 2}
+    "Qz1": {"Si": 0.97, "O": 2},
+    "Qz2": {"Si": 1.02, "O": 2}
 }
 # define minor elements for quartz
 quartz_minors = {
@@ -1019,16 +1315,17 @@ gen_qz = mm.SolidSolutionGenerator(
 )
 
 # generate synthetic quartz analyses
-df_qz_synth = gen_qz.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='Quartz'])))
+df_qz_synth = gen_qz.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='SiO2_Polymorph'])))
 
 # compare synthetic and natural data 
-stats_qz = gen_qz.compare_distributions(base_df = qz_comp_filt, synth_df = df_qz_synth, suptitle = "Quartz")
+stats_qz = gen_qz.compare_distributions(base_df = qz_comp_filt, synth_df = df_qz_synth, suptitle = "SiO2_Polymorph", savefig_path='sio2_synth_dist.pdf')
 display(stats_qz)
 
 # compute final formulas
 qz_calc_synth = mm.QuartzCalculator(df_qz_synth)
 qz_comp_synth = qz_calc_synth.calculate_components()
-qz_comp_synth["Mineral"] = "Quartz"
+qz_comp_synth["Mineral"] = "SiO2_Polymorph"
+qz_comp_synth["Source"] = "Synthetic"
 display(qz_comp_synth.head())
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 5))
@@ -1067,22 +1364,23 @@ gen_hem = mm.SolidSolutionGenerator(
     element_noise_scale = 0.05,
     min_site_fraction = 0.95,
     mixing_dist = "beta",
-    mixing_params = {"a": 1, "b": 150}, # mean Fe2‐fraction ≈ 2/(100)=0.02
+    mixing_params = {"a": 1, "b": 100}, # mean Fe2‐fraction ≈ 2/(100)=0.02
     validate_fn = (lambda ox: True) # keep all oxide‐wt variants
 )
 
 # generate synthetic hematite analyses
-df_hem_synth = gen_hem.generate(n_samples=(2000-len(min_df_all[min_df_all.Mineral=='Hematite'])))
+df_hem_synth = gen_hem.generate(n_samples=(1500-len(min_df_all[min_df_all.Mineral=='Hematite'])))
 fe_conversion = 159.688 / (2 * 71.8464)
 df_hem_synth["FeOt"] = (df_hem_synth["FeO"] + df_hem_synth["Fe2O3"] / fe_conversion)
 
 # compare synthetic vs. natural
-stats_hem = gen_hem.compare_distributions(base_df = hem_comp_filt, synth_df = df_hem_synth, suptitle = "Hematite")
+stats_hem = gen_hem.compare_distributions(base_df = hem_comp_filt, synth_df = df_hem_synth, suptitle = "Hematite", savefig_path='hem_synth_dist.pdf')
 display(stats_hem)
 
 hem_calc_synth = mm.RhombohedralOxideCalculator(df_hem_synth[["FeOt", "Al2O3"]])
 hem_comp_synth = hem_calc_synth.calculate_components()
 hem_comp_synth["Mineral"] = "Hematite"
+hem_comp_synth["Source"] = "Synthetic"
 hem_comp_synth["FeOt"] = (hem_comp_synth["FeO"] + hem_comp_synth["Fe2O3"] / fe_conversion)
 display(hem_comp_synth)
 
@@ -1107,15 +1405,21 @@ plt.show()
 min_df_all_synth = pd.concat([amp_comp_filt, ap_comp_filt, bt_comp_filt, cal_comp_filt, chl_comp_filt,
                               cpx_comp_filt, ep_comp_filt, gt_comp_filt, hem_comp_filt, hem_comp_synth,
                               ilm_comp_filt, ks_comp_filt, ks_comp_synth, ksp_comp_filt, lc_comp_filt,
-                              mt_comp_filt, ml_comp_filt, ms_comp_filt, ne_comp_filt, ol_comp_filt,
-                              opx_comp_filt, pl_comp_filt, qz_comp_filt, qz_comp_synth, rt_comp_filt,
+                              mt_comp_filt, ml_comp_filt, ms_comp_filt, ne_comp_filt, ol_comp_filt, 
+                              ol_intermediate_comps, opx_comp_filt, pl_comp_filt, plag_endmember_comps,
+                              qz_comp_filt, qz_comp_synth, rt_comp_filt,
                               srp_comp_filt, sp_comp_filt, tit_comp_filt, trm_comp_filt,
                               zr_comp_filt, zr_comp_synth, gl_df], axis=0)
-display(min_df_all_synth)
+# display(min_df_all_synth)
 display(min_df_all_synth.Mineral.value_counts())
 
-oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'ZrO2', 'Mineral']
+# cols = ['SiO2','TiO2','Al2O3','FeOt','MnO','MgO','CaO','Na2O','K2O','P2O5','Cr2O3','ZrO2']
+# min_df_all_synth["Total"] = min_df_all_synth[cols].sum(axis=1)
+
+oxideslab = ['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO', 'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'ZrO2', 'Mineral', 'Source']
 min_df_lim_synth = min_df_all_synth[oxideslab]
-min_df_lim_synth.to_csv('../Training_Data/min_df_v3_synth.csv', index=False)
+display(min_df_lim_synth)
+
+# min_df_lim_synth.to_csv('../Training_Data/min_df_v4_synth.csv', index=False)
 
 # %%

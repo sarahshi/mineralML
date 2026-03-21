@@ -17,8 +17,10 @@ These folks have been fundamental to the development of ``mineralML``:
 
 - `Sarah Shi <https://github.com/sarahshi>`_ (University of California, Berkeley) 
 - `Penny Wieser <https://github.com/pennywieser>`_ (University of California, Berkeley)
+- `Charlotte Gordon <https://www.researchgate.net/profile/Charlotte-Gordon-5>`_ (University of California, Berkeley)
 - `Norbert Toth <https://github.com/norberttoth398>`_ (University of Cambridge)
 - `Paula Antoshechkina <https://github.com/magmasource>`_ (California Institute of Technology)
+- `Matthew Gleeson <https://github.com/gleesonm1>`_ (University of California, Berkeley)
 - `Kerstin Lehnert <https://lamont.columbia.edu/directory/kerstin-lehnert>`_ (LDEO)
 
 
@@ -34,7 +36,7 @@ Minerals
 - Calcite
 - Chlorite
 - Epidote
-- Feldspar (KFeldspar and Plagioclase)
+- Feldspar (Alkali_Feldspar and Plagioclase)
 - Garnet
 - Glass
 - Kalsilite
@@ -43,8 +45,8 @@ Minerals
 - Muscovite
 - Nepheline
 - Olivine
-- Pyroxene (Clinopyroxene and Orthopyroxene)
-- Quartz
+- Pyroxene (Clinopyroxene, Orthopyroxene, Na-Pyroxene)
+- SiO2-Polymorphs (Quartz)
 - Rhombohedral_Oxides (Hematite-Ilmenite)
 - Rutile
 - Serpentine
@@ -58,7 +60,7 @@ Minerals
 Chemistry
 =========
 
-``mineralML`` requires inputs of mineral chemistry, in the form of oxides. The machine learning models are trained on 11 oxides: 
+``mineralML`` requires inputs of mineral chemistry, in the form of oxides. The machine learning model is trained on 11 oxides: 
 
 *  SiO₂
 *  TiO₂
@@ -72,6 +74,7 @@ Chemistry
 *  Cr₂O₃
 *  P₂O₅
 
+Zircon is classified empirically with ZrO₂. 
 
 =====
 Units
