@@ -244,7 +244,7 @@ class TestPredictClassProbNN(unittest.TestCase):
 
         p_norm.side_effect = lambda d, *args, **kwargs: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
-        out_df = mm.predict_class_prob_nnwr(df, n_iterations=1)
+        out_df = mm.predict_class_prob(df, n_iterations=1)
 
         self.assertEqual(len(out_df), N)
         self.assertTrue({"Predict_Mineral", "Prediction_Score"}.issubset(out_df.columns))

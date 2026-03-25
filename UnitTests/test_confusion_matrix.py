@@ -62,7 +62,7 @@ class TestPPMatrixIntegration(unittest.TestCase):
 
         # --- input df was mutated to include totals (covers insert_totals path used by pp_matrix) ---
         self.assertNotIn("sum_row", df.columns, "pp_matrix should not mutate the input DataFrame")
-        self.assertIn("sum_col", df.index)
+        self.assertNotIn("sum_col", df.index, "pp_matrix should not mutate the input DataFrame")
         self.assertEqual(int(df.loc["sum_col", "sum_row"]), int(df.values[:-1, :-1].sum()))
 
     def test_pred_val_axis_y_transposes_and_labels(self):
