@@ -25,7 +25,7 @@ def tiny_loader(n=32, in_features=11, n_classes=4, batch=16):
     return DataLoader(TensorDataset(x, y), batch_size=batch, shuffle=False)
 
 def _fake_scaler_series(oxides):
-    # Series with index=oxides as your norm_data_nn expects
+    # Series with index=oxides as your norm_data expects
     mean = pd.Series(np.zeros(len(oxides)), index=oxides)
     std  = pd.Series(np.ones(len(oxides)), index=oxides)
     return mean, std
@@ -54,8 +54,8 @@ class mineralML_supervised(unittest.TestCase):
         }
         self.df = pd.DataFrame(self.data)
 
-    def test_load_minclass_nn(self):
-        min_cat, mapping = mm.load_minclass_nn()
+    def test_load_mineral_classes(self):
+        min_cat, mapping = mm.load_mineral_classes()
 
         # Robust checks (less brittle than fully hard-coding)
         self.assertIsInstance(min_cat, list)
@@ -80,13 +80,13 @@ class mineralML_supervised(unittest.TestCase):
         expected_cols = oxides.union({"ZrO2", "Mineral"})
         self.assertTrue(expected_cols.issubset(set(df_cleaned.columns)))
 
-    def test_norm_data_nn(self):
+    def test_norm_data(self):
         # Prepare
         df_cleaned = mm.prep_df_nn(self.df.copy())
         oxides = _get_oxides()
 
         # Under test
-        normalized_data = mm.norm_data_nn(df_cleaned)
+        normalized_data = mm.norm_data(df_cleaned)
         self.assertEqual(normalized_data.shape, (len(df_cleaned), len(oxides)))
 
         # Compute expected normalization directly from the scaler
@@ -112,16 +112,16 @@ class mineralML_supervised(unittest.TestCase):
         np.testing.assert_array_equal(np.sort(unique), np.sort(expected_unique))
 
         # Names from the **loaded** mapping (robust to future reorderings)
-        _, mapping = mm.load_minclass_nn()
+        _, mapping = mm.load_mineral_classes()
         expected_valid_mapping = {i: mapping[i] for i in expected_unique}
         self.assertEqual(valid_mapping, expected_valid_mapping)
 
-    def test_class2mineral_nn(self):
+    def test_class2mineral(self):
         pred_class = np.array([0, 15, 7, 14, 20, 0, 7, 20])
-        pred_mineral = mm.class2mineral_nn(pred_class)
+        pred_mineral = mm.class2mineral(pred_class)
 
         # Build expected labels from the current mapping
-        _, mapping = mm.load_minclass_nn()
+        _, mapping = mm.load_mineral_classes()
         expected_pred_mineral = np.array([mapping[i] for i in pred_class])
 
         np.testing.assert_array_equal(pred_mineral, expected_pred_mineral)
@@ -222,9 +222,9 @@ class test_variational_layer(unittest.TestCase):
 
 class TestPredictClassProbNN(unittest.TestCase):
     @patch("mineralML.hybrid.load_model", side_effect=lambda model, opt, path: None)  # no file I/O
-    @patch("mineralML.hybrid.norm_data_nn")
-    @patch("mineralML.hybrid.load_minclass_nn")
-    @patch("mineralML.hybrid.class2mineral_nn",
+    @patch("mineralML.hybrid.norm_data")
+    @patch("mineralML.hybrid.load_mineral_classes")
+    @patch("mineralML.hybrid.class2mineral",
            side_effect=lambda idx: np.array([f"C{int(i)}" for i in idx]))
     def test_predict_class_prob_nn_contract(self, p_c2m, p_classes, p_norm, _p_load_model):
         K = 6

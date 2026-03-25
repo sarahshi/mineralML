@@ -226,6 +226,7 @@ def pp_matrix(
         df_cm = df_cm.T
 
     # create "Total" column
+    df_cm = df_cm.copy()
     insert_totals(df_cm)
     df_cm = df_cm.astype(int)
 

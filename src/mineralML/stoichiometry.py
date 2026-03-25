@@ -268,10 +268,11 @@ def element_to_oxide(df):
     return pd.DataFrame(result, index=df.index), pd.Series(factors)
 
 
-def oxide_to_oxide(df):
+def element_to_oxide_identity(df):
     """
-    Convert oxide wt% to oxide wt%, and return the conversion factors used.
-    Use this to work with mapped EDS data, when data are returned in Ox% already.
+    Rename element-labeled columns to oxide-labeled columns without applying
+    stoichiometric mass conversion. Intended for mapped EDS data that are
+    already reported in oxide wt% but may use element-style channel names.
 
     Parameters:
         df (pd.DataFrame): DataFrame with elemental wt% columns.

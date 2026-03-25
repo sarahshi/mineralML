@@ -17,9 +17,9 @@ import matplotlib.font_manager as fm
 from matplotlib.colors import ListedColormap, to_rgb
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
+from mineralML.core import *
 from mineralML.hybrid import *
 from mineralML.stoichiometry import *
-# from mineralML.supervised import *
 from mineralML.constants import *
 from .constants import OXIDES
 
@@ -145,43 +145,36 @@ def load_element_maps(path, drop_trailing_blank=False, verbose=True):
     return out
 
 
-def load_dir_to_oxide_maps(path, renormalize=False):
+def load_maps_from_dir(path, units="element_wt%", renormalize=False):
     """
-    Load per-oxide CSV maps from a directory, no conversion needed.
-
-    Parameters:
-        path (str): Path to directory containing oxide CSV maps.
-        renormalize (bool): If True, rescale each pixel so oxides sum to 100 wt%, from
-            what data are provided.
-
-    Returns:
-        ox_maps (dict): Dictionary mapping oxide names (str) to 2D numpy arrays (float).
-    """
-    O = load_element_maps(path)
-    df_ox, shape = maps_to_df(O)
-    df_ox, _ = oxide_to_oxide(df_ox)
-    ox_maps = df_to_maps(df_ox, shape)
-
-    if renormalize:
-        ox_maps = renormalize_maps(ox_maps)
-
-    return ox_maps
-
-
-def convert_dir_to_oxide_maps(path, renormalize=False):
-    """
-    Load per-element CSV maps from a directory, convert to oxide wt% maps.
+    Load per-element CSV maps from a directory and return oxide wt% maps.
  
     Parameters:
         path (str): Path to directory containing element CSV maps.
+        units (str): Interpretation of the input map values. Use
+            ``"element_wt%"`` if the CSV maps contain elemental wt% values
+            that should be stoichiometrically converted to oxide wt%, or
+            ``"oxide_wt%"`` if the CSV maps already contain oxide wt% values
+            and only need to be relabeled from element-style names to oxide
+            names.
         renormalize (bool): If True, rescale each pixel so oxides sum to 100 wt%.
  
     Returns:
         ox_maps (dict): Dictionary mapping oxide names (str) to 2D numpy arrays (float).
     """
+
     E = load_element_maps(path)
-    df_el, shape = maps_to_df(E)
-    df_ox, _ = element_to_oxide(df_el)
+    df_in, shape = maps_to_df(E)
+
+    if units == "element_wt%":
+        df_ox, _ = element_to_oxide(df_in)
+    elif units == "oxide_wt%":
+        df_ox, _ = element_to_oxide_identity(df_in)
+    else:
+        raise ValueError(
+            "units must be one of {'element_wt%', 'oxide_wt%'}"
+        )
+
     ox_maps = df_to_maps(df_ox, shape)
 
     if renormalize:
@@ -437,6 +430,86 @@ def _auto_limits(data, mode="std", percentile=(5, 95)):
         # Mean +/- 2SD for contrast amplification
         mu, sigma = np.mean(vals), np.std(vals)
         return mu - 2 * sigma, mu + 2 * sigma
+
+
+def _add_scalebar(
+    ax,
+    scalebar_um=None,
+    pixel_size_um=None,
+    *,
+    scalebar_loc="lower left",
+    scalebar_col="black",
+    fontsize=12,
+    size_vertical=1,
+    pad=0.5,
+    sep=3,
+    label_top=True,
+    warn=True,
+):
+    """
+    Adds a scale bar to an image axis.
+
+    This helper centralizes scale-bar creation for spatial plotting functions.
+    If no scale bar length is provided, nothing is added. If a scale bar length
+    is provided but the pixel size is unknown, the scale bar is skipped and a
+    warning can optionally be emitted.
+
+    Parameters:
+        ax (matplotlib.axes.Axes): Axis to which the scale bar will be added.
+        scalebar_um (float, optional): Desired scale bar length in micrometers.
+            If None, no scale bar is added.
+        pixel_size_um (float, optional): Physical size of one pixel in
+            micrometers. Required to convert the requested scale bar length into
+            data units.
+        scalebar_loc (str, optional): Location of the scale bar on the axis.
+            Passed to `AnchoredSizeBar`. Defaults to "lower left".
+        scalebar_col (str, optional): Color of the scale bar and label text.
+            Defaults to "black".
+        fontsize (float, optional): Font size for the scale bar label.
+            Defaults to 12.
+        size_vertical (float, optional): Thickness of the scale bar in data
+            units. Defaults to 1.
+        pad (float, optional): Padding around the scale bar box. Defaults to 0.5.
+        sep (float, optional): Separation between the bar and its label.
+            Defaults to 3.
+        label_top (bool, optional): Whether to place the label above the bar.
+            Defaults to True.
+        warn (bool, optional): Whether to emit a warning when `scalebar_um` is
+            provided but `pixel_size_um` is missing. Defaults to True.
+
+    Returns:
+        scalebar (AnchoredSizeBar or None): The added scale bar artist, or None
+            if no scale bar was added.
+    """
+    if scalebar_um is None:
+        return None
+
+    if pixel_size_um is None:
+        if warn:
+            warnings.warn(
+                "scalebar_um provided without pixel_size_um; skipping scale bar."
+            )
+        return None
+
+    scalebar_pixels = scalebar_um / pixel_size_um
+    fontprops = fm.FontProperties(size=fontsize)
+
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        scalebar_pixels,
+        f"{scalebar_um:g} µm",
+        loc=scalebar_loc,
+        pad=pad,
+        color=scalebar_col,
+        frameon=False,
+        size_vertical=size_vertical,
+        sep=sep,
+        label_top=label_top,
+        fontproperties=fontprops,
+    )
+    ax.add_artist(scalebar)
+
+    return scalebar
 
 
 # %% 
@@ -740,27 +813,13 @@ def plot_phase_map(
     ax_map.set_title(title, pad=8)
     ax_map.axis("off")
 
-    if scalebar_um is not None:
-        if pixel_size_um is None:
-            warnings.warn("scalebar_um provided without pixel_size_um; skipping scale bar.")
-        else:
-            scalebar_pixels = scalebar_um / pixel_size_um
-            fontprops = fm.FontProperties(size=12, weight='bold')
-            scalebar = AnchoredSizeBar(
-                ax_map.transData,
-                scalebar_pixels,
-                f"{scalebar_um} µm",
-                loc=scalebar_loc,
-                pad=0.5,
-                color=scalebar_col,
-                frameon=False,
-                size_vertical=1,
-                sep=3,
-                label_top=True,
-                fontproperties=fontprops,
-            )
-            ax_map.add_artist(scalebar)
-
+    _add_scalebar(
+        ax_map,
+        scalebar_um=scalebar_um,
+        pixel_size_um=pixel_size_um,
+        scalebar_loc=scalebar_loc,
+        scalebar_col=scalebar_col,
+    )
     handles = [mpatches.Patch(facecolor=palette[p], label=p) for p in phases]
     
     if legend_on: 
@@ -849,7 +908,7 @@ def plot_phase_counts(
 
 
 def plot_phase_proportions(
-    mineral_map_2d,
+    mineral_map,
     title="Phase Proportions",
     phases=None,
     min_frac=0.0001,
@@ -866,7 +925,7 @@ def plot_phase_proportions(
     x-axis as a note.
  
     Parameters:
-        mineral_map_2d (array-like): (H,W) or (N,) phase labels.
+        mineral_map (array-like): (H,W) or (N,) phase labels.
         title (str): Axes title / y-label for the bar.
         phases (list[str]|None): Subset of phases in display order (None→auto).
         min_frac (float): Minimum pixel fraction required to include a phase.
@@ -880,7 +939,7 @@ def plot_phase_proportions(
     Returns:
         fig_ax (tuple): (fig, ax) with the stacked bar chart.
     """
-    arr = np.asarray(mineral_map_2d, dtype=object)
+    arr = np.asarray(mineral_map, dtype=object)
 
     labels = _clean_labels_1d(arr)
     if labels.empty:
@@ -967,58 +1026,73 @@ def plot_phase_proportions(
     return fig, ax
 
 
-def plot_probability_histograms(
-    prob_map_2d,
-    mineral_map_2d,
-    prob_threshold,
+def plot_pred_score_histograms(
+    pred_score_map,
+    mineral_map,
+    pred_score_threshold,
     phases=None,
     bins=50,
     min_frac=0.0001,
     share_y=True,
     title="Prediction Probabilities",
+    empirical_phases=("Zircon", "SiO2_Polymorph", "Carbonate"),
 ):
     """
-    Horizontal histograms of per-phase predicted probabilities (auto grid).
- 
-    Parameters:
-        prob_map_2d (array-like): (H,W) max class probabilities per pixel.
-        mineral_map_2d (array-like): (H,W) predicted labels (NaN allowed).
-        prob_threshold (float): Lower bound for the y-axis (probability axis).
-        phases (list[str]|None): Subset of phases to plot (None→auto).
-        bins (int): Histogram bins.
-        min_frac (float): Minimum pixel fraction required to plot a phase's histogram.
-        share_y (bool): Share probability axis across panels.
-        title (str): Figure suptitle text.
- 
-    Returns:
-        fig_axes (tuple): (fig, axes) with a 1-D array of axes.
-    """
-    mineral_map_2d = np.asarray(mineral_map_2d, dtype=object)
-    prob_map_2d = np.asarray(prob_map_2d, dtype=float)
-    phases = phases or pick_common_phases(mineral_map_2d)
+    Horizontal histograms of per-phase prediction scores (auto grid).
 
-    # Calculate total valid pixels and filter phases by min_frac
-    total = float(np.isfinite(prob_map_2d).sum() + 1e-12)
+    Parameters:
+        pred_score_map (array-like): (H,W) max class prediction scores per pixel.
+        mineral_map (array-like): (H,W) predicted labels (NaN allowed).
+        pred_score_threshold (float): Lower bound for the y-axis.
+        phases (list[str] | None): Subset of phases to plot (None -> auto).
+        bins (int): Histogram bins.
+        min_frac (float): Minimum pixel fraction required to plot a phase.
+        share_y (bool): Share prediction score axis across panels.
+        title (str): Figure suptitle text.
+        empirical_phases (iterable[str]): Phases assigned empirically and therefore
+            lacking prediction probabilities.
+
+    Returns:
+        tuple: (fig, axes)
+    """
+    mineral_map = np.asarray(mineral_map, dtype=object)
+    pred_score_map = np.asarray(pred_score_map, dtype=float)
+    phases = phases or pick_common_phases(mineral_map)
+    empirical_phases = set(empirical_phases)
+
+    valid_phase_pixels = pd.notna(mineral_map)
+    total = float(valid_phase_pixels.sum() + 1e-12)
+
     filtered_phases = []
     phase_data = {}
-    
+    phase_is_empirical = {}
+
     for p in phases:
-        vals = prob_map_2d[mineral_map_2d == p]
-        vals = vals[np.isfinite(vals)]
-        if (vals.size / total) >= min_frac:
-            filtered_phases.append(p)
+        phase_mask = mineral_map == p
+        phase_frac = phase_mask.sum() / total
+
+        if phase_frac < min_frac:
+            continue
+
+        filtered_phases.append(p)
+
+        if p in empirical_phases:
+            phase_data[p] = None
+            phase_is_empirical[p] = True
+        else:
+            vals = pred_score_map[phase_mask]
+            vals = vals[np.isfinite(vals)]
             phase_data[p] = vals
-            
+            phase_is_empirical[p] = False
+
     phases = filtered_phases
 
-    # Handle edge case where no phases meet the threshold
     if not phases:
         fig, ax = plt.subplots(figsize=(6, 3))
         ax.text(0.5, 0.5, "No phases meet min_frac", ha="center", va="center")
         ax.axis("off")
         return fig, np.array([ax])
 
-    # Setup the dynamic grid
     per_row = min(5, len(phases))
     rows = int(np.ceil(len(phases) / per_row))
     fig, axes = plt.subplots(
@@ -1029,28 +1103,44 @@ def plot_probability_histograms(
         constrained_layout=True,
     )
     axes_flat = np.atleast_1d(axes).ravel()
-    ylim = (prob_threshold, 1.0)
+    ylim = (pred_score_threshold, 1.0)
 
-    # Plot the histograms
     for i, phase in enumerate(phases):
         ax = axes_flat[i]
-        vals = phase_data[phase]
-        
-        ax.hist(vals, bins=bins, orientation="horizontal")
-        ax.set_ylim(ylim)
-        ax.set_title(f"{phase}\n{100.0 * vals.size / total:.2f} %", fontsize=12)
-        ax.set_xlabel("Pixels", fontsize=12)
-        
-        # Only add y-label to the leftmost column
-        if i % per_row == 0:
-            ax.set_ylabel("Prediction Probability", fontsize=12)
-            
-        ax.tick_params(axis="both", labelsize=12)
+        phase_mask = mineral_map == phase
+        phase_pct = 100.0 * phase_mask.sum() / total
 
-    # Hide any unused trailing axes in the grid
+        if phase_is_empirical[phase]:
+            ax.text(
+                0.5,
+                0.5,
+                "No prediction score\n(empirical)",
+                ha="center",
+                va="center",
+                fontsize=11,
+                transform=ax.transAxes,
+            )
+            ax.set_title(f"{phase}\n{phase_pct:.2f} %", fontsize=12)
+            ax.set_xlabel("Pixels", fontsize=12)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+        else:
+            vals = phase_data[phase]
+            ax.hist(vals, bins=bins, orientation="horizontal")
+            ax.set_ylim(ylim)
+            ax.set_title(f"{phase}\n{phase_pct:.2f} %", fontsize=12)
+            ax.set_xlabel("Pixels", fontsize=12)
+
+            if i % per_row == 0:
+                ax.set_ylabel("Prediction Probability", fontsize=12)
+
+            ax.tick_params(axis="both", labelsize=12)
+
     for j in range(len(phases), len(axes_flat)):
         axes_flat[j].set_axis_off()
-        
+
     fig.suptitle(title, y=1.04, fontsize=14)
     return fig, axes_flat
 
@@ -1061,7 +1151,7 @@ def run_map(
     epoxy_threshold=None,
     n_iterations=50,
     min_frac=0.00001,
-    prob_threshold=0.6,
+    pred_score_threshold=0.6,
     units="element_wt%",
     top_k=None,
     phases=None,
@@ -1091,7 +1181,7 @@ def run_map(
             to disable masking.
         n_iterations (int): MC forward passes for prediction.
         min_frac (float): Minimum pixel fraction required to keep a phase.
-        prob_threshold (float): Set label to NaN where max probability < threshold.
+        pred_score_threshold (float): Set label to NaN where max prediction score < threshold.
         units (str): Input format — 'element_wt%' or 'oxide_wt%'.
         top_k (int|None): Cap displayed phases after filtering.
         phases (list[str]|None): Explicit phases to plot (overrides auto-pick).
@@ -1112,19 +1202,18 @@ def run_map(
  
     Returns:
         result (dict): Dictionary with keys 'figs', 'shape', 'oxide_maps',
-            'df_ordered', 'df_pred', 'prob_matrix', 'mineral_map', 'prob_map',
-            'kept_phases', 'component_maps', and 'component_frames'.
+            'df_pred', 'mineral_map', 'pred_score_map', 'kept_phases',
+            'component_maps', 'component_frames'.
     """
 
     # Load and prepare data
     if isinstance(sample_input, (str, os.PathLike)):
         sample_dir = sample_input
-        if units == "element_wt%":
-            ox_maps = convert_dir_to_oxide_maps(sample_dir)
-        elif units == "oxide_wt%":
-            ox_maps = load_dir_to_oxide_maps(sample_dir)
-        else:
-            raise ValueError("units must be 'element_wt%' or 'oxide_wt%'")
+        ox_maps = load_maps_from_dir(
+            sample_dir,
+            units=units,
+            renormalize=False,
+        )
     elif isinstance(sample_input, dict):
         ox_maps = sample_input
         sample_dir = "Provided ox_maps"
@@ -1139,6 +1228,7 @@ def run_map(
         for key in ox_maps:
             ox_maps[key] = np.where(epoxy_mask, np.nan, ox_maps[key])
 
+    # Do not apply renormalization above, but here after epoxy filter.
     if renormalize:
         ox_maps = renormalize_maps(ox_maps)
 
@@ -1147,23 +1237,18 @@ def run_map(
     df_ordered = _ensure_columns(df_ox_flat, expected=expected_with_zr)
 
     # Prediction logic
-    df_pred, prob_matrix = predict_class_prob_nnwr(
+    df_pred = predict_class_prob(
         df_ordered, n_iterations=n_iterations
     )
 
-    if "Predict_Class" in df_pred.columns and "Predict_Mineral" not in df_pred.columns:
-        # NN returned integers, translate them
-        raw_classes = df_pred["Predict_Class"].to_numpy()
-        df_pred["Predict_Mineral"] = class2mineral_nn(raw_classes)
+    # Mask low-prediction score predictions
+    low_score_mask = df_pred["Prediction_Score"] < pred_score_threshold
+    df_pred.loc[low_score_mask, "Predict_Mineral"] = np.nan
+    df_pred.loc[low_score_mask, "Prediction_Score"] = np.nan
 
-    labels = df_pred["Predict_Mineral"].astype(object)
-    probs = df_pred["Prediction_Score"].astype(float)
-
-    labels = labels.mask(probs < prob_threshold)
-    labels_flat, probs_flat = labels.to_numpy(), probs.to_numpy()
     H, W = shape
-    mineral_map = labels_flat.reshape(H, W)
-    prob_map = probs_flat.reshape(H, W)
+    mineral_map = df_pred["Predict_Mineral"].to_numpy().reshape(H, W)
+    pred_score_map = df_pred["Prediction_Score"].to_numpy(dtype=float).reshape(H, W)
 
     # Determine which phases to keep for the dashboard
     if phases and exclude_phases:
@@ -1222,11 +1307,11 @@ def run_map(
             title=f"Mineral Phases: {title_suffix}",
         )
 
-    fig_hists, _ = plot_probability_histograms(
-        prob_map,
+    fig_hists, _ = plot_pred_score_histograms(
+        pred_score_map,
         mineral_map,
         phases=kept,
-        prob_threshold=prob_threshold,
+        pred_score_threshold=pred_score_threshold,
         min_frac=min_frac,
         title=f"Prediction Probabilities: {title_suffix}",
     )
@@ -1279,7 +1364,7 @@ def run_map(
         df_ordered=df_ordered,
         df_pred=df_pred,
         shape=shape,
-        prob_threshold=prob_threshold,
+        pred_score_threshold=pred_score_threshold,
         components_spec=spec,
         oxide_list=OXIDES,
     )
@@ -1291,11 +1376,9 @@ def run_map(
         "figs": (fig_map, fig_counts, fig_hists),
         "shape": shape,
         "oxide_maps": ox_maps,
-        "df_ordered": df_ordered,
         "df_pred": df_pred,
-        "prob_matrix": prob_matrix,
         "mineral_map": mineral_map,
-        "prob_map": prob_map,
+        "pred_score_map": pred_score_map,
         "kept_phases": kept,
         "component_maps": component_maps,
         "component_frames": component_frames,
@@ -1303,7 +1386,7 @@ def run_map(
 
 
 def _compute_component_maps(
-    df_ordered, df_pred, shape, prob_threshold, components_spec, oxide_list
+    df_ordered, df_pred, shape, pred_score_threshold, components_spec, oxide_list
 ):
     """
     Computes stoichiometric components and maps them back into 2D arrays
@@ -1311,9 +1394,9 @@ def _compute_component_maps(
  
     Parameters:
         df_ordered (pd.DataFrame): Flat dataframe of oxide weight percentages.
-        df_pred (pd.DataFrame): Flat dataframe of predicted mineral classes and probabilities.
+        df_pred (pd.DataFrame): Flat dataframe of predicted mineral classes and prediction scores.
         shape (tuple): The (H, W) shape of the original 2D map.
-        prob_threshold (float): Minimum confidence threshold to process a pixel.
+        pred_score_threshold (float): Minimum confidence threshold to process a pixel.
         components_spec (dict): Configuration specifying which calculators and methods
             to use for each phase group (e.g., Feldspar, Pyroxene).
         oxide_list (list[str]): The subset of dataframe columns containing valid oxides.
@@ -1333,7 +1416,7 @@ def _compute_component_maps(
         .to_numpy()
     )
     labels = df_pred["Predict_Mineral"].astype(str).to_numpy()
-    valid = probs >= prob_threshold
+    valid = probs >= pred_score_threshold
     oxide_cols = [c for c in df_ordered.columns if c in oxide_list]
 
     for phase_name, spec in components_spec.items():
@@ -1401,8 +1484,8 @@ def plot_component_composite(
     pixel_size_um=None,
     scalebar_loc="lower left",
     scalebar_col="black",
-    gap=0.015,
-    cbar_gap=-0.05,
+    cbar_hgap=0.015,
+    cbar_vgap=-0.05,
     cbar_height=0.03,
     dpi=300,
 ):
@@ -1437,8 +1520,8 @@ def plot_component_composite(
         pixel_size_um (float): Physical size of a single pixel in micrometers.
         scalebar_loc (str): Location of the scale bar (e.g., 'lower left').
         scalebar_col (str): Color of the scale bar text/line.
-        gap (float): Horizontal gap between adjacent colorbars (axes fraction).
-        cbar_gap (float): Vertical offset of the colorbar row below the map
+        cbar_hgap (float): Horizontal gap between adjacent colorbars (axes fraction).
+        cbar_vgap (float): Vertical offset of the colorbar row below the map
             (axes fraction; negative = below the axes).
         cbar_height (float): Height of each colorbar (axes fraction).
         dpi (int): Resolution of the figure.
@@ -1506,35 +1589,35 @@ def plot_component_composite(
             "id": "Plagioclase",
             "key": feld_key,
             "ramp": "teal",
-            "leg": "Plagioclase (An)",
+            "leg": "Plagioclase\n(An)",
             "col": "#009988",
         },
         {
             "id": "Clinopyroxene",
             "key": cpx_key,
             "ramp": "red",
-            "leg": "Clinopyroxene (Mg#)",
+            "leg": "Clinopyroxene\n(Mg#)",
             "col": "#e7b3b1",
         },
         {
             "id": "Orthopyroxene",
             "key": opx_key,
             "ramp": "maroon",
-            "leg": "Orthopyroxene (Mg#)",
+            "leg": "Orthopyroxene\n(Mg#)",
             "col": "#5A0F0F",
         },
         {
             "id": "Olivine",
             "key": ol_key,
             "ramp": "green",
-            "leg": "Olivine (Fo)",
+            "leg": "Olivine\n(Fo)",
             "col": "#666633",
         },
         {
             "id": "Amphibole",
             "key": amp_key,
             "ramp": "brown",
-            "leg": "Amphibole (Mg#)",
+            "leg": "Amphibole\n(Mg#)",
             "col": "#5E2910",
         },
     ]
@@ -1644,7 +1727,7 @@ def plot_component_composite(
         )
         fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi, layout="constrained")
 
-        if legend_on:
+        if legend_on and legend_entries:
             gs = fig.add_gridspec(1, 2, width_ratios=[fig_w - 1.5, 1.5])
             ax_map, ax_legend = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])
         else:
@@ -1674,7 +1757,7 @@ def plot_component_composite(
     # Add colorbars for each continuous component
     n_bars = len(comp_images)
     if n_bars > 0:
-        gap_ = gap
+        gap_ = cbar_hgap
         fill = 0.95   # fraction of axis width the whole group should occupy
         total_w = fill
         bar_w = (total_w - (n_bars - 1) * gap_) / n_bars
@@ -1682,7 +1765,7 @@ def plot_component_composite(
 
         for i, (im, label) in enumerate(comp_images):
             x = x0 + i * (bar_w + gap_)
-            cax = ax_map.inset_axes([x, cbar_gap, bar_w, cbar_height])
+            cax = ax_map.inset_axes([x, cbar_vgap, bar_w, cbar_height])
 
             cbar = fig.colorbar(im, cax=cax, orientation="horizontal", format="%.2f")
             cbar.set_label(label, size=9, labelpad=4)
@@ -1711,40 +1794,28 @@ def plot_component_composite(
                 fontsize=8,
             )
 
-    if scalebar_um is not None:
-        if pixel_size_um is None:
-            warnings.warn("scalebar_um provided without pixel_size_um; skipping scale bar.")
-        else:
-            scalebar_pixels = scalebar_um / pixel_size_um
-            fontprops = fm.FontProperties(size=12, weight="bold")
-            scalebar = AnchoredSizeBar(
-                ax_map.transData,
-                scalebar_pixels,
-                f"{scalebar_um} µm",
-                loc=scalebar_loc,
-                pad=0.5,
-                color=scalebar_col,
-                frameon=False,
-                size_vertical=1,
-                sep=3,
-                label_top=True,
-                fontproperties=fontprops,
-            )
-            ax_map.add_artist(scalebar)
-
+    _add_scalebar(
+        ax_map,
+        scalebar_um=scalebar_um,
+        pixel_size_um=pixel_size_um,
+        scalebar_loc=scalebar_loc,
+        scalebar_col=scalebar_col,
+    )
+    
     if save_path:
         fig.savefig(save_path, bbox_inches="tight")
     return fig, mineral_map, processed_comp_maps
 
 
-def plot_score_map(
-    prob_map,
-    title="Prediction Score Map",
-    cmap="magma",
-    vmin=0,
-    vmax=1,
-    cbar_label="Prediction Score",
+def _plot_continuous_map(
+    data,
+    title,
+    cmap,
+    vmin,
+    vmax,
+    cbar_label,
     bg_value=np.nan,
+    min_speck_size=0,
     scalebar_um=None,
     pixel_size_um=1.0,
     scalebar_col="black",
@@ -1753,45 +1824,52 @@ def plot_score_map(
     dpi=300,
 ):
     """
-    Plots a continuous prediction-score map with a colorbar.
- 
+    Core renderer for any 2-D continuous-value map.
+
     Parameters:
-        prob_map (array-like): 2D array of prediction scores (floats, typically 0–1).
+        data (array-like): 2-D array of values to plot.
         title (str): Plot title.
-        cmap (str or Colormap): Colormap name (default 'magma').
-        vmin (float): Lower color-scale limit.
-        vmax (float): Upper color-scale limit.
-        cbar_label (str): Label for the colorbar.
-        bg_value (float): Value used for unclassified / background pixels.
+        cmap (str or Colormap): Colormap name or object.
+        vmin (float): Lower colour-scale limit.
+        vmax (float): Upper colour-scale limit.
+        cbar_label (str): Label for the colourbar.
+        bg_value (float): Value used for background pixels.
             These are masked so the background stays transparent.
-        scalebar_um (float, optional): Length of the scale bar in micrometers.
-        pixel_size_um (float): Physical size of a single pixel in micrometers.
+        min_speck_size (int): Minimum pixel area for a phase to be kept.
+        scalebar_um (float, optional): Length of the scale bar in micrometres.
+        pixel_size_um (float): Physical size of a single pixel in micrometres.
+        scalebar_col (str): Colour of the scale bar text/line.
         scalebar_loc (str): Location of the scale bar (e.g., 'lower left').
-        scalebar_col (str): Color of the scale bar text/line.
         ax (matplotlib.axes.Axes, optional): Pre-existing axes to draw on.
         dpi (int): Figure resolution when creating a new figure.
- 
+
     Returns:
         fig (matplotlib.figure.Figure): The generated figure.
-        ax_map (matplotlib.axes.Axes): The axes containing the score map.
+        ax_map (matplotlib.axes.Axes): The axes containing the map.
     """
-    prob_map = np.asarray(prob_map, dtype=float)
+    data = np.asarray(data, dtype=float)
 
-    # Mask background pixels so they render transparent
-    mask = np.isnan(prob_map)
+    if min_speck_size > 0:
+        valid = np.isfinite(data)
+        if np.isfinite(bg_value):
+            valid &= (data != bg_value)
+        cleaned = remove_small_objects(valid, min_size=min_speck_size)
+        data = np.where(cleaned, data, np.nan)
+
+    mask = np.isnan(data)
     if np.isfinite(bg_value):
-        mask |= (prob_map == bg_value)
-    masked = np.ma.masked_where(mask, prob_map)
+        mask |= (data == bg_value)
+    masked = np.ma.masked_where(mask, data)
 
     if ax is not None:
         ax_map = ax
         fig = ax.get_figure()
         ax_map.clear()
     else:
-        h, w = prob_map.shape
+        h, w = data.shape
         aspect = w / h
         fig_h = 6
-        fig_w = fig_h * aspect + 0.8  # extra room for colorbar
+        fig_w = fig_h * aspect + 0.8
         fig, ax_map = plt.subplots(figsize=(fig_w, fig_h), dpi=dpi)
 
     im = ax_map.imshow(
@@ -1801,31 +1879,155 @@ def plot_score_map(
     ax_map.set_title(title, pad=8)
     ax_map.axis("off")
 
-    # ---- colorbar ----
     cbar = fig.colorbar(im, ax=ax_map, fraction=0.046, pad=0.04)
     cbar.set_label(cbar_label)
 
-    # ---- scale bar (same pattern as plot_phase_map) ----
-    if scalebar_um is not None:
-        scalebar_pixels = scalebar_um / pixel_size_um
-        fontprops = fm.FontProperties(size=12, weight="bold")
-        bar = AnchoredSizeBar(
-            ax_map.transData,          # note: uses ax_map, not bare `ax`
-            scalebar_pixels,
-            f"{scalebar_um} µm",
-            loc=scalebar_loc,
-            pad=0.5,
-            color=scalebar_col,
-            frameon=False,
-            size_vertical=1,
-            sep=3,
-            label_top=True,
-            fontproperties=fontprops,
-        )
-        ax_map.add_artist(bar)
+    _add_scalebar(
+        ax_map,
+        scalebar_um=scalebar_um,
+        pixel_size_um=pixel_size_um,
+        scalebar_loc=scalebar_loc,
+        scalebar_col=scalebar_col,
+    )
 
     fig.tight_layout()
     return fig, ax_map
+
+
+def plot_score_map(
+    res,
+    phases=None,
+    title="Prediction Score Map",
+    cmap="magma",
+    vmin=0,
+    vmax=1,
+    cbar_label="Prediction Score",
+    **kwargs,
+):
+    """
+    Plots a continuous prediction-score map with a colourbar.
+
+    Parameters:
+        res (dict): The result dictionary returned by ``run_map()``,
+            containing 'mineral_map' and 'component_maps'.
+        phases (list[str] | None): If provided, only show prediction scores for
+            these phases; all other pixels are masked to background.
+        title (str): Plot title.
+        cmap (str or Colormap): Colourmap name (default 'magma').
+        vmin (float): Lower colour-scale limit.
+        vmax (float): Upper colour-scale limit.
+        cbar_label (str): Label for the colourbar.
+        **kwargs: Forwarded to ``_plot_continuous_map`` (bg_value, scalebar_um,
+            pixel_size_um, scalebar_col, scalebar_loc, ax, dpi).
+
+    Returns:
+        fig (matplotlib.figure.Figure): The generated figure.
+        ax_map (matplotlib.axes.Axes): The axes containing the score map.
+    """
+    if not isinstance(res, dict):
+        raise TypeError("`res` must be a result dictionary.")
+
+    if "pred_score_map" not in res:
+        raise KeyError("'pred_score_map' not found in result dictionary.")
+    if "mineral_map" not in res:
+        raise KeyError("'mineral_map' not found in result dictionary.")
+
+    pred_score_map = np.asarray(res["pred_score_map"], dtype=float)
+
+    if phases is not None:
+        mineral_map = np.asarray(res["mineral_map"], dtype=object)
+        phase_mask = np.isin(mineral_map, phases)
+
+        pred_score_map = pred_score_map.copy()
+        pred_score_map[~phase_mask] = np.nan
+
+    return _plot_continuous_map(
+        pred_score_map,
+        title=title,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        cbar_label=cbar_label,
+        **kwargs,
+    )
+
+
+def plot_oxide_map(
+    res,
+    oxide_name,
+    title=None,
+    cmap="viridis",
+    vmin=None,
+    vmax=None,
+    cbar_label=None,
+    **kwargs,
+):
+    """
+    Plots a 2-D oxide-concentration map with a colourbar.
+
+    Parameters:
+        res (dict): The result dictionary returned by ``run_map()``,
+            containing ``'oxide_maps'``.
+        oxide_name (str): Oxide name to plot from ``res['oxide_maps']``
+            (e.g., ``'SiO2'``, ``'FeOt'``).
+        title (str, optional): Plot title. Defaults to ``'{oxide_name} Map'``.
+        cmap (str or Colormap, optional): Colormap name. Defaults to
+            ``'magma'``.
+        vmin (float, optional): Lower colour-scale limit. Defaults to the
+            data minimum, ignoring background values.
+        vmax (float, optional): Upper colour-scale limit. Defaults to the
+            data maximum, ignoring background values.
+        cbar_label (str, optional): Colourbar label. Defaults to
+            ``'{oxide_name} (wt.%)'``.
+        **kwargs: Forwarded to ``_plot_continuous_map`` (e.g., ``bg_value``,
+            ``scalebar_um``, ``pixel_size_um``, ``scalebar_col``,
+            ``scalebar_loc``, ``ax``, ``dpi``).
+
+    Returns:
+        fig (matplotlib.figure.Figure): The generated figure.
+        ax_map (matplotlib.axes.Axes): The axes containing the oxide map.
+    """
+    if not isinstance(res, dict):
+        raise TypeError("res must be the result dictionary returned by run_map().")
+
+    if "oxide_maps" not in res:
+        raise KeyError("'oxide_maps' not found in result dictionary.")
+
+    oxide_maps = res["oxide_maps"]
+
+    if oxide_name not in oxide_maps:
+        available = ", ".join(sorted(oxide_maps.keys()))
+        raise KeyError(
+            f"{oxide_name!r} not found in res['oxide_maps']. "
+            f"Available oxides: {available}"
+        )
+
+    oxide_map = np.asarray(oxide_maps[oxide_name], dtype=float)
+
+    if title is None:
+        title = f"{oxide_name} Map"
+    if cbar_label is None:
+        cbar_label = f"{oxide_name} (wt.%)"
+
+    bg_value = kwargs.get("bg_value", np.nan)
+    valid = oxide_map[np.isfinite(oxide_map)]
+    if np.isfinite(bg_value):
+        valid = valid[valid != bg_value]
+
+    if vmin is None:
+        vmin = float(valid.min()) if valid.size else 0
+    if vmax is None:
+        vmax = float(valid.max()) if valid.size else 1
+
+    return _plot_continuous_map(
+        oxide_map,
+        title=title,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        cbar_label=cbar_label,
+        **kwargs,
+    )
 
 
 # %% EBSD mapping
@@ -1963,12 +2165,6 @@ def plot_ctf_phases(
     unique_names = unique_names[order]
     counts = counts[order]
 
-    # Create a 2D map of categorical codes purely for plotting
-    name_to_code = {name: i for i, name in enumerate(unique_names)}
-    numeric_ids = np.array([name_to_code[name] for name in phase_names]).reshape(
-        (y_cells, x_cells)
-    )
-
     # Create the 2D string-based map to return
     phase_map = phase_names.reshape((y_cells, x_cells))
 
@@ -2009,29 +2205,17 @@ def plot_ctf_phases(
         ax.set_title(title)
 
     # Add Scale Bar
-    if scalebar_um is not None:
-        if step_size is None:
-            warnings.warn("XStep not found in CTF header; cannot draw scale bar.")
-        else: 
-            # Convert the physical size (µm) to image pixels
-            scalebar_pixels = scalebar_um / step_size
-
-            # Configure the bar
-            fontprops = fm.FontProperties(size=12, weight="bold")
-            scalebar = AnchoredSizeBar(
-                ax.transData,
-                scalebar_pixels,
-                f"{scalebar_um} µm",
-                loc=scalebar_loc,
-                pad=0.5,
-                color=scalebar_col,
-                frameon=False,
-                size_vertical=1,
-                sep=3,
-                label_top=True,
-                fontproperties=fontprops,
-            )
-            ax.add_artist(scalebar)
+    if scalebar_um is not None and step_size is None:
+        warnings.warn("XStep not found in CTF header; cannot draw scale bar.")
+    else:
+        _add_scalebar(
+            ax,
+            scalebar_um=scalebar_um,
+            pixel_size_um=step_size,
+            scalebar_loc=scalebar_loc,
+            scalebar_col=scalebar_col,
+            warn=False,
+        )
 
     # Build the legend handles and labels
     n_show = min(max_legend, len(unique_names))

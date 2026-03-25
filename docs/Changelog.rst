@@ -2,9 +2,22 @@
 Change Log
 ==========
 
-
-Version 0.0.3.6
+Version 0.0.3.8
 ===============
+Refactored `predict_class_prob` to use centralized hybrid checkpoint loading. Removed duplicate manual model reconstruction from prediction. Aligned prediction and reconstruction paths to use the same loaded wrapper. Improved handling when oxide columns or `ZrO2` are absent. Avoided in-place modification of input DataFrames when computing `Total`. Clamped Monte Carlo variance to zero before square root to avoid invalid standard deviations.
+
+Added `convert_fe_to_feot` utility for converting FeO, Fe2O3, and Fe2O3t columns to a single FeOt column.
+`prep_df` now accepts ``convert_Fe`` to automatically convert iron columns to FeOt instead of raising an error. Added ``drop_empty_rows`` and ``min_oxide_count`` to optionally remove rows with fewer than *n* non-zero oxide columns. Added ``verbose`` flag that prints a summary of rows processed, dropped, and coerced.
+`norm_data` now accepts ``verbose`` flag and prints the number of rows normalized.
+`plot_latent_space` now resolves ``Oxide`` labels via a ``submineral_column`` fallback (e.g., Oxide → Magnetite → Spinel). Labels that are empirical groupings not present in training classes (Carbonate, SiO2_Polymorph, Zircon) are skipped with a descriptive warning.
+
+Deprecated `load_minclass_nn`; use `load_mineral_classes` instead.
+Deprecated `predict_class_prob_nnwr`; use `predict_class_prob` instead.
+Deprecated `plot_z2_overlay`; use `plot_latent_space` instead.
+
+
+Version 0.0.3.6 and 0.0.3.7
+===========================
 Clean up code docstrings and update RTD documentation.
 
 

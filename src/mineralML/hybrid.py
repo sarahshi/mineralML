@@ -6,17 +6,19 @@ import os
 import re
 import math
 import copy
-import random
+import warnings
 
 import numpy as np
 import pandas as pd
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from sklearn.cluster import KMeans
 
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
+import torch.nn.functional as F
 
 from .core import *
 from .core import same_seeds
@@ -29,11 +31,14 @@ import matplotlib.colors as mcolors
 import matplotlib.cm as mcm
 from sklearn.decomposition import PCA
 
+_DEFAULT_CLASSES_FILE = "mineral_classes_nn_v0030.npz"
+_DEFAULT_SCALER_FILE = "scaler_nn_v0030.npz"
+_DEFAULT_MODEL_FILE = "nnwr_best_model_v0030.pt"
 
 # %%
 
 
-def load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz"):
+def load_mineral_classes(minclass_path=_DEFAULT_CLASSES_FILE):
     """
     Loads mineral classes and their corresponding mappings from a .npz file.
     The file is expected to contain an array of class names under the 'classes' key.
@@ -63,7 +68,57 @@ def load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz"):
     return min_cat, mapping
 
 
-def prep_df_nn(df):
+def convert_fe_to_feot(df):
+    """
+    Handle inconsistent Fe speciation in databases by converting all to FeOt.
+
+    Parameters:
+        df (pd.DataFrame): Array of oxide compositions.
+
+    Returns:
+        df (pd.DataFrame): Array of oxide compositions with converted Fe.
+    """
+    df = df.copy()
+
+    # Ensure all four iron columns exist for the conditional logic
+    for col in ("FeO", "FeOt", "Fe2O3", "Fe2O3t"):
+        if col not in df.columns:
+            df[col] = np.nan
+
+    fe_conv = 159.688 / (2 * 71.8464)
+
+    conditions = [
+        df['FeO'].notna() & df['FeOt'].isna() & df['Fe2O3'].isna() & df['Fe2O3t'].isna(),    # 0
+        df['FeOt'].notna() & df['FeO'].isna() & df['Fe2O3'].isna() & df['Fe2O3t'].isna(),    # 1
+        df['Fe2O3'].notna() & df['Fe2O3t'].isna() & df['FeO'].isna() & df['FeOt'].isna(),    # 2
+        df['Fe2O3t'].notna() & df['Fe2O3'].isna() & df['FeO'].isna() & df['FeOt'].isna(),    # 3
+        df['FeO'].notna() & df['Fe2O3'].notna() & df['FeOt'].isna() & df['Fe2O3t'].isna(),   # 4
+        df['FeO'].notna() & df['FeOt'].notna() & df['Fe2O3'].notna() & df['Fe2O3t'].isna(),  # 5
+        df['FeO'].notna() & df['Fe2O3'].notna() & df['Fe2O3t'].notna() & df['FeOt'].isna(),  # 6
+        df['FeOt'].notna() & df['Fe2O3'].notna() & df['Fe2O3t'].isna() & df['FeO'].isna(),   # 7
+        df['Fe2O3'].notna() & df['Fe2O3t'].notna() & df['FeO'].isna() & df['FeOt'].isna(),   # 8
+    ]
+
+    choices = [
+        df['FeO'],                                 # 0
+        df['FeOt'],                                # 1
+        df['Fe2O3'] / fe_conv,                     # 2
+        df['Fe2O3t'] / fe_conv,                    # 3
+        df['FeO'] + (df['Fe2O3'] / fe_conv),       # 4
+        df['FeOt'],                                # 5
+        df['Fe2O3t'] / fe_conv,                    # 6
+        df['FeOt'],                                # 7
+        df['Fe2O3t'] / fe_conv,                    # 8
+    ]
+
+    df['FeOt'] = np.select(conditions, choices, default=np.nan)
+    df.drop(columns=["FeO", "Fe2O3", "Fe2O3t"], errors="ignore", inplace=True)
+
+    return df
+
+
+def prep_df(df, convert_fe=False, drop_empty_rows=False, min_oxide_count=2,
+            verbose=True):
     """
     Prepares a DataFrame for analysis by performing data cleaning specific
     to mineralogical data. Handles missing values and ensures the presence
@@ -74,22 +129,42 @@ def prep_df_nn(df):
         df (pd.DataFrame): Input DataFrame containing mineral composition data.
             Metadata columns ('Mineral', 'Source', 'SampleID', 'Sample',
             'Sample Name', 'Sample ID') are preserved in the output when present.
- 
+        convert_fe (bool): If True, automatically converts FeO, Fe2O3, and
+            Fe2O3t columns to FeOt using ``Fe_Conversion()``. If False
+            (the default), raises a ValueError when these columns are present
+            without a corresponding FeOt column.
+        drop_empty_rows (bool): If True, drops rows where fewer than
+            ``min_oxide_count`` oxide columns have non-zero values.  Useful
+            for large datasets with many blank or near-blank analyses.
+        min_oxide_count (int): Minimum number of oxide columns that must have
+            non-zero values for a row to be kept.  Only used when
+            ``drop_empty_rows=True``. Default is 2.
+        verbose (bool): If True, prints a summary of the number of rows
+            processed and any rows dropped or coerced.
+
     Returns:
         df (pd.DataFrame): Cleaned DataFrame with NaN filled with zero for oxides.
     """
+    n_input = len(df)
 
-    if "FeO" in df.columns:
-        if "FeOt" not in df.columns:
+    # --- Iron column handling ---
+    has_fe_variants = (
+        ("FeO" in df.columns or "Fe2O3" in df.columns or "Fe2O3t" in df.columns)
+        and "FeOt" not in df.columns
+    )
+
+    if has_fe_variants:
+        if convert_fe:
+            df = convert_fe_to_feot(df)
+            if verbose:
+                print("prep_df: Converted iron columns to FeOt.")
+        else:
+            fe_cols = [c for c in ("FeO", "Fe2O3", "Fe2O3t") if c in df.columns]
             raise ValueError(
-                "No 'FeOt' column found. You have a 'FeO' column. "
-                "mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
-            )
-    if "Fe2O3" in df.columns:
-        if "FeOt" not in df.columns:
-            raise ValueError(
-                "No 'FeOt' column found. You have a 'Fe2O3' column. "
-                "mineralML only recognizes 'FeOt' as a column. Please convert to FeOt."
+                f"No 'FeOt' column found. You have {fe_cols}. "
+                "mineralML only recognizes 'FeOt' as a column. "
+                "Set convert_Fe=True to convert automatically, or use "
+                "convert_fe_to_feot(df) before calling prep_df()."
             )
 
     oxides = OXIDES
@@ -97,7 +172,7 @@ def prep_df_nn(df):
 
     sample_cols = ["SampleID", "Sample", "Sample Name", "Sample ID"]
     present_sample_cols = [c for c in sample_cols if c in df.columns]
-    
+
     # ensure required columns exist
     for col in oxides_plus_zr + ["Mineral"] + present_sample_cols:
         if col not in df.columns:
@@ -110,9 +185,10 @@ def prep_df_nn(df):
 
     # Convert columns to numeric, coercing errors to NaN
     df[oxides_plus_zr] = df[oxides_plus_zr].apply(pd.to_numeric, errors="coerce")
-    if df[oxides_plus_zr].isnull().any().any():
+    n_coerced = df[oxides_plus_zr].isnull().any(axis=1).sum()
+    if n_coerced > 0:
         warnings.warn(
-            "Some non-numeric values were found in the oxides columns and have been coerced to NaN.",
+            f"Non-numeric values in {n_coerced} row(s) were coerced to NaN.",
             UserWarning,
             stacklevel=2,
         )
@@ -120,13 +196,34 @@ def prep_df_nn(df):
     # Fill remaining NaN values with 0 for oxides only
     df.loc[:, oxides_plus_zr] = df.loc[:, oxides_plus_zr].fillna(0)
 
+    # Optionally drop near-empty rows
+    n_dropped = 0
+    if drop_empty_rows:
+        nonzero_counts = (df[oxides_plus_zr] > 0).sum(axis=1)
+        empty_mask = nonzero_counts < min_oxide_count
+        n_dropped = empty_mask.sum()
+        if n_dropped > 0:
+            df = df[~empty_mask]
+            warnings.warn(
+                f"{n_dropped} row(s) with fewer than {min_oxide_count} "
+                "non-zero oxide columns were dropped.",
+                UserWarning,
+                stacklevel=2,
+            )
+
     # Keep all columns, just reset the index
     df = df.reset_index(drop=True)
+
+    if verbose:
+        print(
+            f"prep_df: {len(df)} row(s) processed"
+            f" (of {n_input} input, {n_dropped} dropped)."
+        )
 
     return df
 
 
-def norm_data_nn(df, scaler_path="scaler_nn_v0030.npz"):
+def norm_data(df, scaler_path=_DEFAULT_SCALER_FILE):
     """
     Normalizes oxide composition data using a predefined StandardScaler.
     Ensures that the DataFrame has been preprocessed before applying the
@@ -157,7 +254,7 @@ def norm_data_nn(df, scaler_path="scaler_nn_v0030.npz"):
     # scaled_df = df[oxides].reset_index(drop=True).copy()
 
     if df[oxides].isnull().any().any():
-        df = prep_df_nn(df)
+        df = prep_df(df)
     else:
         df = df
 
@@ -192,9 +289,13 @@ def balance(df, n=1000):
         df_balanced (pd.DataFrame): Resampled DataFrame with balanced class counts.
 
     """
-
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.cluster import KMeans
+    try:
+        from pyrolite.util.classification import TAS
+    except ImportError:
+        raise ImportError(
+            "pyrolite is required for balance(). Install it with: "
+            "pip install pyrolite"
+        )
 
     olivine_class = ['Olivine']
     pyroxene_classes = ['Clinopyroxene', 'Orthopyroxene']
@@ -331,7 +432,7 @@ def balance(df, n=1000):
                                            lambda d, k: kmeans_multi_sample(d, n_target=k),
                                            n_per_member=n, relabel_as='Pyroxene')
 
-    # Feldspar: Plag kmeans->n + KFspar kmeans->n => total 2n
+    # Feldspar: Plag kmeans->n + Alk_Fspar kmeans->n => total 2n
     feldspar_df = process_group_per_member(feldspar_classes,
                                            lambda d, k: kmeans_multi_sample(d, n_target=k, n_clusters=8),
                                            n_per_member=n, relabel_as='Feldspar')
@@ -347,7 +448,6 @@ def balance(df, n=1000):
                                          n_per_member=n, relabel_as='Spinel_Group')
 
     # Glass: TAS-stratified to 2n
-    from pyrolite.util.classification import TAS
     gl_df = df[df.Mineral == 'Glass']
     if len(gl_df):
         gl_df = gl_df[gl_df.SiO2 > 40].copy()
@@ -472,7 +572,7 @@ class VariationalLayer(nn.Module):
         return kl_div
 
 
-def unique_mapping_nn(pred_class):
+def unique_mapping(pred_class):
     """
     Generates a mapping of unique class codes from predicted class labels.
     Loads a predefined category list and creates a subset mapping for the
@@ -484,17 +584,11 @@ def unique_mapping_nn(pred_class):
     Returns:
         unique (ndarray): Array of unique class codes found in pred_class.
         valid_mapping (dict): Dictionary mapping class codes to their corresponding
-        mineral names, including 'Unknown' for code -1.
-
-        
-    Generates a mapping of unique class codes from predicted class labels.
-    Loads a predefined category list and creates a subset mapping for the
-    unique classes found. Unknown classes are assigned a code of -1.
- 
+        mineral names, including 'Unknown' for code -1. 
     """
 
 
-    _, mapping = load_minclass_nn()
+    _, mapping = load_mineral_classes()
     unique = np.unique(pred_class)
     valid_mapping = {key: mapping[key] for key in unique}
     if -1 in unique:
@@ -503,7 +597,7 @@ def unique_mapping_nn(pred_class):
     return unique, valid_mapping
 
 
-def class2mineral_nn(pred_class):
+def class2mineral(pred_class):
     """
     Translates predicted class codes into mineral names using a mapping from the
     trained neural network.
@@ -516,36 +610,42 @@ def class2mineral_nn(pred_class):
             predicted class codes.
     """
 
-    _, valid_mapping = unique_mapping_nn(pred_class)
+    _, valid_mapping = unique_mapping(pred_class)
     pred_mineral = np.array([valid_mapping[x] for x in pred_class])
     return pred_mineral
 
 
 def format_oxide_label(label):
     """
-    Converts an oxide string to a matplotlib mathregular label with subscripts
-    (e.g., 'SiO2' -> '$\\mathregular{SiO_2}$', 'FeOt' -> '$\\mathregular{FeO_t}$').
- 
-    Parameters:
-        label (str): Oxide name string.
- 
-    Returns:
-        formatted (str): LaTeX-formatted label for matplotlib.
+    Format oxide names with subscripts for plot labels. Adapts to the
+    active matplotlib text renderer — uses mathtext by default, falls
+    back to plain LaTeX syntax if usetex is enabled, or returns the
+    raw string if neither is available.
     """
-
     if label == "Total":
         return label
 
-    # Subscript digits and the lowercase 't'
-    # The pattern (\d+|t) matches one or more digits OR the letter 't'
     formatted = re.sub(r"(\d+|t)", r"_\1", label)
 
-    return f"$\mathregular{{{formatted}}}$"
+    if plt.rcParams.get("text.usetex", False):
+        return f"${{{formatted}}}$"
+    else:
+        return f"$\\mathregular{{{formatted}}}$"
+
+
+def _mineral_colormap(n_classes):
+    """Shared tab20+tab20b colormap for mineral class visualizations."""
+    tab20 = plt.get_cmap("tab20")
+    tab20b = plt.get_cmap("tab20b")
+    colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
+    cmap = mcolors.ListedColormap(colors)
+    norm = mcolors.Normalize(vmin=0, vmax=max(n_classes, 1))
+    return cmap, norm
 
 
 # %% 
 
-class NNWRFeatureExtractor(nn.Module):
+class FeatureExtractor(nn.Module):
     """
     Stage A classifier: extracts features and returns logits, optionally
     with the intermediate feature embedding h.
@@ -554,7 +654,7 @@ class NNWRFeatureExtractor(nn.Module):
         input_dim (int): Number of input oxide features.
         classes (int): Number of output mineral classes.
         hidden_layer_sizes (list[int]): Sizes of hidden layers.
-        dropout_rate (float): Dropout probability.
+        dropout_rate (float): Dropout probability (0.0 = no dropout).
         use_bayesian_feature_layer (bool): If True, the final feature layer
             is a VariationalLayer instead of a standard Linear layer.
         use_bayesian_classifier (bool): If True, the classification head
@@ -612,7 +712,7 @@ class NNWRFeatureExtractor(nn.Module):
         return logits
 
 
-class NNWRLatentProjector(nn.Module):
+class LatentProjector(nn.Module):
     """
     Stage B: trainable mapper from feature embedding h to a 2D latent space z2.
  
@@ -649,7 +749,7 @@ class NNWRLatentProjector(nn.Module):
         return self.net(h)
 
 
-class NNWRReconstructionDecoder(nn.Module):
+class ReconstructionDecoder(nn.Module):
     """
     Stage B: trainable decoder from 2D latent z2 back to oxide space x.
  
@@ -690,22 +790,22 @@ class NNWRReconstructionDecoder(nn.Module):
         return self.decode(z2)
 
 
-class NNWRReconstructionWrapper(nn.Module):
+class ReconstructionWrapper(nn.Module):
     """
     Inference wrapper combining classifier, mapper, and decoder.
     Returns (logits, reconstructed oxides, z2) on forward pass.
  
     Parameters:
-        classifier (NNWRFeatureExtractor): Trained Stage A classifier.
-        mapper2d (NNWRLatentProjector): Trained Stage B latent projector.
-        decoder (NNWRReconstructionDecoder): Trained Stage B decoder.
+        classifier (FeatureExtractor): Trained Stage A classifier.
+        mapper2d (LatentProjector): Trained Stage B latent projector.
+        decoder (ReconstructionDecoder): Trained Stage B decoder.
     """
 
     def __init__(
         self,
-        classifier: NNWRFeatureExtractor,
-        mapper2d: NNWRLatentProjector,
-        decoder: NNWRReconstructionDecoder,
+        classifier: FeatureExtractor,
+        mapper2d: LatentProjector,
+        decoder: ReconstructionDecoder,
     ):
         super().__init__()
         self.classifier = classifier
@@ -740,9 +840,9 @@ def train_nn_hybrid_bottleneck(
     and decoder (z2 -> x) with MSE reconstruction loss.
  
     Parameters:
-        classifier (NNWRFeatureExtractor): Frozen Stage A classifier.
-        mapper2d (NNWRLatentProjector): Trainable latent projector.
-        decoder (NNWRReconstructionDecoder): Trainable reconstruction decoder.
+        classifier (FeatureExtractor): Frozen Stage A classifier.
+        mapper2d (LatentProjector): Trainable latent projector.
+        decoder (ReconstructionDecoder): Trainable reconstruction decoder.
         optimizer (torch.optim.Optimizer): Optimizer for mapper + decoder parameters.
         train_loader (DataLoader): Training data loader.
         valid_loader (DataLoader): Validation data loader.
@@ -763,14 +863,8 @@ def train_nn_hybrid_bottleneck(
     """
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    min_cat, _ = load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz")
-
-    tab20 = plt.get_cmap("tab20")
-    tab20b = plt.get_cmap("tab20b")
-    combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(20)]
-    random.shuffle(combined_colors)
-    custom_cmap = mcolors.ListedColormap(combined_colors)
-    custom_norm = mcolors.Normalize(vmin=0, vmax=max(len(min_cat), 1))
+    min_cat, _ = load_mineral_classes(minclass_path=_DEFAULT_CLASSES_FILE)
+    custom_cmap, custom_norm = _mineral_colormap(len(min_cat))
 
     classifier.to(device).eval()
     mapper2d.to(device).train()
@@ -910,7 +1004,7 @@ def train_nn_hybrid_bottleneck(
             patience_counter += 1
             if patience_counter >= (patience):
                 print(
-                    f"[BOTTLE] Early stopping after {patience * 2} epochs w/o improvement."
+                    f"[BOTTLE] Early stopping after {patience} epochs w/o improvement."
                 )
                 break
 
@@ -1018,7 +1112,7 @@ def train_nn_hybrid_classifier(
     annealed KL divergence regularization from VariationalLayers.
  
     Parameters:
-        model (NNWRFeatureExtractor): Classifier model to train.
+        model (FeatureExtractor): Classifier model to train.
         optimizer (torch.optim.Optimizer): Optimizer for model parameters.
         train_loader (DataLoader): Training data loader.
         valid_loader (DataLoader): Validation data loader.
@@ -1127,7 +1221,7 @@ def train_nn_hybrid_classifier(
     return train_losses, valid_losses, best_valid, best_state
 
 
-def plot_latent_space_hybrid(
+def plot_latent_space_training(
     model,
     dataset,
     title,
@@ -1139,7 +1233,7 @@ def plot_latent_space_hybrid(
     uses PCA to reduce to 2D for visualization. Saves a PDF to filename.
  
     Parameters:
-        model (nn.Module): Trained NNWRReconstructionWrapper model.
+        model (nn.Module): Trained ReconstructionWrapper model.
         dataset (TensorDataset): Dataset of (features, labels) tensors.
         title (str): Plot title.
         filename (str): Output filepath for the saved figure.
@@ -1192,19 +1286,9 @@ def plot_latent_space_hybrid(
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 12))
 
-    min_cat, _ = load_minclass_nn(minclass_path="mineral_classes_nn_v0030.npz")
-
-    tab20 = plt.get_cmap("tab20")
-    tab20b = plt.get_cmap("tab20b")
-    colors_tab20 = [tab20(i) for i in range(20)]
-    colors_tab20b = [tab20b(i) for i in range(20)]
-    combined_colors = colors_tab20 + colors_tab20b
-
-    c_norm = mcolors.Normalize(vmin=0, vmax=max(len(min_cat), 1))
-    scalar_map = mcm.ScalarMappable(
-        norm=c_norm,
-        cmap=mcolors.ListedColormap(combined_colors),
-    )
+    min_cat, _ = load_mineral_classes(minclass_path=_DEFAULT_CLASSES_FILE)
+    cmap, c_norm = _mineral_colormap(len(min_cat))
+    scalar_map = mcm.ScalarMappable(norm=c_norm, cmap=cmap)
 
     for i, mineral in enumerate(min_cat):
         mask = labels == i
@@ -1235,7 +1319,7 @@ def plot_latent_space_hybrid(
     return latents, labels
 
 
-def neuralnetwork_wr(
+def train_hybrid_model(
     df,
     hls_list,
     kl_weight_decay_list,
@@ -1292,7 +1376,7 @@ def neuralnetwork_wr(
         plot_on (str): 'valid' or 'train' — which dataset to plot during training.
  
     Returns:
-        best_model_state (dict): State dict of the best NNWRReconstructionWrapper.
+        best_model_state (dict): State dict of the best ReconstructionWrapper.
     """
 
     path_beg = os.getcwd() + "/"
@@ -1316,7 +1400,7 @@ def neuralnetwork_wr(
             _df["Mineral"]
             .astype(str)
             .replace(["Clinopyroxene", "Orthopyroxene"], "Pyroxene")
-            .replace(["Plagioclase", "KFeldspar"], "Feldspar")
+            .replace(["Plagioclase", "Alkali_Feldspar"], "Feldspar")
             .replace(["Hematite", "Ilmenite"], "Rhombohedral_Oxides")
             .replace(["Magnetite", "Spinel"], "Spinel_Group")
         )
@@ -1332,7 +1416,7 @@ def neuralnetwork_wr(
     inv_mapping = {cat: idx for idx, cat in mapping.items()}
 
     classes_path = os.path.join(
-        path_beg, "parametermatrix_neuralnetwork", "mineral_classes_nn_v0030.npz"
+        path_beg, "parametermatrix_neuralnetwork", _DEFAULT_CLASSES_FILE
     )
     classes = np.asarray(all_cats.categories.tolist(), dtype=object)
     np.savez_compressed(classes_path, classes=classes)
@@ -1351,7 +1435,7 @@ def neuralnetwork_wr(
     train_x = ss.transform(train_df_nonempirical[OXIDES].fillna(0))
     valid_x = ss.transform(valid_df_nonempirical[OXIDES].fillna(0))
     scaler_path = os.path.join(
-        path_beg, "parametermatrix_neuralnetwork", "scaler_nn_v0030.npz"
+        path_beg, "parametermatrix_neuralnetwork", _DEFAULT_SCALER_FILE
     )
     np.savez(
         scaler_path,
@@ -1412,7 +1496,7 @@ def neuralnetwork_wr(
 
     for kl_weight_decay in kl_weight_decay_list:
         for hls in hls_list:
-            classifier = NNWRFeatureExtractor(
+            classifier = FeatureExtractor(
                 input_dim=input_size,
                 hidden_layer_sizes=hls,
                 dropout_rate=dr,
@@ -1451,7 +1535,7 @@ def neuralnetwork_wr(
     # -----------------------------
     # build mapper + decoder and train (classifier frozen)
     # -----------------------------
-    classifier = NNWRFeatureExtractor(
+    classifier = FeatureExtractor(
         input_dim=input_size,
         hidden_layer_sizes=best_hidden_layer_size,
         dropout_rate=dr,
@@ -1461,14 +1545,14 @@ def neuralnetwork_wr(
     classifier.load_state_dict(best_classifier_state)
     classifier.eval()
 
-    mapper2d = NNWRLatentProjector(
+    mapper2d = LatentProjector(
         feat_dim=classifier.feat_dim,
         hidden=mapper_hidden,
         dropout_rate=0.0,
         nonlinear=mapper_nonlinear,
     ).to(device)
 
-    decoder = NNWRReconstructionDecoder(
+    decoder = ReconstructionDecoder(
         z_dim=2,
         output_dim=input_size,
         decoder_hidden_sizes=list(decoder_hidden_sizes),
@@ -1505,7 +1589,7 @@ def neuralnetwork_wr(
     if best_decoder_state is not None:
         decoder.load_state_dict(best_decoder_state)
 
-    best_model = NNWRReconstructionWrapper(classifier, mapper2d, decoder).to(device)
+    best_model = ReconstructionWrapper(classifier, mapper2d, decoder).to(device)
     best_model.eval()
 
     best_model_state = best_model.state_dict()
@@ -1537,14 +1621,14 @@ def neuralnetwork_wr(
     # latent space plots (train + valid) using TRUE z2 (2D)
     print("Generating MTL z2 (2D) latent space visualizations...")
 
-    train_latents, train_labels = plot_latent_space_hybrid(
+    train_latents, train_labels = plot_latent_space_training(
         model=best_model,
         dataset=feature_dataset,
         title=f"{name} - Training Set z2 (2D)",
         filename=f"parametermatrix_neuralnetwork/{name}_train_z2_space.pdf",
     )
 
-    valid_latents, valid_labels = plot_latent_space_hybrid(
+    valid_latents, valid_labels = plot_latent_space_training(
         model=best_model,
         dataset=valid_dataset,
         title=f"{name} - Validation Set z2 (2D)",
@@ -1578,7 +1662,7 @@ def neuralnetwork_wr(
     # save model + config
     model_path = f"parametermatrix_neuralnetwork/{name}_best_model.pt"
     model_config = {
-        "arch": "MTL-2D",
+        "arch": "Hybrid",
         "input_dim": input_size,
         "oxides": list(OXIDES),
         "hidden_layer_sizes": best_hidden_layer_size,
@@ -1634,36 +1718,33 @@ def neuralnetwork_wr(
         best_valid_rec_loss=best_valid_rec,
     )
 
-    print(f"MTL-2D completed! Results saved to parametermatrix_neuralnetwork/{name}_*")
+    print(f"Training complete! Results saved to parametermatrix_neuralnetwork/{name}_*")
     print(f"Best validation classification loss (Stage A): {best_valid_cls:.6f}")
     print(f"Best validation reconstruction loss (Stage B): {best_valid_rec:.6f}")
 
     return best_model_state
 
 
-def predict_class_prob_nnwr(
+def predict_class_prob(
     df,
     n_iterations=50,
     *,
     model_path=None,
-    hidden_layer_sizes=None,
     mc_dropout=True,
     return_recon_oxides=False,
-    scaler_path="scaler_nn_v0030.npz",
+    scaler_path=_DEFAULT_SCALER_FILE,
 ):
     """
     Predicts mineral classes with Monte Carlo Bayesian averaging using the
-    neural network with reconstruction (NNWR) classifier.
+    neural network with reconstruction classifier.
  
     Parameters:
         df (pd.DataFrame): Input oxide compositions. Metadata columns ('Mineral',
             'Source', 'SampleID', 'Sample', 'Sample Name', 'Sample ID') are
             preserved in the output when present.
-        n_iterations (int): Number of MC forward passes for probability averaging.
+        n_iterations (int): Number of MC forward passes for prediction score averaging.
         model_path (str|None): Path to the .pt checkpoint. If None, defaults to the
             bundled model in the same directory as this module.
-        hidden_layer_sizes (list[int]|None): Override hidden layer sizes. Usually
-            leave None to use the checkpoint configuration.
         mc_dropout (bool): If True, enables dropout during inference for MC sampling.
         return_recon_oxides (bool): If True, appends reconstructed oxide columns
             to the output DataFrame.
@@ -1673,197 +1754,75 @@ def predict_class_prob_nnwr(
         result_df (pd.DataFrame): Predictions including 'Predict_Mineral',
             'Prediction_Score', 'Prediction_Score_Sigma', 'Second_Predict_Mineral',
             and 'Second_Prediction_Score'.
-        probability_matrix (ndarray): (N, C) array of class probabilities for
-            non-empirical rows; empty array if all rows are empirical.
     """
 
     # ---- set up result DataFrame  ----
     oxides = OXIDES
     oxides_plus_zr = oxides + ["ZrO2"]
     metadata = ["Mineral", "Source", "SampleID", "Sample", "Sample Name", "Sample ID"]
-    cols = oxides_plus_zr + [c for c in metadata if c in df.columns]
-    result_df = df[cols].copy()
 
-    pred_cols = [
-        "Predict_Mineral",
-        "Prediction_Score",
-        "Prediction_Score_Sigma",
-        "Second_Predict_Mineral",
-        "Second_Prediction_Score",
-    ]
-    for col in pred_cols:
-        result_df[col] = np.nan
+    available_cols = [c for c in (oxides_plus_zr + metadata) if c in df.columns]
+    result_df = df[available_cols].copy()
 
-    result_df["Predict_Mineral"] = pd.Series(index=df.index, dtype="object")
-    result_df["Second_Predict_Mineral"] = pd.Series(index=df.index, dtype="object")
-    result_df["Prediction_Score"] = pd.Series(index=df.index, dtype="float64")
-    result_df["Prediction_Score_Sigma"] = pd.Series(index=df.index, dtype="float64")
-    result_df["Second_Prediction_Score"] = pd.Series(index=df.index, dtype="float64")
+    result_df["Predict_Mineral"] = pd.Series(None, index=df.index, dtype="object")
+    result_df["Second_Predict_Mineral"] = pd.Series(None, index=df.index, dtype="object")
+    result_df["Prediction_Score"] = pd.Series(np.nan, index=df.index, dtype="float64")
+    result_df["Prediction_Score_Sigma"] = pd.Series(np.nan, index=df.index, dtype="float64")
+    result_df["Second_Prediction_Score"] = pd.Series(np.nan, index=df.index, dtype="float64")
+    result_df["Submineral"] = pd.Series(None, index=df.index, dtype="object")
 
-    # --- detect rows with fewer than 1 valid (non-zero) oxide values ---
+    si = df.get("SiO2", pd.Series(0.0, index=df.index))
+    zr = df.get("ZrO2", pd.Series(0.0, index=df.index))
+    
+    # Calculate Total once
+    total = df.get("Total")
+    if total is None:
+        total = df[df.columns.intersection(oxides_plus_zr)].sum(axis=1, skipna=True)
+
+    # Detect invalid rows (fewer than 1 non-zero oxide or Total too low)
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
     if oxide_cols_in_df:
-        # count how many oxides are not zero (treating NaN as 0)
-        valid_oxide_count = (df[oxide_cols_in_df].fillna(0) != 0).sum(axis=1)
-        invalid_mask = valid_oxide_count < 1
+        invalid_mask = (df[oxide_cols_in_df].fillna(0) != 0).sum(axis=1) < 1
     else:
-        # if no oxide columns exist, all rows are invalid
-        invalid_mask = pd.Series(True, index=df.index) 
+        invalid_mask = pd.Series(True, index=df.index)
+    
+    invalid_mask |= (total < 50)
 
-    # explicitly set outputs to nan for invalid rows
-    result_df.loc[invalid_mask, "Predict_Mineral"] = np.nan
-    result_df.loc[invalid_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[invalid_mask, "Prediction_Score"] = np.nan
-    result_df.loc[invalid_mask, "Prediction_Score_Sigma"] = np.nan
-    result_df.loc[invalid_mask, "Second_Prediction_Score"] = np.nan
-    # ------------------------------------------------------------
+    zircon_mask = (zr > 50) & ~invalid_mask
+    quartz_mask = (si > 90) & ~invalid_mask
+    carbonate_mask = ((si < 5) & (total < 70)) if "CaO" in df.columns else pd.Series(False, index=df.index)
+    carbonate_mask &= ~invalid_mask
+    non_empirical_mask = ~(invalid_mask | zircon_mask | quartz_mask | carbonate_mask)
 
-    if "Total" not in df.columns:
-        df["Total"] = (
-            df[oxides_plus_zr].sum(axis=1, skipna=True)
-            if all(c in df.columns for c in oxides_plus_zr)
-            else pd.Series(0, index=df.index)
-        )
-
-    invalid_mask = invalid_mask | (df["Total"] < 50)
-    result_df.loc[invalid_mask, "Predict_Mineral"] = np.nan
-    result_df.loc[invalid_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[invalid_mask, "Prediction_Score"] = np.nan
-    result_df.loc[invalid_mask, "Prediction_Score_Sigma"] = np.nan
-    result_df.loc[invalid_mask, "Second_Prediction_Score"] = np.nan
-
-    # ------------------------------------------------------------
-
-    # Identify and classify zircons
-    zircon_mask = (
-        (df["ZrO2"] > 50) if "ZrO2" in df.columns else pd.Series(False, index=df.index)
+    result_df["Predict_Mineral"] = np.select(
+        [invalid_mask, zircon_mask, quartz_mask, carbonate_mask],
+        [None, "Zircon", "SiO2_Polymorph", "Carbonate"],
+        default=None
     )
-    zircon_mask = zircon_mask & ~invalid_mask
-    result_df.loc[zircon_mask, "Predict_Mineral"] = "Zircon"
-    result_df.loc[zircon_mask, "Prediction_Score"] = np.nan
-    result_df.loc[zircon_mask, "Prediction_Score_Sigma"] = np.nan
-    result_df.loc[zircon_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[zircon_mask, "Second_Prediction_Score"] = np.nan
 
-    # Identify and classify si-polymorphs (quartz + coesite + stishovite + tridymite + cristobalite)
-    quartz_mask = (
-        (df["SiO2"] > 90) if "SiO2" in df.columns else pd.Series(False, index=df.index)
-    )
-    quartz_mask = quartz_mask & ~invalid_mask
-    result_df.loc[quartz_mask, "Predict_Mineral"] = "SiO2_Polymorph"
-    result_df.loc[quartz_mask, "Prediction_Score"] = np.nan
-    result_df.loc[quartz_mask, "Prediction_Score_Sigma"] = np.nan
-    result_df.loc[quartz_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[quartz_mask, "Second_Prediction_Score"] = np.nan
-
-    # Identify and classify carbonates (calcite + dolomite + magnesite + siderite)
-    carbonate_mask = (
-        (df["SiO2"] < 5) & (df["Total"] < 70)
-        if "CaO" in df.columns
-        else pd.Series(False, index=df.index)
-    )
-    carbonate_mask = carbonate_mask & ~invalid_mask
-    result_df.loc[carbonate_mask, "Predict_Mineral"] = "Carbonate"
-    result_df.loc[carbonate_mask, "Prediction_Score"] = np.nan
-    result_df.loc[carbonate_mask, "Prediction_Score_Sigma"] = np.nan
-    result_df.loc[carbonate_mask, "Second_Predict_Mineral"] = np.nan
-    result_df.loc[quartz_mask, "Second_Prediction_Score"] = np.nan
-
-    non_zircon_mask = (
-        (~zircon_mask) & (~quartz_mask) & (~carbonate_mask) & (~invalid_mask)
-    )
-    probability_matrix = np.array([])
-
-    if non_zircon_mask.any():
-        non_za_df = df.loc[non_zircon_mask].copy()
-
-        # neural network setup — model and device
+    if non_empirical_mask.any():
+        non_emp_df = df.loc[non_empirical_mask].copy()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        # default paths
-        model_path = os.path.join(
-            os.path.dirname(__file__), "nnwr_best_model_v0030.pt"
+        wrapper, checkpoint, model_config = load_hybrid_checkpoint(
+            model_path=model_path,
+            device=device,
+            optimizer=None,
+            strict=True,
+            eval_mode=True,
         )
 
-        checkpoint = torch.load(model_path, map_location=device)
-        model_config = checkpoint.get("model_config", {})
-
-        # architecture knobs (prefer checkpoint)
-        hidden_layer_sizes = model_config.get("hidden_layer_sizes", [64, 32, 16])
-        dropout_rate = float(model_config.get("dropout_rate", 0.1))
-        use_bayesian_feature_layer = bool(
-            model_config.get("use_bayesian_feature_layer", True)
-        )
-        use_bayesian_classifier = bool(
-            model_config.get("use_bayesian_classifier", False)
+        classifier = enable_mc_sampling(
+            wrapper.classifier,
+            enable_dropout=mc_dropout,
         )
 
-        # ---- build classifier ----
-        # run the classifier only for prediction; mapper/decoder are irrelevant for logits.
-        model = NNWRFeatureExtractor(
-            input_dim=len(OXIDES),
-            hidden_layer_sizes=hidden_layer_sizes,
-            dropout_rate=dropout_rate,
-            use_bayesian_feature_layer=use_bayesian_feature_layer,
-            use_bayesian_classifier=use_bayesian_classifier,
-        ).to(device)
-
-        # ---- load weights ----
-        state_dict = checkpoint.get("model_state_dict", {})
-        if not state_dict:
-            raise KeyError("Checkpoint missing 'model_state_dict'.")
-
-        cls_sd = {}
-        for k, v in state_dict.items():
-            if k.startswith("classifier."):
-                cls_sd[k[len("classifier.") :]] = v
-
-        if len(cls_sd) == 0:
-            cls_sd = state_dict
-
-        missing, unexpected = model.load_state_dict(cls_sd, strict=False)
-        if len(unexpected) > 0:
-            pass
-        if len(missing) > 0:
-            pass
-
-        # eval mode by default (with Bayesian weight sampling in VariationalLayer)
-        classifier = enable_mc_sampling(model, enable_dropout=mc_dropout)
-
-        # ---- preprocess inputs to match training ----
-        norm_wt = norm_data_nn(non_za_df, scaler_path=scaler_path).astype(
+        norm_wt = norm_data(non_emp_df, scaler_path=scaler_path).astype(
             np.float32, copy=False
         )
         input_data = torch.from_numpy(norm_wt).to(device)
 
-        recon_df = None
         if return_recon_oxides:
-            # --- build full wrapper to compute recon = decoder(z2) ---
-            feat_dim = int(model_config.get("feat_dim", hidden_layer_sizes[-1]))
-            mapper_hidden = int(model_config.get("mapper_hidden", 32))
-            mapper_nonlinear = bool(model_config.get("mapper_nonlinear", True))
-            decoder_hidden_sizes = model_config.get("decoder_hidden_sizes", [64, 32, 16])
-
-            mapper2d = NNWRLatentProjector(
-                feat_dim=feat_dim,
-                hidden=mapper_hidden,
-                dropout_rate=0.0,
-                nonlinear=mapper_nonlinear,
-            ).to(device)
-
-            decoder = NNWRReconstructionDecoder(
-                z_dim=2,
-                output_dim=len(OXIDES),
-                decoder_hidden_sizes=list(decoder_hidden_sizes),
-                dropout_rate=0.0,
-            ).to(device)
-
-            wrapper = NNWRReconstructionWrapper(model, mapper2d, decoder).to(device)
-            wrapper.load_state_dict(state_dict, strict=False)
             wrapper.eval()
-
-            # one deterministic forward pass is usually what you want for recon
-            # (MC sampling for recon is possible, but start simple)
             with torch.inference_mode():
                 N = input_data.shape[0]
                 BATCH_R = 2**13
@@ -1874,40 +1833,32 @@ def predict_class_prob_nnwr(
                     xb = input_data[start:end]
                     _logits, recon_norm, _z2 = wrapper(xb)
                     recon_acc.append(recon_norm.detach().cpu().numpy())
-                recon_norm = np.concatenate(
-                    recon_acc, axis=0
-                )  # (N, D) in normalized space
 
-                # mean, std = load_scaler(scaler_path="scaler_nn_v0019.npz")
-                mean, std = load_scaler(scaler_path="scaler_nn_v0030.npz")
+                recon_norm = np.concatenate(recon_acc, axis=0)
+
+                mean, std = load_scaler(scaler_path=scaler_path)
                 mean_vec = mean[OXIDES].to_numpy(dtype=np.float32)
                 std_vec = std[OXIDES].to_numpy(dtype=np.float32)
                 recon_out = recon_norm * std_vec[None, :] + mean_vec[None, :]
 
-            # df aligned to original df index (including zircons/all-zero)
             recon_cols = [f"{c}_recon" for c in OXIDES]
-
-            # recon DF on the non-zircon index (guaranteed aligned to recon_out row order)
-            recon_nonza = pd.DataFrame(
+            recon_non_emp = pd.DataFrame(
                 recon_out,
-                index=non_za_df.index,
+                index=non_emp_df.index,
                 columns=recon_cols,
                 dtype=float,
             )
-
-            # Expand to full df index (zircons/all-zero become NaN)
-            recon_df = recon_nonza.reindex(df.index)
+            recon_df = recon_non_emp.reindex(df.index)
 
         # ---- Monte Carlo Bayesian averaging ----
         with torch.inference_mode():
-            device = next(model.parameters()).device
             N = len(input_data)
-            C = model.classes
+            C = wrapper.classifier.classes
             BATCH = 2**13
-            K = 10 # MC passes per chunk
+            K = 10
 
             probs_mean = torch.empty((N, C), device=device, dtype=torch.float32)
-            probs_var  = torch.empty((N, C), device=device, dtype=torch.float32)
+            probs_var = torch.empty((N, C), device=device, dtype=torch.float32)
 
             for start in range(0, N, BATCH):
                 end = min(start + BATCH, N)
@@ -1921,43 +1872,42 @@ def predict_class_prob_nnwr(
                 while done < n_iterations:
                     kk = min(K, n_iterations - done)
 
-                    # p = 0.0
                     for _ in range(kk):
-                        logits = classifier(x)  # classifier-only forward
-                        # p = p + torch.softmax(logits, dim=1)
+                        logits = classifier(x)
                         s = torch.softmax(logits, dim=1)
                         acc += s
                         acc2 += s**2
 
                     done += kk
 
-                probs_mean[start:end] = acc / float(n_iterations)
-                probs_var[start:end] = (acc2 / float(n_iterations)) - probs_mean[start:end]**2
+                mean_chunk = acc / float(n_iterations)
+                var_chunk = (acc2 / float(n_iterations)) - mean_chunk**2
 
-            probability_matrix = probs_mean.detach().cpu().numpy()
-            std_matrix = np.sqrt(probs_var.detach().cpu().numpy())
+                probs_mean[start:end] = mean_chunk
+                probs_var[start:end] = var_chunk
+
+            pred_score_matrix = probs_mean.detach().cpu().numpy()
+            std_matrix = np.sqrt(probs_var.clamp(min=0).detach().cpu().numpy())
 
         # ---- top-2 predictions ----
-        top_two_indices = np.argsort(probability_matrix, axis=1)[:, -2:]
-        first_probs = probability_matrix[
-            np.arange(len(probability_matrix)), top_two_indices[:, 1]
-        ]
-        first_uncertainty = std_matrix[
-        np.arange(len(std_matrix)), top_two_indices[:, 1]
-        ]
-        second_probs = probability_matrix[
-            np.arange(len(probability_matrix)), top_two_indices[:, 0]
-        ]
-        first_mins = class2mineral_nn(top_two_indices[:, 1])
-        second_mins = class2mineral_nn(top_two_indices[:, 0])
+        top_two_indices = np.argsort(pred_score_matrix, axis=1)[:, -2:]
+        first_idx = top_two_indices[:, 1]
+        second_idx = top_two_indices[:, 0]
 
-        result_df.loc[non_zircon_mask, "Predict_Mineral"] = first_mins
-        result_df.loc[non_zircon_mask, "Prediction_Score"] = first_probs
-        result_df.loc[non_zircon_mask, "Prediction_Score_Sigma"] = first_uncertainty
-        result_df.loc[non_zircon_mask, "Second_Predict_Mineral"] = second_mins
-        result_df.loc[non_zircon_mask, "Second_Prediction_Score"] = second_probs
+        first_probs = pred_score_matrix[np.arange(len(pred_score_matrix)), first_idx]
+        first_uncertainty = std_matrix[np.arange(len(std_matrix)), first_idx]
+        second_probs = pred_score_matrix[np.arange(len(pred_score_matrix)), second_idx]
 
-    # Process specialized classifiers (unchanged, but could also be optimized)
+        first_mins = class2mineral(first_idx)
+        second_mins = class2mineral(second_idx)
+
+        result_df.loc[non_empirical_mask, "Predict_Mineral"] = first_mins
+        result_df.loc[non_empirical_mask, "Prediction_Score"] = first_probs
+        result_df.loc[non_empirical_mask, "Prediction_Score_Sigma"] = first_uncertainty
+        result_df.loc[non_empirical_mask, "Second_Predict_Mineral"] = second_mins
+        result_df.loc[non_empirical_mask, "Second_Prediction_Score"] = second_probs
+
+    # Process specialized classifiers
     oxide_cols = [c for c in result_df.columns if c in OXIDES]
     mineral_col = "Predict_Mineral" if "Predict_Mineral" in result_df.columns else None
     cols = oxide_cols + ([mineral_col] if mineral_col else [])
@@ -1994,9 +1944,6 @@ def predict_class_prob_nnwr(
         # Collapse Predict_Mineral to "Oxide"
         result_df.loc[ox_mask, "Predict_Mineral"] = "Oxide"
 
-    if "Submineral" not in result_df.columns:
-        result_df["Submineral"] = pd.Series(index=result_df.index, dtype="object")
-
     cols = list(result_df.columns)
     for col, after in [
         ("Prediction_Score_Sigma", "Prediction_Score"),
@@ -2010,7 +1957,7 @@ def predict_class_prob_nnwr(
     if return_recon_oxides and recon_df is not None:
         result_df = pd.concat([result_df, recon_df], axis=1)
 
-    return result_df, probability_matrix
+    return result_df
 
 
 def enable_mc_sampling(model, *, enable_dropout: bool):
@@ -2071,70 +2018,156 @@ def _downsample(Z, labels=None, max_points=250_000):
     return Z[idx], labels[idx] if labels is not None else None
 
 
-def load_nnwr_wrapper_for_latents(model_path=None, device=None):
+def build_model_from_config(model_config, device=None):
     """
-    Loads the trained NNWRReconstructionWrapper from a checkpoint.
- 
-    Parameters:
-        model_path (str|None): Path to the .pt checkpoint. If None, defaults
-            to the bundled model in the same directory as this module.
-        device (str|None): Device string (e.g., 'cpu', 'cuda'). If None,
-            auto-detects GPU availability.
- 
-    Returns:
-        wrapper (nn.Module): The loaded model in evaluation mode.
-        model_config (dict): Configuration dictionary from the checkpoint.
-    """
+    Build a ReconstructionWrapper from a saved model_config dictionary.
 
-    # Device Setup
+    Parameters:
+        model_config (dict): Configuration dictionary saved in the checkpoint.
+        device (str | torch.device | None): Device to place the model on.
+            If None, uses CUDA when available, otherwise CPU.
+
+    Returns:
+        wrapper (nn.Module): Instantiated hybrid model.
+    """
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device(device)
 
-    # Load Checkpoint
-    if model_path is None:
-        model_path = os.path.join(
-            os.path.dirname(__file__), "nnwr_best_model_v0030.pt"
+    cfg = dict(model_config)
+
+    input_dim = int(cfg["input_dim"])
+    hidden_layer_sizes = list(cfg.get("hidden_layer_sizes", [64, 32, 16]))
+    feat_dim = int(cfg.get("feat_dim", hidden_layer_sizes[-1]))
+    dropout_rate = float(cfg.get("dropout_rate", 0.0))
+    classes = int(cfg.get("classes", 23))
+
+    use_bayesian_feature_layer = bool(
+        cfg.get("use_bayesian_feature_layer", True)
+    )
+    use_bayesian_classifier = bool(
+        cfg.get("use_bayesian_classifier", False)
+    )
+
+    mapper_hidden = int(cfg.get("mapper_hidden", 16))
+    mapper_nonlinear = bool(cfg.get("mapper_nonlinear", True))
+    decoder_hidden_sizes = list(cfg.get("decoder_hidden_sizes", [64, 32]))
+
+    classifier = FeatureExtractor(
+        input_dim=input_dim,
+        classes=classes,
+        hidden_layer_sizes=hidden_layer_sizes,
+        dropout_rate=dropout_rate,
+        use_bayesian_feature_layer=use_bayesian_feature_layer,
+        use_bayesian_classifier=use_bayesian_classifier,
+    )
+
+    # Sanity check in case an old checkpoint has inconsistent feat_dim
+    if int(classifier.feat_dim) != feat_dim:
+        raise ValueError(
+            f"Checkpoint feat_dim={feat_dim}, but classifier.feat_dim="
+            f"{classifier.feat_dim} from hidden_layer_sizes={hidden_layer_sizes}."
         )
 
-    ckpt = torch.load(model_path, map_location=device)
-    sd = ckpt["model_state_dict"]
-    cfg = ckpt.get("model_config", {})
-
-    # Extract Configuration with Fallbacks
-    input_dim = int(cfg["input_dim"])
-
-    # Initialize Submodules
-    classifier = NNWRFeatureExtractor(
-        input_dim=input_dim,
-        classes=int(cfg.get("classes", 23)),
-        hidden_layer_sizes=cfg["hidden_layer_sizes"],
-        dropout_rate=float(cfg.get("dropout_rate", 0.0)),
-        use_bayesian_feature_layer=bool(cfg.get("use_bayesian_feature_layer", True)),
-        use_bayesian_classifier=bool(cfg.get("use_bayesian_classifier", False)),
-    )
-
-    mapper2d = NNWRLatentProjector(
-        feat_dim=int(cfg["feat_dim"]),
-        hidden=int(cfg.get("mapper_hidden", 16)),
+    mapper2d = LatentProjector(
+        feat_dim=feat_dim,
+        hidden=mapper_hidden,
         dropout_rate=0.0,
-        nonlinear=bool(cfg.get("mapper_nonlinear", True)),
+        nonlinear=mapper_nonlinear,
     )
 
-    decoder = NNWRReconstructionDecoder(
+    decoder = ReconstructionDecoder(
         z_dim=2,
         output_dim=input_dim,
-        decoder_hidden_sizes=list(cfg.get("decoder_hidden_sizes", [64, 32])),
+        decoder_hidden_sizes=decoder_hidden_sizes,
         dropout_rate=0.0,
     )
 
-    # Wrap, Load Weights, Transfer to Device, and set to Eval Mode
-    wrapper = NNWRReconstructionWrapper(classifier, mapper2d, decoder).to(device)
-    wrapper.load_state_dict(sd, strict=False)
-    wrapper.eval()
+    wrapper = ReconstructionWrapper(classifier, mapper2d, decoder).to(device)
+    return wrapper
 
-    return wrapper, cfg
+
+def load_hybrid_checkpoint(
+    model_path=None,
+    device=None,
+    optimizer=None,
+    strict=True,
+    eval_mode=True,
+):
+    """
+    Load a hybrid checkpoint, rebuild the model from model_config, and restore
+    model weights. Optionally restore optimizer state.
+
+    Parameters:
+        model_path (str | None): Path to the checkpoint. If None, uses the
+            bundled default model file.
+        device (str | torch.device | None): Device to load the model on.
+            If None, uses CUDA when available, otherwise CPU.
+        optimizer (torch.optim.Optimizer | None): Optimizer to restore from the
+            checkpoint if optimizer state is present.
+        strict (bool): Passed to model.load_state_dict().
+        eval_mode (bool): If True, calls model.eval() before returning.
+
+    Returns:
+        model (nn.Module): Loaded ReconstructionWrapper.
+        checkpoint (dict): Full checkpoint dictionary.
+        model_config (dict): The checkpoint model_config dictionary.
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device)
+
+    if model_path is None:
+        model_path = os.path.join(
+            os.path.dirname(__file__),
+            _DEFAULT_MODEL_FILE,
+        )
+
+    checkpoint = torch.load(model_path, map_location=device)
+    model_config = checkpoint.get("model_config", {})
+
+    if "model_state_dict" not in checkpoint:
+        raise KeyError(
+            f"'model_state_dict' not found in checkpoint: {model_path}"
+        )
+    if not model_config:
+        raise KeyError(
+            f"'model_config' not found or empty in checkpoint: {model_path}"
+        )
+
+    model = build_model_from_config(model_config, device=device)
+
+    incompat = model.load_state_dict(
+        checkpoint["model_state_dict"],
+        strict=strict,
+    )
+
+    if not strict:
+        missing = list(getattr(incompat, "missing_keys", []))
+        unexpected = list(getattr(incompat, "unexpected_keys", []))
+        if missing or unexpected:
+            warnings.warn(
+                "Checkpoint loaded with strict=False. "
+                f"Missing keys: {missing}. Unexpected keys: {unexpected}.",
+                UserWarning,
+            )
+
+    if optimizer is not None:
+        opt_key = None
+        if "optimizer_state_dict" in checkpoint:
+            opt_key = "optimizer_state_dict"
+        elif "optimizer" in checkpoint:
+            opt_key = "optimizer"
+
+        if opt_key is not None:
+            optimizer.load_state_dict(checkpoint[opt_key])
+
+    if eval_mode:
+        model.eval()
+
+    return model, checkpoint, model_config
 
 
 @torch.inference_mode()
@@ -2144,7 +2177,7 @@ def compute_z2_from_df(df, wrapper, batch_size=256, device=None):
  
     Parameters:
         df (pd.DataFrame): Input DataFrame with oxide columns.
-        wrapper (NNWRReconstructionWrapper): Loaded NNWR model wrapper.
+        wrapper (ReconstructionWrapper): Loaded model wrapper.
         batch_size (int): Batch size for inference.
         device (str|None): Device string. If None, uses the wrapper's current device.
  
@@ -2157,7 +2190,7 @@ def compute_z2_from_df(df, wrapper, batch_size=256, device=None):
     wrapper.eval()
 
     X_df = df[OXIDES].fillna(0.0)
-    X_norm = norm_data_nn(X_df)
+    X_norm = norm_data(X_df)
 
     if isinstance(X_norm, pd.DataFrame):
         X_norm = X_norm.to_numpy(dtype=np.float32)
@@ -2189,9 +2222,10 @@ def compute_z2_from_df(df, wrapper, batch_size=256, device=None):
     return Z2_out, Preds_out
 
 
-def plot_z2_overlay(
+def plot_latent_space(
     df,
     label_column="Predict_Mineral",
+    submineral_column="Submineral",
     title="Latent Space (z2) Overlay",
     ref_kws=None,
     new_kws=None,
@@ -2206,9 +2240,11 @@ def plot_z2_overlay(
     Parameters:
         df (pd.DataFrame): Input data to be projected into the latent space.
         label_column (str): Column name in df representing pre-computed labels.
+        submineral_column (str): Fallback column for resolving 'Oxide' labels
+            (e.g., 'Oxide' -> 'Magnetite' -> 'Spinel').
         title (str): Title displayed at the top of the plot.
         ref_kws (dict|None): Keyword arguments for the background (training) scatter.
-            Defaults to {"s": 10, "alpha": 0.10, "marker": "x", "edgecolors": "none"}.
+            Defaults to {"s": 10, "alpha": 0.10, "marker": "x"}.
         new_kws (dict|None): Keyword arguments for the foreground (new data) scatter.
         max_points (int): Maximum number of points to plot per layer.
         filename (str|None): Path to save the figure. If None, displays interactively.
@@ -2228,7 +2264,13 @@ def plot_z2_overlay(
         )
 
     # Compute Foreground Z2 and predictions
-    wrapper, _ = load_nnwr_wrapper_for_latents()
+    wrapper, _, _ = load_hybrid_checkpoint(
+        model_path=None,
+        device=None,
+        optimizer=None,
+        strict=True,
+        eval_mode=True,
+    )
     Z_new, _ = compute_z2_from_df(df, wrapper)
 
     if label_column not in df.columns:
@@ -2236,41 +2278,67 @@ def plot_z2_overlay(
             f"Dataframe must contain '{label_column}' column for pre-classified plotting."
         )
     labels_new = df[label_column].values
+    has_submineral = submineral_column in df.columns
 
     # Build mapping strictly from the REFERENCE labels
-    _, label_names = unique_mapping_nn(labels_ref)
+    _, label_names = unique_mapping(labels_ref)
     name_to_id = {v: k for k, v in label_names.items()}
 
     mineral_rollup = {
         "Plagioclase": "Feldspar",
-        "KFeldspar": "Feldspar",
+        "Alkali_Feldspar": "Feldspar",
         "Feldspar_Miscibility_Gap": "Feldspar",
         "Clinopyroxene": "Pyroxene",
         "Orthopyroxene": "Pyroxene",
         "Na-Pyroxene": "Pyroxene",
     }
 
+    # Labels that are empirical groupings not present in training classes;
+    # these are expected to be skipped (not plotted)
+    empirical_labels = {"Carbonate", "SiO2_Polymorph", "Zircon"}
+
     # Convert df labels from strings to ints if they aren't already
     if isinstance(labels_new[0], str):
         yn_ints = []
-        for label in labels_new:
+        for i, label in enumerate(labels_new):
             clean_label = label.strip()
 
-            # Translate granular labels to broad labels if they exist in the dictionary
-            mapped_label = mineral_rollup.get(clean_label, clean_label)
+            # Oxide: try resolving via submineral column
+            if clean_label == "Oxide" and has_submineral:
+                sub = str(df[submineral_column].iat[i]).strip()
+                mapped = mineral_rollup.get(sub, sub)
+                idx = name_to_id.get(mapped, -1)
+                yn_ints.append(idx)
+                continue
 
-            # Fetch the ID, defaulting to -1 if STILL not found
+            # Standard path: rollup then lookup
+            mapped_label = mineral_rollup.get(clean_label, clean_label)
             yn_ints.append(name_to_id.get(mapped_label, -1))
 
         yn_ints = np.array(yn_ints)
 
-        # Optional but highly recommended: warn if anything is STILL unmapped
+        # Warn about unmapped points
         unmapped_mask = yn_ints == -1
         if unmapped_mask.any():
             unmapped_labels = set(np.array(labels_new)[unmapped_mask])
-            print(
-                f"WARNING: Skipping {unmapped_mask.sum()} points. Unrecognized labels: {unmapped_labels}"
+            empirical_skipped = unmapped_labels & empirical_labels
+            other_unmapped = unmapped_labels - empirical_labels
+
+            parts = []
+            if empirical_skipped:
+                parts.append(
+                    f"  Empirical labels not in neural network classes (expected): "
+                    f"{empirical_skipped}"
+                )
+            if other_unmapped:
+                parts.append(
+                    f"  Unrecognized labels: {other_unmapped}"
+                )
+            msg = (
+                f"Skipping {unmapped_mask.sum()} point(s) with labels "
+                "that do not map to training classes.\n" + "\n".join(parts)
             )
+            warnings.warn(msg, UserWarning, stacklevel=2)
     else:
         yn_ints = labels_new
 
@@ -2280,13 +2348,12 @@ def plot_z2_overlay(
     # Set up axes
     fig, ax = plt.subplots(figsize=(10, 8), constrained_layout=True)
 
-    # Configure style parameters (removed 'cmap' from default_new)
+    # Configure style parameters
     default_train = {
         "s": 10,
         "alpha": 0.10,
-        "marker": "x",
-        "edgecolors":
-        "none"}
+        "marker": "x"
+    }
     default_df = {
         "s": 25,
         "alpha": 0.85,
@@ -2302,17 +2369,9 @@ def plot_z2_overlay(
     all_labels = np.concatenate([y for y in (yr, yn) if y is not None])
     valid_labels = all_labels[all_labels >= 0].astype(int)
 
-    tab20 = plt.get_cmap("tab20")
-    tab20b = plt.get_cmap("tab20b")
-    combined_colors = [tab20(i) for i in range(20)] + [tab20b(i) for i in range(1)]
-
-    # Shuffle with a fixed seed to maximize visual distance
-    # random.seed(42)
-    # random.shuffle(combined_colors)
-
-    # Create the cmap and set a fixed normalization range
-    cmap = mcolors.ListedColormap(combined_colors)
-    norm = mcolors.Normalize(vmin=0, vmax=20)
+    # cmap, norm = _mineral_colormap(max(valid_labels.max(), 25) if len(valid_labels) else 25)
+    min_cat, _ = load_mineral_classes(minclass_path=_DEFAULT_CLASSES_FILE)
+    cmap, norm = _mineral_colormap(len(min_cat))
 
     # Plot Reference Data (Background) and create dummy legend markers
     uniq_ref_classes = np.unique(yr).astype(int)
@@ -2504,3 +2563,72 @@ def plot_harker(
     plt.tight_layout()
     plt.show()
 
+
+# %% Deprecated functions
+
+
+def load_minclass_nn(minclass_path=_DEFAULT_CLASSES_FILE):
+    """Deprecated — use `load_mineral_classes` instead."""
+    warnings.warn(
+        "load_minclass_nn() is deprecated and will be removed in a "
+        "future release. Use load_mineral_classes() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return load_mineral_classes(minclass_path)
+
+
+def predict_class_prob_nnwr(
+    df,
+    n_iterations=50,
+    *,
+    model_path=None,
+    mc_dropout=True,
+    return_recon_oxides=False,
+    scaler_path=_DEFAULT_SCALER_FILE,
+):
+    """Deprecated — use `predict_class_prob` instead."""
+    warnings.warn(
+        "predict_class_prob_nnwr() is deprecated and will be removed in a "
+        "future release. Use predict_class_prob() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return predict_class_prob(
+        df,
+        n_iterations,
+        model_path=model_path,
+        mc_dropout=mc_dropout,
+        return_recon_oxides=return_recon_oxides,
+        scaler_path=scaler_path,
+    )
+
+
+def plot_z2_overlay(
+    df,
+    label_column="Predict_Mineral",
+    title="Latent Space (z2) Overlay",
+    ref_kws=None,
+    new_kws=None,
+    max_points=250_000,
+    filename=None,
+):
+    """Deprecated — use ``plot_latent_space`` instead."""
+    warnings.warn(
+        "plot_z2_overlay() is deprecated and will be removed in a "
+        "future release. Use plot_latent_space() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return plot_latent_space(
+        df,
+        label_column=label_column,
+        title=title,
+        ref_kws=ref_kws,
+        new_kws=new_kws,
+        max_points=max_points,
+        filename=filename,
+    )
+
+
+# %% 

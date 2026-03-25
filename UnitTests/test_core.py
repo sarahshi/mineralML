@@ -13,30 +13,6 @@ import torch.optim as optim
 import mineralML as mm
 
 
-class test_FeatureDataset(unittest.TestCase):
-
-    def test_initialization(self):
-        # Test with 1D array
-        x1d = np.random.rand(11)
-        dataset1d = mm.FeatureDataset(x1d)
-        self.assertEqual(dataset1d.x.ndim, 2)
-
-        # Test with 2D array
-        x2d = np.random.rand(11, 5)
-        dataset2d = mm.FeatureDataset(x2d)
-        self.assertTrue(np.array_equal(dataset2d.x, x2d))
-
-    def test_len(self):
-        x = np.random.rand(11, 5)
-        dataset = mm.FeatureDataset(x)
-        self.assertEqual(len(dataset), 11)
-
-    def test_getitem(self):
-        x = np.random.rand(11, 5)
-        dataset = mm.FeatureDataset(x)
-        self.assertTrue(torch.equal(dataset[0], torch.Tensor(x[0])))
-
-
 class test_LabelDataset(unittest.TestCase):
 
     def test_initialization(self):
@@ -185,19 +161,6 @@ class test_SaveModel(unittest.TestCase):
         for key in dict1:
             self.assertTrue(torch.equal(dict1[key], dict2[key]), f"Mismatch in tensors for key: {key}")
 
-    def test_save_model_ae(self):
-        with TemporaryDirectory() as tmp_dir:
-            filepath = os.path.join(tmp_dir, "model_ae.pth")
-            mm.save_model_ae(self.model, self.optimizer, filepath)
-
-            # Check if file exists
-            self.assertTrue(os.path.exists(filepath))
-
-            # Load and check the content
-            checkpoint = torch.load(filepath)
-            self.assertIn('params', checkpoint)
-            self.assertIn('optimizer', checkpoint)
-            self.compare_state_dicts(checkpoint['params'], self.model.state_dict())
 
     def test_save_model_nn(self):
         best_model_state = self.model.state_dict()

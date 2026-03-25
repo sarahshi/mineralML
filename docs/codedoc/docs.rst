@@ -8,13 +8,6 @@ Core Functions
    :members:
 
 
-Constants
-=========
-
-.. automodule:: mineralML.constants
-   :members:
-
-
 Sequential, Transfer-Learning Machine Learning Functions
 ========================================================
 
@@ -50,3 +43,9 @@ Confusion Matrix Functions
 .. automodule:: mineralML.confusion_matrix
    :members:
 
+
+Constants
+=========
+
+.. automodule:: mineralML.constants
+   :members:
