@@ -61,7 +61,7 @@ class TestPPMatrixIntegration(unittest.TestCase):
         self.assertTrue(any(np.allclose(c, lighter, atol=1e-3) for c in facecolors[:-1]))
 
         # --- input df was mutated to include totals (covers insert_totals path used by pp_matrix) ---
-        self.assertIn("sum_row", df.columns)
+        self.assertNotIn("sum_row", df.columns, "pp_matrix should not mutate the input DataFrame")
         self.assertIn("sum_col", df.index)
         self.assertEqual(int(df.loc["sum_col", "sum_row"]), int(df.values[:-1, :-1].sum()))
 
