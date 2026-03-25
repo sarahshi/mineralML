@@ -210,28 +210,5 @@ class test_LoadModel(unittest.TestCase):
                 self.assertEqual(original_group['momentum'], loaded_group['momentum'])
 
 
-class test_MineralSupergroup(unittest.TestCase):
-
-    def test_mineral_supergroup(self):
-        # Create a sample DataFrame
-        data = {
-            'Predict_Mineral': ['Orthopyroxene', 'Clinopyroxene', 'KFeldspar', 
-                                'Plagioclase', 'Spinel', 'Ilmenite', 'Magnetite', 'Other']
-        }
-        df = pd.DataFrame(data)
-
-        # Call the function
-        result_df = mm.mineral_supergroup(df)
-
-        # Expected supergroups
-        expected_supergroups = ['Pyroxene', 'Pyroxene', 'Feldspar', 
-                                'Feldspar', 'Oxide', 'Oxide', 'Oxide', 'Other']
-
-        # Check if the Supergroup column is added and correctly classified
-        self.assertIn('Supergroup', result_df.columns, "Supergroup column not added")
-        self.assertListEqual(result_df['Supergroup'].tolist(), expected_supergroups,
-                             "Supergroup classification is incorrect")
-    
-
 if __name__ == '__main__':
     unittest.main()

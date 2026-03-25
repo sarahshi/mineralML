@@ -68,8 +68,8 @@ class mineralML_supervised(unittest.TestCase):
         required = {"Amphibole", "Pyroxene", "Garnet", "Olivine", "Leucite"}
         self.assertTrue(required.issubset(set(min_cat)))
 
-    def test_prep_df_nn(self):
-        df_cleaned = mm.prep_df_nn(self.df.copy())
+    def test_prep_df(self):
+        df_cleaned = mm.prep_df(self.df.copy())
 
         # No NaNs after cleaning (oxides filled with 0, Mineral preserved)
         self.assertEqual(int(df_cleaned.isnull().sum().sum()), 0)
@@ -82,7 +82,7 @@ class mineralML_supervised(unittest.TestCase):
 
     def test_norm_data(self):
         # Prepare
-        df_cleaned = mm.prep_df_nn(self.df.copy())
+        df_cleaned = mm.prep_df(self.df.copy())
         oxides = _get_oxides()
 
         # Under test
@@ -100,12 +100,12 @@ class mineralML_supervised(unittest.TestCase):
             normalized_data, expected.to_numpy(), rtol=1e-6, atol=1e-6
         )
 
-    def test_unique_mapping_nn(self):
+    def test_unique_mapping(self):
         # Use indices that exist in the CURRENT mapping (no more Clinopyroxene/Spinel)
         # Choose a small set: Amphibole(0), Pyroxene(15), Garnet(7), Olivine(14), Spinels(20)
         pred_class = np.array([0, 15, 7, 14, 20, 0, 7, 20])
 
-        unique, valid_mapping = mm.unique_mapping_nn(pred_class)
+        unique, valid_mapping = mm.unique_mapping(pred_class)
 
         # Expected unique set (order not guaranteed)
         expected_unique = np.array([0, 7, 14, 15, 20])
@@ -244,7 +244,7 @@ class TestPredictClassProbNN(unittest.TestCase):
 
         p_norm.side_effect = lambda d, *args, **kwargs: np.zeros((d.shape[0], len(ox)), dtype=np.float32)
 
-        out_df, prob = mm.predict_class_prob_nnwr(df, n_iterations=1)
+        out_df = mm.predict_class_prob_nnwr(df, n_iterations=1)
 
         self.assertEqual(len(out_df), N)
         self.assertTrue({"Predict_Mineral", "Prediction_Score"}.issubset(out_df.columns))
@@ -252,11 +252,6 @@ class TestPredictClassProbNN(unittest.TestCase):
         for i in zircon_rows:
             self.assertEqual(out_df.iloc[i]["Predict_Mineral"], "Zircon")
             self.assertTrue(np.isnan(float(out_df.iloc[i]["Prediction_Score"])))
-
-        self.assertIsInstance(prob, np.ndarray)
-        self.assertEqual(prob.ndim, 2)
-        self.assertEqual(prob.shape[0], len(non_zircon_rows))
-        self.assertGreater(prob.shape[1], 0)
 
 
 class TestBalance(unittest.TestCase):
