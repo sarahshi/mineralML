@@ -31,5 +31,6 @@ dependencies:
         - sphinx<=8.1.0
         - nbsphinx==0.9.6
         - python-ternary
+        - pyrolite
         - thermobar
         - -e ..
