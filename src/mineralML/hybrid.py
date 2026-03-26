@@ -1733,6 +1733,7 @@ def predict_class_prob(
     mc_dropout=True,
     return_recon_oxides=False,
     scaler_path=_DEFAULT_SCALER_FILE,
+    verbose=True,
 ):
     """
     Predicts mineral classes with Monte Carlo Bayesian averaging using the
@@ -1799,6 +1800,22 @@ def predict_class_prob(
         [None, "Zircon", "SiO2_Polymorph", "Carbonate"],
         default=None
     )
+
+    if verbose:
+        n_total = len(df)
+        n_invalid = int(invalid_mask.sum())
+        n_zircon = int(zircon_mask.sum())
+        n_quartz = int(quartz_mask.sum())
+        n_carbonate = int(carbonate_mask.sum())
+        n_nn = int(non_empirical_mask.sum())
+
+        print(
+            f"mineralML: {n_total} rows — "
+            f"{n_nn} classified by neural network, "
+            f"{n_zircon + n_quartz + n_carbonate} by empirical rules "
+            f"(Zircon: {n_zircon}, SiO2 polymorph: {n_quartz}, Carbonate: {n_carbonate}), "
+            f"{n_invalid} skipped (invalid/empty)"
+        )
 
     if non_empirical_mask.any():
         non_emp_df = df.loc[non_empirical_mask].copy()
@@ -2586,6 +2603,7 @@ def predict_class_prob_nnwr(
     mc_dropout=True,
     return_recon_oxides=False,
     scaler_path=_DEFAULT_SCALER_FILE,
+    verbose=True,
 ):
     """Deprecated — use `predict_class_prob` instead."""
     warnings.warn(
@@ -2601,6 +2619,7 @@ def predict_class_prob_nnwr(
         mc_dropout=mc_dropout,
         return_recon_oxides=return_recon_oxides,
         scaler_path=scaler_path,
+        verbose=verbose,
     )
 
 
