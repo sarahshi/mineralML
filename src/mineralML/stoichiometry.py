@@ -37,6 +37,17 @@ class BaseMineralCalculator:
         # Keep non-numeric or non-oxide metadata
         self.metadata = comps.drop(columns=self.oxide_cols, errors="ignore")
 
+        sample_cols = ["SampleID", "Sample", "Sample Name", "Sample ID", "Sample_ID"]
+        present_sample_cols = [c for c in sample_cols if c in self.metadata.columns]
+        
+        if present_sample_cols:
+            # Grab the first match and rename it to the standard 'Sample'
+            actual_col = present_sample_cols[0]
+            self.metadata = self.metadata.rename(columns={actual_col: 'Sample'})
+        else:
+            # If no sample column exists at all, create an empty one to prevent errors
+            self.metadata['Sample'] = np.nan
+
         self.comps = comps[oxide_cols].clip(lower=0).copy()
         self._validate_subclass()
 
@@ -141,7 +152,7 @@ class BaseMineralCalculator:
         idx = self.metadata.index
         first = self.metadata.reindex(
             index=idx,
-            columns=['Sample Name'],
+            columns=['Sample'],
             fill_value=np.nan
         )
         last = self.metadata.reindex(
@@ -1278,6 +1289,142 @@ class GarnetCalculator(BaseMineralCalculator):
 
         return pd.concat([base_update, sites], axis=1)
 
+
+class GlassCalculator(BaseMineralCalculator):
+    """Glass-specific calculations."""
+    OXYGEN_BASIS = 0
+    MINERAL_SUFFIX = "_Gl"
+
+    def calculate_components(self):
+        """Return complete glass composition with Mg numbers."""
+        comps = self.comps
+        base = self.calculate_moles() # includes self.comps, moles
+        
+        # Directly grab the MgO and FeOt columns
+        Mg = base.get("MgO_mols", pd.Series(0, index=base.index))
+        # Safely handle either FeOt or FeO depending on what the user provided
+        Fe = base.get("FeOt_mols", base.get("FeO_mols", pd.Series(0, index=base.index)))
+
+        # Compute site assignments
+        sites = pd.DataFrame(index=base.index)
+        
+        # Calculate MgNo safely (fillna(0) prevents errors if Mg+Fe is 0)
+        sites["MgNo"] = (Mg / (Mg + Fe)).fillna(0)
+
+        return pd.concat([comps, base, sites], axis=1)
+
+
+class GlassClassifier(GlassCalculator):
+    """General glass calculations for TAS classification and plotting."""
+
+    def calculate_components(self, subclass=True,
+                             which_model="LeMaitreCombined"):
+        """
+        Calculates base components (MgNo) and immediately classifies 
+        the glass using the pyrolite TAS diagram.
+        """
+        import pandas as pd
+        from pyrolite.util.classification import TAS
+        
+        # Get base components (moles, MgNo, etc.) from GlassCalculator
+        comps = super().calculate_components()
+        
+        # Default assignment
+        comps["Mineral"] = "Glass"
+        
+        if not subclass:
+            return comps
+
+        # TAS classification requires Weight % (wt%), retained in `comps`
+        sio2 = comps.get('SiO2', pd.Series(0, index=comps.index))
+        na2o = comps.get('Na2O', pd.Series(0, index=comps.index))
+        k2o = comps.get('K2O', pd.Series(0, index=comps.index))
+
+        tas_df = pd.DataFrame({
+            'SiO2': sio2,
+            'Na2O': na2o,
+            'K2O': k2o,
+            'Na2O + K2O': na2o + k2o,
+        })
+
+        # Predict TAS IDs and map them to their actual rock names
+        cm = TAS(which_model=which_model)
+        tas_ids = cm.predict(tas_df)
+        
+        def get_rock_name(tas_id):
+            if pd.isna(tas_id):
+                return "Unclassified"
+            return cm.fields.get(tas_id, {"name": "Unclassified"})["name"]
+
+        # Append Submineral classifications to the output dataframe
+        comps["TAS"] = tas_ids.apply(get_rock_name)
+            
+        return comps
+
+    def plot(self, df_class=None, subclass=True, which_model="LeMaitreCombined",
+             figsize=(8, 6), ax=None, **kwargs):
+        """
+        Plots the glasses on a TAS (Total Alkali-Silica) diagram.
+        """
+        import matplotlib.pyplot as plt
+        from pyrolite.util.classification import TAS
+        
+        # Automatically run calculate_components if no dataframe is provided
+        if df_class is None:
+            df_class = self.calculate_components(subclass=subclass)
+
+        cm = TAS(which_model=which_model)
+
+        # Set up the plot axis if not provided
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+        else:
+            fig = ax.get_figure()
+
+        # Add Pyrolite's TAS background boundaries and labels
+        cm.add_to_axes(ax, alpha=0.5, linewidth=0.5, zorder=-1, add_labels=True)
+
+        # Calculate Total Alkalis for the Y-axis
+        na2o = df_class.get('Na2O', pd.Series(0, index=df_class.index)).fillna(0)
+        k2o = df_class.get('K2O', pd.Series(0, index=df_class.index)).fillna(0)
+        tot_alkalis = na2o + k2o
+        sio2 = df_class.get('SiO2', pd.Series(0, index=df_class.index)).fillna(0)
+
+        # Plot by TAS Submineral if classification exists
+        if subclass and "Submineral" in df_class.columns:
+            cmap = plt.get_cmap("tab10")
+            unique_rocks = df_class["Submineral"].unique()
+
+            for i, rock in enumerate(unique_rocks):
+                mask = df_class["Submineral"] == rock
+                
+                ax.scatter(sio2[mask], 
+                           tot_alkalis[mask], 
+                           marker='o', 
+                           label=rock, 
+                           color=cmap(i % 10),
+                           edgecolor='k', 
+                           linewidth=0.25, 
+                           s=30, 
+                           alpha=0.8, 
+                           zorder=10)
+                
+            # Move legend outside the plot
+            ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), title="Rock Type", fontsize=10)
+            
+        else:
+            # Simple scatter if no subclasses are requested
+            ax.scatter(sio2, tot_alkalis, 
+                       marker='o', c='tab:blue', edgecolors='k', 
+                       linewidth=0.25, label='Glass', alpha=0.8, zorder=10)
+
+        # Formatting
+        ax.set_xlabel("SiO$_2$ (wt%)")
+        ax.set_ylabel("Na$_2$O + K$_2$O (wt%)")
+        ax.set_title("TAS Classification for Glasses")
+
+        return fig, ax
+    
 
 class KalsiliteCalculator(BaseMineralCalculator):
     """Kalsilite-specific calculations. K[AlSiO4]."""

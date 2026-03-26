@@ -211,6 +211,13 @@ def prep_df(df, convert_fe=False, drop_empty_rows=False, min_oxide_count=2,
                 stacklevel=2,
             )
 
+    all_cols = list(df.columns)
+    lead_cols = present_sample_cols
+    oxide_cols = [c for c in oxides_plus_zr if c in all_cols]
+    other_cols = [c for c in all_cols if c not in lead_cols and c not in oxide_cols]
+    new_order = lead_cols + oxide_cols + other_cols
+    df = df[new_order]
+
     # Keep all columns, just reset the index
     df = df.reset_index(drop=True)
 

@@ -4,7 +4,7 @@ Introduction and Citation
 
 Welcome to ``mineralML``: An Open-Source Machine Learning Package for Probabilistically Classifying Minerals.˘
 
-The development of this tool is currently in progress, with submission planned in the near future. Please make sure you cite this tool if you use it. Software development takes time and and academia does not always recognize the effort taken, but it does recognize citations. 
+The development of this tool is continually in progress. The manuscript is in review at Geochemistry, Geophysics, and Geosystems with the preprint shortly posted on Earth ArXiv. Please make sure you cite this tool if you use it. Software development takes time and and academia does not always recognize the effort taken, but it does recognize citations. 
 
 The open-source nature of the tool allows for continuous development. We welcome the submission of high quality mineral analyses that can be added to the training dataset. You can email `sarahshi@berkeley.edu <mailto:sarahshi@berkeley.edu>`_ or post an enhancement request or report of a bug on the issue page of the `mineralML GitHub repository <https://github.com/SarahShi/mineralML>`_. 
 
@@ -15,7 +15,7 @@ Collaborators
 
 These folks have been fundamental to the development of ``mineralML``: 
 
-- `Sarah Shi <https://github.com/sarahshi>`_ (University of California, Berkeley) 
+- `Sarah Shi <https://github.com/sarahshi>`_ (University of California, Berkeley, ex-LDEO)
 - `Penny Wieser <https://github.com/pennywieser>`_ (University of California, Berkeley)
 - `Charlotte Gordon <https://www.researchgate.net/profile/Charlotte-Gordon-5>`_ (University of California, Berkeley)
 - `Norbert Toth <https://github.com/norberttoth398>`_ (University of Cambridge)
@@ -28,7 +28,7 @@ These folks have been fundamental to the development of ``mineralML``:
 Minerals
 ========
 
-``mineralML`` is trained on a curated dataset of 115k analyses of 27 mineral groups/glass. The machine learning models classify these minerals:
+``mineralML`` is trained on a curated dataset of 128k analyses of 23 mineral groups/glass. The machine learning models classify these minerals:
 
 - Amphibole
 - Apatite
@@ -45,12 +45,11 @@ Minerals
 - Muscovite
 - Nepheline
 - Olivine
+- Oxide (Rhombohedral_Oxides with Hematite-Ilmenite, and Spinel_Group with Magnetite-Spinel)
 - Pyroxene (Clinopyroxene, Orthopyroxene, Na-Pyroxene)
-- SiO2-Polymorphs (Quartz)
-- Rhombohedral_Oxides (Hematite-Ilmenite)
+- SiO2-Polymorphs (Quartz, Coesite, Stishovite, Tridymite, Cristobalite)
 - Rutile
 - Serpentine
-- Spinels (Magnetite-Spinel)
 - Titanite
 - Tourmaline
 - Zircon
@@ -80,4 +79,4 @@ Zircon is classified empirically with ZrO₂.
 Units
 =====
 
-``mineralML`` performs all calculations using mineral compositions in oxide weight percentages. If needed, `mm.oxide_to_element` or `mm.element_to_oxide` may be helpful for converting your data into a usable format.
+``mineralML`` performs all calculations using mineral compositions in oxide weight percentages. If needed, ``mm.oxide_to_element`` or ``mm.element_to_oxide`` may be helpful for converting your data into a usable format.

@@ -31,28 +31,35 @@ Welcome to mineralML's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: ML Predictions for Tabular Data
+   :caption: Tabular Data
 
    examples/mineralML_neuralnetwork
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: ML Predictions for Mapped Data
+   :caption: Microanalytical Tabular Data
+
+   examples/mineralML_microanalysisoutput
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Mapped EDS Data
 
    examples/mineralML_mapping
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: Stoichiometry
+   :caption: Stoichiometry Calculators
 
    examples/mineralML_stoichiometry
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: Synthetic Data by Solid Solution Generator
+   :caption: Synthetic Data Generator
 
    examples/mineralML_synthetic_data
 

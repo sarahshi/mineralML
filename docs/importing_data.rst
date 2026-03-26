@@ -18,7 +18,7 @@ We walk through an implementation of ``mineralML`` here. Create this following f
 
     mineralML/
     ├── Chemistry.csv
-    └── NN_Run.py
+    └── mineralML_neuralnetwork.py
 
 
 The following columns are required for this Chemistry file:
@@ -36,7 +36,7 @@ The following columns are required for this Chemistry file:
 *  Cr₂O₃
 *  P₂O₅
 
-For example, here an example containing the mineral composition data in the desired input format. You can use the ChemistryTemplate.csv from the Training_Data bit of the GitHub repository to create your own. For oxides that were not analyzed or not detected, enter 0 into the cell or alternatively ``mineralML`` will fill in these empty cells with not a number (nan) values.
+For example, here an example containing the mineral composition data in the desired input format. You can use the ChemistryTemplate.csv from the Training_Data bit of the GitHub repository to create your own. For oxides that were not analyzed or not detected, enter 0 into the cell or alternatively ``mineralML`` will fill in these empty cells with 0 values when you use the function ``mm.prep_df``.
 
 +--------+----------------------+---------+----------+-----------+----------+------------+----------+-----------+-----------+------------+------------+-----------+-------------------+
 |        | Sample Name          |    SiO2 |     TiO2 |     Al2O3 |     FeOt |        MnO |      MgO |       CaO |      Na2O |        K2O |       P2O5 |     Cr2O3 | Mineral           |
@@ -104,10 +104,11 @@ We use the os package in Python to facilitate navigation to various files. To lo
     df_load = mm.load_df(path)
     df, _ = mm.prep_df(df_load)
 
-`mm.load_df` returns df_load, an initial dataframe of all of all samples and their chemistry. `mm.prep_df` then prepares the loaded dataframe, filling in any nan values and ensuring that all required oxide columns are present. 
+``mm.load_df`` returns `df_load`, an initial dataframe of all of all samples and their chemistry. ``mm.prep_df`` then prepares the loaded dataframe by filling in any nan values, ensuring all required oxide columns are present, optionally converting all Fe to FeO\ :sub:`t` and dropping rows with fewer than n oxides. 
+
 
 ====================
 Data Import Complete 
 ====================
 
-That is all for loading your mineral chemical compositions! You are ready to get rolling with ``mineralML``. See the example notebook BNN_Colab.ipynb, under the big examples heading, to see how to run ``mineralML`` and export files. 
+That is all for loading your mineral chemical compositions! You are ready to get rolling with ``mineralML``. See the example in ML Predictions for Tabular Data (mineralML_neuralnetwork.ipynb), under the big examples heading, to see how to run ``mineralML`` and export files. 

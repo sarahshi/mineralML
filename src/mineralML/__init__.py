@@ -13,6 +13,7 @@ from matplotlib import pyplot as plt
 from mineralML.core import *
 from mineralML.hybrid import *
 from mineralML.mapping import *
+from mineralML.microanalysis import *
 from mineralML.stoichiometry import *
 from mineralML.synthetic_minerals import *
 from mineralML.confusion_matrix import *
