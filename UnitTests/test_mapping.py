@@ -1,4 +1,5 @@
 import unittest
+import warnings
 from tempfile import TemporaryDirectory
 import os
 import numpy as np
@@ -10,6 +11,15 @@ import matplotlib.pyplot as plt
 
 import mineralML as mm
 from mineralML.constants import OXIDES
+from mineralML.mapping import (
+    _ensure_columns,
+    _clean_labels_1d,
+    _make_palette,
+    _auto_bar_width,
+    _auto_limits,
+    _auto_figsize_from_array,
+    _add_scalebar,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +96,7 @@ class TestEnsureColumns(unittest.TestCase):
 
     def test_reindex_to_oxides(self):
         df = pd.DataFrame({"SiO2": [50], "MgO": [8], "Extra": [99]})
-        out = mm._ensure_columns(df)
+        out = _ensure_columns(df)
         self.assertEqual(list(out.columns), OXIDES)
         self.assertNotIn("Extra", out.columns)
         self.assertEqual(out["SiO2"].iloc[0], 50)
@@ -94,14 +104,14 @@ class TestEnsureColumns(unittest.TestCase):
 
     def test_feo_renamed_to_feot(self):
         df = pd.DataFrame({"SiO2": [50], "FeO": [10]})
-        out = mm._ensure_columns(df)
+        out = _ensure_columns(df)
         self.assertIn("FeOt", out.columns)
         self.assertEqual(out["FeOt"].iloc[0], 10)
 
     def test_does_not_mutate_input(self):
         df = pd.DataFrame({"SiO2": [50], "FeO": [10]})
         original_cols = list(df.columns)
-        mm._ensure_columns(df)
+        _ensure_columns(df)
         self.assertEqual(list(df.columns), original_cols)
 
 
@@ -113,17 +123,17 @@ class TestCleanLabels1D(unittest.TestCase):
 
     def test_basic_cleaning(self):
         arr = np.array(["Olivine", "  Garnet  ", "Olivine", "nan", None, "", "None"])
-        out = mm._clean_labels_1d(arr)
+        out = _clean_labels_1d(arr)
         self.assertEqual(list(out), ["Olivine", "Garnet", "Olivine"])
 
     def test_2d_input_flattened(self):
         arr = np.array([["Olivine", "Garnet"], ["nan", "Olivine"]])
-        out = mm._clean_labels_1d(arr)
+        out = _clean_labels_1d(arr)
         self.assertEqual(len(out), 2)
 
     def test_all_invalid_returns_empty(self):
         arr = np.array(["nan", "None", "", "null"])
-        out = mm._clean_labels_1d(arr)
+        out = _clean_labels_1d(arr)
         self.assertTrue(out.empty)
 
 
@@ -159,7 +169,7 @@ class TestMakePalette(unittest.TestCase):
 
     def test_returns_dict_with_rgb_tuples(self):
         labels = ["Olivine", "Garnet", "Glass"]
-        palette = mm._make_palette(labels)
+        palette = _make_palette(labels)
         self.assertEqual(set(palette.keys()), set(labels))
         for rgb in palette.values():
             self.assertEqual(len(rgb), 3)
@@ -168,7 +178,7 @@ class TestMakePalette(unittest.TestCase):
     def test_channel_capped_below_one(self):
         # Each channel is capped at 0.95 to avoid pure white
         labels = ["A"]
-        palette = mm._make_palette(labels)
+        palette = _make_palette(labels)
         for c in palette["A"]:
             self.assertLessEqual(c, 0.95)
 
@@ -180,31 +190,31 @@ class TestMakePalette(unittest.TestCase):
 class TestAutoHelpers(unittest.TestCase):
 
     def test_auto_bar_width_bounds(self):
-        self.assertGreaterEqual(mm._auto_bar_width(1), 6.0)
-        self.assertLessEqual(mm._auto_bar_width(100), 22.0)
+        self.assertGreaterEqual(_auto_bar_width(1), 6.0)
+        self.assertLessEqual(_auto_bar_width(100), 22.0)
 
     def test_auto_limits_std_mode(self):
         data = np.array([[10.0, 20.0], [30.0, 40.0]])
-        vmin, vmax = mm._auto_limits(data, mode="std")
+        vmin, vmax = _auto_limits(data, mode="std")
         self.assertLess(vmin, vmax)
         self.assertAlmostEqual((vmin + vmax) / 2, np.mean(data), places=4)
 
     def test_auto_limits_percentile_mode(self):
         data = np.random.normal(50, 5, size=(100, 100))
-        vmin, vmax = mm._auto_limits(data, mode="percentile", percentile=(5, 95))
+        vmin, vmax = _auto_limits(data, mode="percentile", percentile=(5, 95))
         self.assertLess(vmin, vmax)
         self.assertGreater(vmin, data.min())
         self.assertLess(vmax, data.max())
 
     def test_auto_limits_all_nan(self):
         data = np.full((3, 3), np.nan)
-        vmin, vmax = mm._auto_limits(data)
+        vmin, vmax = _auto_limits(data)
         self.assertEqual(vmin, 0.0)
         self.assertEqual(vmax, 1.0)
 
     def test_auto_figsize_returns_positive(self):
         for side in ("right", "left", "top", "bottom", "other"):
-            w, h = mm._auto_figsize_from_array((100, 200), n_legend=5, legend_side=side)
+            w, h = _auto_figsize_from_array((100, 200), n_legend=5, legend_side=side)
             self.assertGreater(w, 0)
             self.assertGreater(h, 0)
 
@@ -217,21 +227,21 @@ class TestAddScalebar(unittest.TestCase):
 
     def test_returns_none_when_no_scalebar_um(self):
         fig, ax = plt.subplots()
-        result = mm._add_scalebar(ax, scalebar_um=None, pixel_size_um=1.0)
+        result = _add_scalebar(ax, scalebar_um=None, pixel_size_um=1.0)
         self.assertIsNone(result)
         plt.close(fig)
 
     def test_warns_when_no_pixel_size(self):
         fig, ax = plt.subplots()
         with self.assertWarns(UserWarning):
-            result = mm._add_scalebar(ax, scalebar_um=100, pixel_size_um=None, warn=True)
+            result = _add_scalebar(ax, scalebar_um=100, pixel_size_um=None, warn=True)
         self.assertIsNone(result)
         plt.close(fig)
 
     def test_adds_artist_when_both_provided(self):
         fig, ax = plt.subplots()
         ax.imshow(np.zeros((10, 10)))
-        bar = mm._add_scalebar(ax, scalebar_um=50, pixel_size_um=5.0)
+        bar = _add_scalebar(ax, scalebar_um=50, pixel_size_um=5.0)
         self.assertIsNotNone(bar)
         plt.close(fig)
 
@@ -264,16 +274,18 @@ class TestRemoveIslands(unittest.TestCase):
         self.assertEqual(cleaned[0, 0], "nan")
 
     def test_grouped_phases(self):
-        # Two adjacent pyroxenes treated as one group
+        # Three adjacent pyroxenes treated as one group
         m = np.full((5, 5), "Olivine", dtype=object)
         m[0, 0] = "Clinopyroxene"
         m[0, 1] = "Orthopyroxene"
-        # Individually each is 1 pixel (< min_size=2), but grouped they are 2
+        m[0, 2] = "Clinopyroxene"
+        # Individually each type is 1-2 pixels, but grouped they are 3 (> min_size=2)
         cleaned = mm.remove_islands(
             m, min_size=2, grouped_phases=[("Clinopyroxene", "Orthopyroxene")], fill_val="nan"
         )
         self.assertEqual(cleaned[0, 0], "Clinopyroxene")
         self.assertEqual(cleaned[0, 1], "Orthopyroxene")
+        self.assertEqual(cleaned[0, 2], "Clinopyroxene")
 
     def test_integer_map(self):
         m = np.ones((5, 5), dtype=int)
