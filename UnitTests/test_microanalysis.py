@@ -268,20 +268,20 @@ class TestExtractAZtec(unittest.TestCase):
         out = self._extract()
         self.assertIn("FeOt", out.columns)
         self.assertNotIn("FeO", out.columns)
-        self.assertAlmostEqual(out.iloc[0]["FeOt"], 10.0, places=4)
+        self.assertAlmostEqual(float(out.iloc[0]["FeOt"]), 10.0, places=4)
 
     def test_sigma_columns_created(self):
         out = self._extract()
         self.assertIn("SiO2_1sigma", out.columns)
         self.assertIn("FeOt_1sigma", out.columns)
-        self.assertAlmostEqual(out.iloc[0]["SiO2_1sigma"], 0.5, places=4)
-        self.assertAlmostEqual(out.iloc[0]["FeOt_1sigma"], 0.3, places=4)
+        self.assertAlmostEqual(float(out.iloc[0]["SiO2_1sigma"]), 0.5, places=4)
+        self.assertAlmostEqual(float(out.iloc[0]["FeOt_1sigma"]), 0.3, places=4)
 
     def test_total_captured(self):
         out = self._extract()
         self.assertIn("Total", out.columns)
-        self.assertAlmostEqual(out.iloc[0]["Total"], 68.0, places=4)
-        self.assertAlmostEqual(out.iloc[1]["Total"], 60.0, places=4)
+        self.assertAlmostEqual(float(out.iloc[0]["Total"]), 68.0, places=4)
+        self.assertAlmostEqual(float(out.iloc[1]["Total"]), 60.0, places=4)
 
     def test_column_order(self):
         out = self._extract()
@@ -301,8 +301,8 @@ class TestExtractAZtec(unittest.TestCase):
         ]
         out = self._extract(pd.DataFrame(rows))
         self.assertEqual(len(out), 1)
-        self.assertAlmostEqual(out.iloc[0]["SiO2"], 50.0, places=4)
-        self.assertAlmostEqual(out.iloc[0]["SiO2_1sigma"], 0.5, places=4)
+        self.assertAlmostEqual(float(out.iloc[0]["SiO2"]), 50.0, places=4)
+        self.assertAlmostEqual(float(out.iloc[0]["SiO2_1sigma"]), 0.5, places=4)
 
     def test_no_blocks_returns_empty(self):
         out = self._extract(pd.DataFrame({"col1": ["val1"], "col2": ["val2"]}))

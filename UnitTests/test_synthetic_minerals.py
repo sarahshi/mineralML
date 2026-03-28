@@ -378,7 +378,7 @@ class TestSolidSolutionGenerator(unittest.TestCase):
             f"Si{suffix}": np.random.normal(loc=1.0, scale=0.1, size=20),
         })
         with TemporaryDirectory() as tmp_dir:
-            save_path = os.path.join(tmp_dir, "test_fig")
+            save_path = os.path.join(tmp_dir, "test_fig.png")
             fig, stats = ssg.compare_distributions(
                 base_df=base, synth_df=synth, suptitle="Test Title", savefig_path=save_path,
             )
