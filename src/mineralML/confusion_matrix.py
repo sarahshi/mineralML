@@ -16,28 +16,32 @@ from matplotlib import pyplot as plt
 
 def confusion_matrix_df(given_min, pred_min):
     """
-
+ 
     Constructs a confusion matrix as a pandas DataFrame for easy visualization and
     analysis. The function first finds the unique classes and maps them to their
     corresponding mineral names. Then, it uses these mappings to construct the
     confusion matrix, which compares the given and predicted classes.
-
+ 
     When parent labels such as "Feldspar" or "Pyroxene" are present in either
     the given or predicted arrays, child labels (e.g., "Alkali_Feldspar",
     "Plagioclase") are automatically merged into the parent label so the
     confusion matrix dimensions remain consistent.
-
+ 
+    Labels that do not match any entry in the canonical mineral list after
+    all merges are applied will trigger a UserWarning and the corresponding
+    rows will be excluded from the confusion matrix.
+ 
     Parameters:
-        given_class (array-like): The true class labels.
-        pred_class (array-like): The predicted class labels.
-
+        given_min (array-like): The true class labels.
+        pred_min (array-like): The predicted class labels.
+ 
     Returns:
         cm_df (DataFrame): A DataFrame representing the confusion matrix, with rows
                            and columns labeled by the unique mineral names found in
                            the given and predicted class arrays.
-
+ 
     """
-
+ 
     minerals = [
         "Alkali_Feldspar",
         "Amphibole",
@@ -65,16 +69,16 @@ def confusion_matrix_df(given_min, pred_min):
         "Tourmaline",
         "Zircon",
     ]
-
+ 
     # Parent-group mapping: parent label -> set of child labels
     parent_map = {
         "Feldspar": {"Alkali_Feldspar", "Plagioclase"},
         "Pyroxene": {"Clinopyroxene", "Orthopyroxene"},
     }
-
+ 
     given = pd.Series(given_min)
     pred = pd.Series(pred_min)
-
+ 
     given_nans = given.isna().sum()
     pred_nans = pred.isna().sum()
     if given_nans > 0 or pred_nans > 0:
@@ -88,7 +92,7 @@ def confusion_matrix_df(given_min, pred_min):
         mask = given.notna() & pred.notna()
         given = given[mask]
         pred = pred[mask]
-
+ 
     # --- Case-insensitive group merges ---
     def _merge_to_spinel_group(x):
         if pd.isna(x):
@@ -97,7 +101,7 @@ def confusion_matrix_df(given_min, pred_min):
         if "spinel" in s or s in {"magnetite", "chromite", "hercynite", "ulvospinel"}:
             return "Spinel_Group"
         return x
-
+ 
     def _merge_to_rhomb_oxide(x):
         if pd.isna(x):
             return x
@@ -105,14 +109,14 @@ def confusion_matrix_df(given_min, pred_min):
         if s in {"hematite", "ilmenite"}:
             return "Rhombohedral_Oxides"
         return x
-
+ 
     def _merge_to_oxide(x):
         if pd.isna(x):
             return x
         if x in {"Rhombohedral_Oxides", "Spinel_Group"}:
             return "Oxide"
         return x
-
+ 
     def _merge_to_clinopyroxene(x):
         if pd.isna(x):
             return x
@@ -120,7 +124,7 @@ def confusion_matrix_df(given_min, pred_min):
         if s in {"na-pyroxene"}:
             return "Clinopyroxene"
         return x
-
+ 
     given = given.map(_merge_to_spinel_group)
     given = given.map(_merge_to_rhomb_oxide)
     given = given.map(_merge_to_oxide)
@@ -129,10 +133,10 @@ def confusion_matrix_df(given_min, pred_min):
     pred = pred.map(_merge_to_rhomb_oxide)
     pred = pred.map(_merge_to_oxide)
     pred = pred.map(_merge_to_clinopyroxene)
-
+ 
     # --- Dynamic parent-group merges ---
     all_labels = set(given) | set(pred)
-
+ 
     for parent, children in parent_map.items():
         if parent in all_labels:
             def _merge_parent(x, _p=parent, _c=children):
@@ -141,7 +145,7 @@ def confusion_matrix_df(given_min, pred_min):
                 return _p if x in _c else x
             given = given.map(_merge_parent)
             pred = pred.map(_merge_parent)
-
+ 
     # Build label list, swapping children for parent where needed
     active_minerals = []
     for m in minerals:
@@ -153,7 +157,7 @@ def confusion_matrix_df(given_min, pred_min):
                 break
         if not skip:
             active_minerals.append(m)
-
+ 
     # Insert parent labels at the position of their first child
     for parent, children in parent_map.items():
         if parent in all_labels and parent not in active_minerals:
@@ -169,11 +173,28 @@ def confusion_matrix_df(given_min, pred_min):
                     insert_pos = i
                     break
             active_minerals.insert(insert_pos, parent)
-
+ 
+    # --- Warn and drop labels not in active_minerals ---
+    active_set = set(active_minerals)
+    post_merge_labels = set(given) | set(pred)
+    unrecognized = sorted(post_merge_labels - active_set)
+ 
+    if unrecognized:
+        warnings.warn(
+            f"Unrecognized label(s) not in the canonical mineral list: "
+            f"{unrecognized}. These rows will be excluded from the "
+            f"confusion matrix.",
+            UserWarning,
+            stacklevel=2,
+        )
+        mask = given.isin(active_set) & pred.isin(active_set)
+        given = given[mask]
+        pred = pred[mask]
+ 
     # Build the confusion matrix
     cm_matrix = confusion_matrix(given, pred, labels=active_minerals)
     cm_df = pd.DataFrame(cm_matrix, index=active_minerals, columns=active_minerals)
-
+ 
     return cm_df
 
 
