@@ -52,6 +52,13 @@ Welcome to mineralML's documentation!
 
 .. toctree::
    :maxdepth: 2
+   :caption: Mapped EBSD Data
+
+   examples/mineralML_mapping_ebsd
+
+
+.. toctree::
+   :maxdepth: 2
    :caption: Stoichiometry Calculators
 
    examples/mineralML_stoichiometry
