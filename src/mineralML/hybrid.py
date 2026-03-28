@@ -21,10 +21,8 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn.functional as F
 
 from .core import *
-from .core import same_seeds
 from .stoichiometry import *
 from .constants import OXIDES
-from .supervised import *
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
