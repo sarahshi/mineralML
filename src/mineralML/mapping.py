@@ -1034,7 +1034,7 @@ def plot_pred_score_histograms(
     bins=50,
     min_frac=0.0001,
     share_y=True,
-    title="Prediction Probabilities",
+    title="Prediction Scores",
     empirical_phases=("Zircon", "SiO2_Polymorph", "Carbonate"),
 ):
     """
@@ -1050,7 +1050,7 @@ def plot_pred_score_histograms(
         share_y (bool): Share prediction score axis across panels.
         title (str): Figure suptitle text.
         empirical_phases (iterable[str]): Phases assigned empirically and therefore
-            lacking prediction probabilities.
+            lacking prediction scores.
 
     Returns:
         tuple: (fig, axes)
@@ -1123,7 +1123,7 @@ def plot_pred_score_histograms(
             ax.set_title(f"{phase}\n{phase_pct:.2f} %", fontsize=12)
             ax.set_xlabel("Pixels", fontsize=12)
             ax.set_xticks([])
-            ax.set_yticks([])
+            ax.tick_params(axis="y", labelleft=False, length=0)
             for spine in ax.spines.values():
                 spine.set_visible(True)
         else:
@@ -1134,7 +1134,7 @@ def plot_pred_score_histograms(
             ax.set_xlabel("Pixels", fontsize=12)
 
             if i % per_row == 0:
-                ax.set_ylabel("Prediction Probability", fontsize=12)
+                ax.set_ylabel("Prediction Score", fontsize=12)
 
             ax.tick_params(axis="both", labelsize=12)
 
@@ -1313,7 +1313,7 @@ def run_map(
         phases=kept,
         pred_score_threshold=pred_score_threshold,
         min_frac=min_frac,
-        title=f"Prediction Probabilities: {title_suffix}",
+        title=f"Prediction Scores: {title_suffix}",
     )
 
     default_spec = {
@@ -2114,8 +2114,9 @@ def plot_ctf_phases(
         scalebar_loc (str): Location of the scale bar (e.g., 'lower left').
         scalebar_col (str): Color of the scale bar text/line.
         legend_on (bool): If True, displays the legend. Defaults to True.
- 
+
     Returns:
+        fig (matplotlib.figure.Figure): The figure object.
         phase_map (ndarray): A 2D array of the mapped phase names as strings.
         raw_ids (ndarray): A 2D array of the raw numeric phase IDs from the file.
         phase_mapping (dict): A dictionary mapping raw IDs to phase names.
@@ -2247,11 +2248,14 @@ def plot_ctf_phases(
             frameon=False,
         )
 
-    if show_plot:
-        plt.tight_layout()
-        plt.show()
+    show_plot = False
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        show_plot = True
+    else:
+        fig = ax.get_figure()
 
-    return phase_map, raw_ids.reshape((y_cells, x_cells)), phase_mapping, unique_names
+    return fig, phase_map, raw_ids.reshape((y_cells, x_cells)), phase_mapping, unique_names
 
 
 # %%
