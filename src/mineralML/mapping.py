@@ -2145,7 +2145,9 @@ def plot_ctf_phases(
 
     # Read only the Phase column to save memory
     df = pd.read_csv(filepath, sep="\t", skiprows=data_start, usecols=["Phase"])
-    raw_ids = df["Phase"].values
+    # raw_ids = df["Phase"].values
+    raw_ids = df["Phase"].to_numpy()
+
 
     if len(raw_ids) != (x_cells * y_cells):
         raise ValueError("Mismatch between header grid size and data points.")
@@ -2167,7 +2169,9 @@ def plot_ctf_phases(
     counts = counts[order]
 
     # Create the 2D string-based map to return
-    phase_map = phase_names.reshape((y_cells, x_cells))
+    # phase_map = phase_names.reshape((y_cells, x_cells))
+    phase_map = np.asarray(phase_names, dtype=object).reshape((y_cells, x_cells))
+
 
     # --- Handle Axes ---
     show_plot = False
