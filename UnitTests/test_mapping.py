@@ -385,8 +385,8 @@ class TestParseCTFHeader(unittest.TestCase):
             "XCells\t100\n"
             "YCells\t50\n"
             "Phases\t2\n"
-            "3.24\t5.41\t7.50\t90\t90\t90\tAnorthite\tSodic plagioclase\t12345\n"
-            "5.43\t5.43\t5.43\t90\t90\t90\tForsterite\tOlivine\t67890\n"
+            "3.24\t5.41\tAnorthite\t7.50\t90\t90\t90\n"
+            "5.43\t5.43\tForsterite\t5.43\t90\t90\t90\n"
             "Phase\tX\tY\tBands\tError\n"
         )
         with TemporaryDirectory() as tmp:
@@ -724,8 +724,8 @@ class TestPlotCTFPhases(unittest.TestCase):
             f.write("YCells\t2\n")
             f.write("XStep\t1.0\n")
             f.write("Phases\t2\n")
-            f.write("3.24\t5.41\t7.50\t90\t90\t90\tAnorthite\tSodic plagioclase\t12345\n")
-            f.write("5.43\t5.43\t5.43\t90\t90\t90\tForsterite\tOlivine\t67890\n")
+            f.write("3.24\t5.41\tAnorthite\t7.50\t90\t90\t90\n")
+            f.write("5.43\t5.43\tForsterite\t5.43\t90\t90\t90\n")
             f.write("Phase\tX\tY\tBands\tError\n")
             f.write("1\t0\t0\t5\t0\n")
             f.write("2\t1\t0\t5\t0\n")
@@ -752,7 +752,7 @@ class TestPlotCTFPhases(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             path = self._write_ctf(tmp)
             fig, phase_map, _, mapping, _ = mm.plot_ctf_phases(
-                path, rename_dict={"Sodic plagioclase": "Plagioclase"}
+                path, rename_dict={"Anorthite": "Plagioclase"}
             )
             self.assertIn("Plagioclase", mapping.values())
             plt.close(fig)
