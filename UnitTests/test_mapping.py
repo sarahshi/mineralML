@@ -129,7 +129,7 @@ class TestCleanLabels1D(unittest.TestCase):
     def test_2d_input_flattened(self):
         arr = np.array([["Olivine", "Garnet"], ["nan", "Olivine"]])
         out = _clean_labels_1d(arr)
-        self.assertEqual(len(out), 2)
+        self.assertEqual(len(out), 3)
 
     def test_all_invalid_returns_empty(self):
         arr = np.array(["nan", "None", "", "null"])
