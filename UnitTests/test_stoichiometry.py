@@ -10,6 +10,11 @@ import mineralML as mm
 
 
 R = {
+    "Alkali_Feldspar": {
+        "Sample Name": "DG-44",
+        "SiO2": 65.0797, "TiO2": np.nan, "Al2O3": 18.8768, "FeOt": 0.0, "MnO": np.nan,
+        "MgO": np.nan, "CaO": 0.0664, "Na2O": 2.4138, "K2O": 13.194, "P2O5": np.nan, "Cr2O3": np.nan
+    },
     "Amphibole": {
         "Sample Name": "Z2099",
         "SiO2": 42.96, "TiO2": 1.8, "Al2O3": 14.33, "FeOt": 4.07, "MnO": 0.07,
@@ -50,6 +55,11 @@ R = {
         "SiO2": 38.52, "TiO2": 0.04, "Al2O3": 21.84, "FeOt": 27.07, "MnO": 1.49,
         "MgO": 5.58, "CaO": 5.82, "Na2O": 0.03, "K2O": 0.0, "P2O5": np.nan, "Cr2O3": 0.0
     },
+    "Glass": {
+        "Sample Name": "20B-04",
+        "SiO2": 49.96, "TiO2": 1.59, "Al2O3": 13.73, "FeOt": 11.8, "MnO": 0.21,
+        "MgO": 7.27, "CaO": 11.88, "Na2O": 2.27, "K2O": 0.25, "P2O5": 0.18, "Cr2O3": np.nan
+    },
     "Hematite": {
         "Sample Name": "LS-13_C1_Hem-1-1",
         "SiO2": 0.396, "TiO2": 0.026, "Al2O3": 0.218, "FeOt": 86.9907, "MnO": np.nan,
@@ -64,11 +74,6 @@ R = {
         "Sample Name": "REG-18_kalsilite-1",
         "SiO2": 37.02, "TiO2": 0.0, "Al2O3": 31.43, "FeOt": 0.35, "MnO": 0.0,
         "MgO": 0.0, "CaO": 0.0, "Na2O": 0.04, "K2O": 29.61, "P2O5": np.nan, "Cr2O3": 0.0069
-    },
-    "Alkali_Feldspar": {
-        "Sample Name": "DG-44",
-        "SiO2": 65.0797, "TiO2": np.nan, "Al2O3": 18.8768, "FeOt": 0.0, "MnO": np.nan,
-        "MgO": np.nan, "CaO": 0.0664, "Na2O": 2.4138, "K2O": 13.194, "P2O5": np.nan, "Cr2O3": np.nan
     },
     "Leucite": {
         "Sample Name": "VS219_129 / 1 . Leu",
@@ -89,6 +94,11 @@ R = {
         "Sample Name": "WS5_37",
         "SiO2": 44.8, "TiO2": 0.24, "Al2O3": 35.12, "FeOt": 0.269, "MnO": 0.04,
         "MgO": 3.22, "CaO": 0.16, "Na2O": 0.15, "K2O": 10.57, "P2O5": np.nan, "Cr2O3": 0.0
+    },
+    "Na-Pyroxene": {
+        "Sample Name": "samp. B 61",
+        "SiO2": 53.76, "TiO2": 0.78, "Al2O3": 1.44, "FeOt": 26.68, "MnO": 0.26,
+        "MgO": 1.27, "CaO": 2.27, "Na2O": 11.93, "K2O": 0.0, "P2O5": 0.0, "Cr2O3": 0.0
     },
     "Nepheline": {
         "Sample Name": "10_N_1",
@@ -217,6 +227,56 @@ class TestOxideElementConversions(unittest.TestCase):
         diff = (df[common].fillna(0) - ox[common].fillna(0)).abs().to_numpy()
         self.assertLess(np.nanmax(diff), 1e-6)
 
+    def test_element_to_oxide_identity(self):
+        # Build a small DataFrame with element-labeled columns
+        df_el = pd.DataFrame({
+            "Si": [25.0, 30.0],
+            "Fe": [5.0, 8.0],
+            "Mg": [3.0, 4.0],
+            "Ca": [7.0, 6.0],
+        })
+
+        ox, factors = mm.element_to_oxide_identity(df_el)
+
+        # Values should pass through unchanged (factor = 1)
+        np.testing.assert_array_almost_equal(ox["SiO2"].values, df_el["Si"].values)
+        np.testing.assert_array_almost_equal(ox["FeOt"].values, df_el["Fe"].values)
+        np.testing.assert_array_almost_equal(ox["MgO"].values, df_el["Mg"].values)
+        np.testing.assert_array_almost_equal(ox["CaO"].values, df_el["Ca"].values)
+
+        # All conversion factors should be exactly 1
+        for f in factors.values:
+            self.assertEqual(f, 1)
+
+        # Element columns should not appear in output
+        for el in ["Si", "Fe", "Mg", "Ca"]:
+            self.assertNotIn(el, ox.columns)
+
+    def test_element_to_oxide_identity_missing_elements(self):
+        # Elements not in the lookup should be silently skipped
+        df_el = pd.DataFrame({
+            "Si": [25.0],
+            "Xx": [99.0],  # unknown element
+        })
+
+        ox, factors = mm.element_to_oxide_identity(df_el)
+
+        self.assertIn("SiO2", ox.columns)
+        self.assertNotIn("Xx", ox.columns)
+        self.assertEqual(len(factors), 1)
+
+    def test_element_to_oxide_identity_vs_converted(self):
+        # Identity should differ from stoichiometric conversion
+        df_el = pd.DataFrame({"Si": [25.0], "Mg": [3.0]})
+
+        ox_identity, _ = mm.element_to_oxide_identity(df_el)
+        ox_converted, _ = mm.element_to_oxide(df_el)
+
+        # Stoichiometric conversion scales up by oxide_mass/element_mass,
+        # so converted values must be larger than identity values
+        self.assertGreater(ox_converted["SiO2"].iloc[0], ox_identity["SiO2"].iloc[0])
+        self.assertGreater(ox_converted["MgO"].iloc[0], ox_identity["MgO"].iloc[0])
+
 
 # Specific calculators (real data)
 
@@ -301,6 +361,58 @@ class TestGarnet(unittest.TestCase):
         self.assertTrue(0.0 <= float(droop["XMg"].iloc[0]) <= 1.0)
 
 
+class TestGlassCalculator(unittest.TestCase):
+ 
+    def setUp(self):
+        self.df = _df("Glass")
+ 
+    def test_calculate_components_has_mgno(self):
+        res = mm.GlassCalculator(self.df).calculate_components()
+        _assert_cols(self, res, ["MgNo"])
+ 
+    def test_mgno_range(self):
+        res = mm.GlassCalculator(self.df).calculate_components()
+        mgno = float(res["MgNo"].iloc[0])
+        self.assertTrue(0.0 <= mgno <= 1.0)
+ 
+    def test_mgno_value(self):
+        # MgNo = MgO_mols / (MgO_mols + FeOt_mols)
+        res = mm.GlassCalculator(self.df).calculate_components()
+        mgo_mols = self.df["MgO"].iloc[0] / 40.3044
+        feot_mols = self.df["FeOt"].iloc[0] / 71.844
+        expected_mgno = mgo_mols / (mgo_mols + feot_mols)
+        self.assertAlmostEqual(float(res["MgNo"].iloc[0]), expected_mgno, places=4)
+ 
+    def test_moles_columns_present(self):
+        res = mm.GlassCalculator(self.df).calculate_components()
+        self.assertIn("MgO_mols", res.columns)
+        self.assertIn("FeOt_mols", res.columns)
+        self.assertIn("SiO2_mols", res.columns)
+ 
+    def test_preserves_original_compositions(self):
+        res = mm.GlassCalculator(self.df).calculate_components()
+        self.assertAlmostEqual(float(res["SiO2"].iloc[0]), 50.5, places=4)
+        self.assertAlmostEqual(float(res["MgO"].iloc[0]), 7.0, places=4)
+ 
+    def test_zero_mg_and_fe_gives_zero_mgno(self):
+        df_zero = pd.DataFrame([{
+            "SiO2": 75.0, "TiO2": 0.0, "Al2O3": 13.0, "FeOt": 0.0, "MnO": 0.0,
+            "MgO": 0.0, "CaO": 1.0, "Na2O": 4.0, "K2O": 5.0, "P2O5": 0.0, "Cr2O3": 0.0
+        }])
+        res = mm.GlassCalculator(df_zero).calculate_components()
+        self.assertEqual(float(res["MgNo"].iloc[0]), 0.0)
+ 
+    def test_multiple_rows(self):
+        df = pd.DataFrame([
+            {"SiO2": 50.0, "MgO": 7.0, "FeOt": 10.0, "CaO": 11.0, "Al2O3": 15.0},
+            {"SiO2": 72.0, "MgO": 0.5, "FeOt": 2.0, "CaO": 1.0, "Al2O3": 14.0},
+        ])
+        res = mm.GlassCalculator(df).calculate_components()
+        self.assertEqual(len(res), 2)
+        # Basaltic glass should have higher MgNo than rhyolitic
+        self.assertGreater(float(res["MgNo"].iloc[0]), float(res["MgNo"].iloc[1]))
+
+
 class TestKalsilite(unittest.TestCase):
     def test_kalsilite(self):
         res = mm.KalsiliteCalculator(_df("Kalsilite")).calculate_components()
@@ -311,6 +423,13 @@ class TestLeucite(unittest.TestCase):
     def test_leucite(self):
         res = mm.LeuciteCalculator(_df("Leucite")).calculate_components()
         _assert_cols(self, res, ["Channel_site","T_site"])
+
+
+class TestMelilite(unittest.TestCase):
+    def test_melilite(self):
+        res = mm.MeliliteCalculator(_df("Melilite")).calculate_components()
+        _assert_cols(self, res, ["A_site","B_site","T_site"])
+        self.assertTrue(_finite_nonneg(res[["A_site","B_site","T_site"]].iloc[0]))
 
 
 class TestMuscovite(unittest.TestCase):
@@ -351,6 +470,14 @@ class TestSerpentine(unittest.TestCase):
         res = mm.SerpentineCalculator(_df("Serpentine")).calculate_components()
         _assert_cols(self, res, ["M_site","T_site","XMg","XFe"])
         self.assertTrue(0.0 <= float(res["XMg"].iloc[0]) <= 1.0)
+
+
+class TestNaPx(unittest.TestCase):
+    def test_napx_en_fs_wo(self):
+        res = mm.SodicPyroxeneCalculator(_df("Na-Pyroxene")).calculate_components()
+        _assert_cols(self, res, ["En", "Fs", "Wo"])
+        s = float((res["En"] + res["Fs"] + res["Wo"]).iloc[0])
+        self.assertTrue(0.99 <= s <= 1.01)
 
 
 class TestSpinel(unittest.TestCase):
@@ -429,6 +556,64 @@ class TestOxideClassifier(unittest.TestCase):
 
         s = trip.loc[mask].sum(axis=1).to_numpy()
         self.assertTrue(np.all((0.99 <= s) & (s <= 1.01)))
+
+
+try:
+    from pyrolite.util.classification import TAS
+    _has_pyrolite = True
+except ImportError:
+    _has_pyrolite = False
+ 
+@unittest.skipUnless(_has_pyrolite, "pyrolite not installed")
+class TestGlassClassifier(unittest.TestCase):
+ 
+    def setUp(self):
+        self.df = _df("Glass")
+ 
+    def test_subclass_false_assigns_glass(self):
+        res = mm.GlassClassifier(self.df).calculate_components(subclass=False)
+        _assert_cols(self, res, ["Mineral", "MgNo"])
+        self.assertEqual(res["Mineral"].iloc[0], "Glass")
+        self.assertNotIn("TAS", res.columns)
+ 
+    def test_subclass_true_adds_tas(self):
+        res = mm.GlassClassifier(self.df).calculate_components(subclass=True)
+        _assert_cols(self, res, ["Mineral", "MgNo", "TAS"])
+        self.assertIsInstance(res["TAS"].iloc[0], str)
+        self.assertNotEqual(res["TAS"].iloc[0], "")
+ 
+    def test_tas_basalt_classification(self):
+        # A basaltic glass (~50 wt% SiO2, ~3 wt% total alkalis) should not be "Unclassified"
+        basalt = pd.DataFrame([{
+            "SiO2": 50.0, "TiO2": 1.5, "Al2O3": 15.0, "FeOt": 10.0,
+            "MgO": 7.0, "CaO": 11.0, "Na2O": 2.5, "K2O": 0.5,
+        }])
+        res = mm.GlassClassifier(basalt).calculate_components(subclass=True)
+        self.assertNotEqual(res["TAS"].iloc[0], "Unclassified")
+ 
+    def test_plot_returns_figure(self):
+        clf = mm.GlassClassifier(self.df)
+        df_class = clf.calculate_components(subclass=True)
+        fig, ax = clf.plot(df_class=df_class)
+        self.assertIsInstance(fig, plt.Figure)
+        self.assertEqual(ax.get_xlabel(), "SiO$_2$ (wt%)")
+        self.assertEqual(ax.get_ylabel(), "Na$_2$O + K$_2$O (wt%)")
+        plt.close(fig)
+ 
+    def test_plot_no_subclass(self):
+        clf = mm.GlassClassifier(self.df)
+        fig, ax = clf.plot(subclass=False)
+        self.assertIsInstance(fig, plt.Figure)
+        self.assertTrue(len(ax.collections) > 0)
+        plt.close(fig)
+ 
+    def test_plot_existing_axes(self):
+        clf = mm.GlassClassifier(self.df)
+        fig_in, ax_in = plt.subplots()
+        fig_out, ax_out = clf.plot(ax=ax_in)
+        self.assertIs(fig_out, fig_in)
+        self.assertIs(ax_out, ax_in)
+        plt.close(fig_in)
 
 
 # Test plotting 
