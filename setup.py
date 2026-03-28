@@ -35,7 +35,8 @@ setup(
             'scikit-learn',
             'torch',
             'python-ternary',
-            'scikit-image'
+            'scikit-image',
+            'openpyxl',
             ],
 
     classifiers=[
