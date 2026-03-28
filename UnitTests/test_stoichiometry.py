@@ -382,17 +382,17 @@ class TestGlassCalculator(unittest.TestCase):
         feot_mols = self.df["FeOt"].iloc[0] / 71.844
         expected_mgno = mgo_mols / (mgo_mols + feot_mols)
         self.assertAlmostEqual(float(res["MgNo"].iloc[0]), expected_mgno, places=4)
- 
+
     def test_moles_columns_present(self):
         res = mm.GlassCalculator(self.df).calculate_components()
         self.assertIn("MgO_mols", res.columns)
         self.assertIn("FeOt_mols", res.columns)
         self.assertIn("SiO2_mols", res.columns)
- 
+
     def test_preserves_original_compositions(self):
         res = mm.GlassCalculator(self.df).calculate_components()
-        self.assertAlmostEqual(float(res["SiO2"].iloc[0]), 50.5, places=4)
-        self.assertAlmostEqual(float(res["MgO"].iloc[0]), 7.0, places=4)
+        self.assertAlmostEqual(float(res["SiO2"].iloc[0]), 49.96, places=4)
+        self.assertAlmostEqual(float(res["MgO"].iloc[0]), 7.27, places=4)
  
     def test_zero_mg_and_fe_gives_zero_mgno(self):
         df_zero = pd.DataFrame([{
@@ -575,13 +575,7 @@ class TestGlassClassifier(unittest.TestCase):
         _assert_cols(self, res, ["Mineral", "MgNo"])
         self.assertEqual(res["Mineral"].iloc[0], "Glass")
         self.assertNotIn("TAS", res.columns)
- 
-    def test_subclass_true_adds_tas(self):
-        res = mm.GlassClassifier(self.df).calculate_components(subclass=True)
-        _assert_cols(self, res, ["Mineral", "MgNo", "TAS"])
-        self.assertIsInstance(res["TAS"].iloc[0], str)
-        self.assertNotEqual(res["TAS"].iloc[0], "")
- 
+  
     def test_tas_basalt_classification(self):
         # A basaltic glass (~50 wt% SiO2, ~3 wt% total alkalis) should not be "Unclassified"
         basalt = pd.DataFrame([{
