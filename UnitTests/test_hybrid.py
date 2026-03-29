@@ -885,18 +885,21 @@ class TestPlotLatentSpaceTraining(unittest.TestCase):
 
 class TestPlotLatentSpace(unittest.TestCase):
 
+    @patch("mineralML.hybrid.load_mineral_classes")
     @patch("mineralML.hybrid.load_hybrid_checkpoint")
     @patch("mineralML.hybrid.compute_z2_from_df")
     @patch("mineralML.hybrid.np.load")
     @patch("mineralML.hybrid.os.path.exists", return_value=True)
     @patch.object(plt, "show")
-    def test_runs_without_error(self, _show, _exists, mock_npload, mock_z2, mock_ckpt):
-        import matplotlib
-        matplotlib.use("Agg")
-
+    def test_runs_without_error(self, _show, _exists, mock_npload,
+                                 mock_z2, mock_ckpt, mock_classes):
         oxides = _get_oxides()
         N = 10
         n_classes = 4
+
+        # Mock load_mineral_classes so unique_mapping doesn't hit np.load
+        fake_cats = [f"C{i}" for i in range(n_classes)]
+        mock_classes.return_value = (fake_cats, dict(enumerate(fake_cats)))
 
         # Mock the reference latent data file
         mock_npload.return_value.__enter__ = lambda s: {
@@ -917,9 +920,8 @@ class TestPlotLatentSpace(unittest.TestCase):
 
         # Build the input DataFrame
         df = pd.DataFrame(np.random.rand(N, len(oxides)), columns=oxides)
-        df["Predict_Mineral"] = "Olivine"
+        df["Predict_Mineral"] = "C0"
 
-        # Should run without raising
         mm.plot_latent_space(df, label_column="Predict_Mineral")
         plt.close("all")
 
