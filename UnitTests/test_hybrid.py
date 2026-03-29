@@ -788,6 +788,47 @@ class TestTrainNNHybridBottleneck(unittest.TestCase):
             after = clf.state_dict()[key]
             self.assertTrue(torch.equal(before, after), f"Classifier param {key} was modified")
 
+    @patch.object(plt, "show")
+    def test_plot_latent_runs(self, _show):
+        clf = _tiny_model()
+        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        optimizer = torch.optim.Adam(
+            list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
+        )
+        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+
+        train_losses, valid_losses, _, _, _ = mm.train_nn_hybrid_bottleneck(
+            clf, mapper, decoder, optimizer, loader, loader,
+            n_epoch=2, patience=10,
+            plot_latent=True, plot_every=1, plot_on="valid",
+        )
+
+        # plt.show should have been called at least once (epoch 0 and epoch 1)
+        self.assertGreaterEqual(_show.call_count, 1)
+        self.assertEqual(len(train_losses["reconstruction"]), 2)
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_plot_latent_on_train(self, _show):
+        clf = _tiny_model()
+        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        optimizer = torch.optim.Adam(
+            list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
+        )
+        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+
+        # Exercise the plot_on="train" branch
+        mm.train_nn_hybrid_bottleneck(
+            clf, mapper, decoder, optimizer, loader, loader,
+            n_epoch=2, patience=10,
+            plot_latent=True, plot_every=1, plot_on="train",
+        )
+
+        self.assertGreaterEqual(_show.call_count, 1)
+        plt.close("all")
+
 
 # ---------------------------------------------------------------------------
 #  compute_z2_from_df
@@ -812,6 +853,193 @@ class TestComputeZ2FromDf(unittest.TestCase):
         self.assertEqual(preds.shape, (N,))
         self.assertTrue(np.all(preds >= 0))
         self.assertTrue(np.all(preds < 4))  # 4 classes
+
+
+# ---------------------------------------------------------------------------
+#  train_hybrid_model
+# ---------------------------------------------------------------------------
+
+
+class TestTrainHybridModel(unittest.TestCase):
+
+    def _make_df(self, n=80):
+        """Build a small synthetic DataFrame with required columns."""
+        oxides = _get_oxides()
+        rng = np.random.default_rng(42)
+        df = pd.DataFrame(
+            rng.normal(50, 10, size=(n, len(oxides))), columns=oxides
+        )
+        minerals = rng.choice(
+            ["Olivine", "Garnet", "Pyroxene", "Amphibole"], size=n
+        )
+        df["Mineral"] = minerals
+        df["ZrO2"] = 0.0
+        return df
+
+    @patch("mineralML.hybrid.plot_loss_curves")
+    @patch("mineralML.hybrid.plot_latent_space_training")
+    @patch("mineralML.hybrid.train_nn_hybrid_bottleneck")
+    @patch("mineralML.hybrid.train_nn_hybrid_classifier")
+    @patch("mineralML.hybrid.balance", side_effect=lambda d, n=1000: d)
+    def test_returns_best_state_balanced(
+        self, _balance, mock_cls, mock_bottle, mock_plot_latent, mock_plot_loss
+    ):
+        from tempfile import TemporaryDirectory
+
+        df = self._make_df(n=80)
+
+        # Fake Stage A: return loss dicts and a real small state dict
+        tiny = _tiny_model(n_classes=4, hls=[8, 4])
+        mock_cls.return_value = (
+            {"total": [1.0], "classification": [0.8], "kl": [0.01]},
+            {"total": [1.1], "classification": [0.9], "kl": [0.01]},
+            0.9,
+            tiny.state_dict(),
+        )
+
+        # Fake Stage B: return loss dicts and real small state dicts
+        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        mock_bottle.return_value = (
+            {"reconstruction": [2.0]},
+            {"reconstruction": [2.5]},
+            2.5,
+            mapper.state_dict(),
+            decoder.state_dict(),
+        )
+
+        # Fake latent space plots
+        mock_plot_latent.return_value = (
+            np.random.randn(10, 2), np.random.randint(0, 4, 10)
+        )
+
+        with TemporaryDirectory() as tmp:
+            original_dir = os.getcwd()
+            try:
+                os.chdir(tmp)
+                best_state = mm.train_hybrid_model(
+                    df=df,
+                    hls_list=[[8, 4]],
+                    kl_weight_decay_list=[0.01],
+                    lr=1e-3, wd=1e-4, dr=0.0, ep=2, n=0.2,
+                    balanced=True,
+                    ep_bottle=2,
+                    name="test_run",
+                )
+            finally:
+                os.chdir(original_dir)
+
+        self.assertIsInstance(best_state, dict)
+        _balance.assert_called_once()
+        self.assertEqual(mock_cls.call_count, 1)  # 1 hls x 1 kl = 1 call
+        mock_bottle.assert_called_once()
+        self.assertEqual(mock_plot_latent.call_count, 2)  # train + valid
+        mock_plot_loss.assert_called_once()
+
+    @patch("mineralML.hybrid.plot_loss_curves")
+    @patch("mineralML.hybrid.plot_latent_space_training")
+    @patch("mineralML.hybrid.train_nn_hybrid_bottleneck")
+    @patch("mineralML.hybrid.train_nn_hybrid_classifier")
+    @patch("mineralML.hybrid.balance", side_effect=lambda d, n=1000: d)
+    def test_unbalanced_skips_balance(
+        self, mock_balance, mock_cls, mock_bottle, mock_plot_latent, mock_plot_loss
+    ):
+        from tempfile import TemporaryDirectory
+
+        df = self._make_df(n=80)
+
+        tiny = _tiny_model(n_classes=4, hls=[8, 4])
+        mock_cls.return_value = (
+            {"total": [1.0], "classification": [0.8], "kl": [0.01]},
+            {"total": [1.1], "classification": [0.9], "kl": [0.01]},
+            0.9,
+            tiny.state_dict(),
+        )
+
+        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        mock_bottle.return_value = (
+            {"reconstruction": [2.0]},
+            {"reconstruction": [2.5]},
+            2.5,
+            mapper.state_dict(),
+            decoder.state_dict(),
+        )
+        mock_plot_latent.return_value = (
+            np.random.randn(10, 2), np.random.randint(0, 4, 10)
+        )
+
+        with TemporaryDirectory() as tmp:
+            original_dir = os.getcwd()
+            try:
+                os.chdir(tmp)
+                mm.train_hybrid_model(
+                    df=df,
+                    hls_list=[[8, 4]],
+                    kl_weight_decay_list=[0.01],
+                    lr=1e-3, wd=1e-4, dr=0.0, ep=2, n=0.2,
+                    balanced=False,
+                    ep_bottle=2,
+                    name="test_unbal",
+                )
+            finally:
+                os.chdir(original_dir)
+
+        mock_balance.assert_not_called()
+
+    @patch("mineralML.hybrid.plot_loss_curves")
+    @patch("mineralML.hybrid.plot_latent_space_training")
+    @patch("mineralML.hybrid.train_nn_hybrid_bottleneck")
+    @patch("mineralML.hybrid.train_nn_hybrid_classifier")
+    @patch("mineralML.hybrid.balance", side_effect=lambda d, n=1000: d)
+    def test_grid_sweep_calls_classifier_per_combo(
+        self, _balance, mock_cls, mock_bottle, mock_plot_latent, mock_plot_loss
+    ):
+        from tempfile import TemporaryDirectory
+
+        df = self._make_df(n=80)
+
+        tiny = _tiny_model(n_classes=4, hls=[8, 4])
+        mock_cls.return_value = (
+            {"total": [1.0], "classification": [0.8], "kl": [0.01]},
+            {"total": [1.1], "classification": [0.9], "kl": [0.01]},
+            0.9,
+            tiny.state_dict(),
+        )
+
+        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        mock_bottle.return_value = (
+            {"reconstruction": [2.0]},
+            {"reconstruction": [2.5]},
+            2.5,
+            mapper.state_dict(),
+            decoder.state_dict(),
+        )
+        mock_plot_latent.return_value = (
+            np.random.randn(10, 2), np.random.randint(0, 4, 10)
+        )
+
+        with TemporaryDirectory() as tmp:
+            original_dir = os.getcwd()
+            try:
+                os.chdir(tmp)
+                mm.train_hybrid_model(
+                    df=df,
+                    hls_list=[[8, 4], [16, 8]],
+                    kl_weight_decay_list=[0.01, 0.1],
+                    lr=1e-3, wd=1e-4, dr=0.0, ep=2, n=0.2,
+                    balanced=True,
+                    ep_bottle=2,
+                    name="test_sweep",
+                )
+            finally:
+                os.chdir(original_dir)
+
+        # 2 hls x 2 kl = 4 classifier training calls
+        self.assertEqual(mock_cls.call_count, 4)
+        # Bottleneck only runs once with the best classifier
+        mock_bottle.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -923,6 +1151,106 @@ class TestPlotLatentSpace(unittest.TestCase):
         df["Predict_Mineral"] = "C0"
 
         mm.plot_latent_space(df, label_column="Predict_Mineral")
+        plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+#  plot_harker (mock-heavy, depends on checkpoint + reference data)
+# ---------------------------------------------------------------------------
+
+class TestPlotHarker(unittest.TestCase):
+
+    def setUp(self):
+        oxides = _get_oxides()
+        self.df_train = pd.DataFrame(
+            np.random.rand(30, len(oxides)) * 60,
+            columns=oxides,
+        )
+        self.df_train["Mineral"] = np.random.choice(
+            ["Olivine", "Garnet", "Pyroxene"], 30
+        )
+
+    @patch.object(plt, "show")
+    def test_basic_no_data(self, _show):
+        mm.plot_harker()
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_train_background(self, _show):
+        mm.plot_harker(
+            df_train=self.df_train,
+            train_minerals=["Olivine", "Garnet"],
+        )
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_overlay_plain_dataframe(self, _show):
+        oxides = _get_oxides()
+        overlay = pd.DataFrame(
+            np.random.rand(10, len(oxides)) * 60, columns=oxides
+        )
+        mm.plot_harker(
+            df_train=self.df_train,
+            train_minerals=["Olivine"],
+            overlay_datasets={"Study A": overlay},
+        )
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_overlay_with_custom_kws(self, _show):
+        oxides = _get_oxides()
+        overlay = pd.DataFrame(
+            np.random.rand(10, len(oxides)) * 60, columns=oxides
+        )
+        mm.plot_harker(
+            overlay_datasets={
+                "Study B": (overlay, {"s": 100, "marker": "D"}),
+            },
+        )
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_extra_pairs(self, _show):
+        mm.plot_harker(
+            df_train=self.df_train,
+            train_minerals=["Olivine"],
+            extra_pairs=[("CaO", "Na2O")],
+        )
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_plot_totals(self, _show):
+        oxides = _get_oxides()
+        overlay = pd.DataFrame(
+            np.random.rand(5, len(oxides)) * 60, columns=oxides
+        )
+        mm.plot_harker(
+            df_train=self.df_train,
+            train_minerals=["Olivine"],
+            overlay_datasets={"Study": overlay},
+            plot_totals=True,
+        )
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_plot_totals_with_overlay_kws(self, _show):
+        oxides = _get_oxides()
+        overlay = pd.DataFrame(
+            np.random.rand(5, len(oxides)) * 60, columns=oxides
+        )
+        mm.plot_harker(
+            overlay_datasets={"Study": (overlay, {"marker": "^"})},
+            plot_totals=True,
+        )
+        plt.close("all")
+
+    @patch.object(plt, "show")
+    def test_custom_title(self, _show):
+        mm.plot_harker(
+            df_train=self.df_train,
+            train_minerals=["Olivine"],
+            title="My Harker Diagram",
+        )
         plt.close("all")
 
 

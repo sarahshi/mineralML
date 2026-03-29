@@ -25,6 +25,68 @@ from mineralML.mapping import (
 
 
 # ---------------------------------------------------------------------------
+#  map loading
+# ---------------------------------------------------------------------------
+
+
+class TestLoadMapsFromDir(unittest.TestCase):
+
+    def _write_element_csvs(self, tmp_dir, si_arr, mg_arr):
+        """Write Si and Mg element CSVs to a temp directory."""
+        pd.DataFrame(si_arr).to_csv(
+            os.path.join(tmp_dir, "Si_Ka.csv"), header=False, index=False
+        )
+        pd.DataFrame(mg_arr).to_csv(
+            os.path.join(tmp_dir, "Mg_Ka.csv"), header=False, index=False
+        )
+
+    def test_element_wt_percent_converts(self):
+        si = np.array([[25.0, 30.0], [28.0, 26.0]])
+        mg = np.array([[3.0, 4.0], [5.0, 2.0]])
+        with TemporaryDirectory() as tmp:
+            self._write_element_csvs(tmp, si, mg)
+            ox = mm.load_maps_from_dir(tmp, units="element_wt%")
+
+        # Stoichiometric conversion: oxide values should be larger than element values
+        self.assertIn("SiO2", ox)
+        self.assertIn("MgO", ox)
+        self.assertEqual(ox["SiO2"].shape, (2, 2))
+        self.assertTrue(np.all(ox["SiO2"] > si))
+        self.assertTrue(np.all(ox["MgO"] > mg))
+
+    def test_oxide_wt_percent_identity(self):
+        si = np.array([[50.0, 55.0], [52.0, 48.0]])
+        mg = np.array([[8.0, 9.0], [7.0, 10.0]])
+        with TemporaryDirectory() as tmp:
+            self._write_element_csvs(tmp, si, mg)
+            ox = mm.load_maps_from_dir(tmp, units="oxide_wt%")
+
+        # Identity: values should pass through unchanged
+        self.assertIn("SiO2", ox)
+        self.assertIn("MgO", ox)
+        np.testing.assert_array_almost_equal(ox["SiO2"], si)
+        np.testing.assert_array_almost_equal(ox["MgO"], mg)
+
+    def test_renormalize_sums_to_100(self):
+        si = np.array([[40.0, 50.0], [45.0, 35.0]])
+        mg = np.array([[10.0, 20.0], [15.0, 25.0]])
+        with TemporaryDirectory() as tmp:
+            self._write_element_csvs(tmp, si, mg)
+            ox = mm.load_maps_from_dir(tmp, units="oxide_wt%", renormalize=True)
+
+        totals = ox["SiO2"] + ox["MgO"]
+        np.testing.assert_allclose(totals, 100.0, atol=1e-6)
+
+    def test_invalid_units_raises(self):
+        si = np.array([[25.0]])
+        mg = np.array([[3.0]])
+        with TemporaryDirectory() as tmp:
+            self._write_element_csvs(tmp, si, mg)
+            with self.assertRaises(ValueError):
+                mm.load_maps_from_dir(tmp, units="counts")
+
+
+# ---------------------------------------------------------------------------
 #  maps_to_df / df_to_maps
 # ---------------------------------------------------------------------------
 
