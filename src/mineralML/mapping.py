@@ -580,7 +580,7 @@ def remove_islands(
             [phase_min_sizes.get(p, min_size) for p in present_in_group]
         )
         cleaned_mask = remove_small_objects(
-            mask, min_size=group_min_size, connectivity=connectivity
+            mask, min_size=group_min_size-1, connectivity=connectivity
         )
         removed_pixels = mask & ~cleaned_mask
         cleaned_map[removed_pixels] = fill_val
@@ -595,7 +595,7 @@ def remove_islands(
         mask = cleaned_map == phase
         current_min_size = phase_min_sizes.get(phase, min_size)
         cleaned_mask = remove_small_objects(
-            mask, min_size=current_min_size, connectivity=connectivity
+            mask, min_size=current_min_size-1, connectivity=connectivity
         )
         removed_pixels = mask & ~cleaned_mask
 
@@ -644,7 +644,7 @@ def fill_phase_holes(mineral_map, max_hole_size=10, exclude_phases=None):
         phase_mask = filled_map == phase
 
         # Fill holes that are completely surrounded by phase
-        filled_phase_mask = remove_small_holes(phase_mask, area_threshold=max_hole_size)
+        filled_phase_mask = remove_small_holes(phase_mask, max_size=max_hole_size-1)
 
         # Identify pixels that were just filled in
         new_pixels = filled_phase_mask & ~phase_mask
