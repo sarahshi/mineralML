@@ -218,7 +218,7 @@ def annotate_stacked_bar_prop_staggered(ax, y, phases, props, fmt="{:.1f}%", fs=
 # --- Process MH0811b Maps ---
 
 # EBSD
-mh_ebsd_phase_map, _, _, _ = mm.plot_ctf_phases(mh_file_path, rename_dict=mh_merge_rules, phase_colors=mh_cols_ebsd, title=None, scalebar_um=100)
+mh_fig, mh_ebsd_phase_map, _, _, _ = mm.plot_ctf_phases(mh_file_path, rename_dict=mh_merge_rules, phase_colors=mh_cols_ebsd, title=None, scalebar_um=100)
 plot_phase_proportions(mh_ebsd_phase_map, mh_cols_ebsd, title="MH0811b EBSD Proportions")
 
 pred_score_threshold=0.5
@@ -243,7 +243,7 @@ gs = fig.add_gridspec(nrows=2, ncols=2, height_ratios=[4, 1], hspace=0.33, wspac
 ax_ebsd, ax_comp, ax_bar = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, :])
 
 # Draw Maps
-phase_map, _, _, _ = mm.plot_ctf_phases(mh_file_path, rename_dict=mh_merge_rules, phase_colors=mh_cols_ebsd, ax=ax_ebsd, title="A. EBSD Phase Map", scalebar_um=100, legend_on=False)
+mh_fig, phase_map, _, _, _ = mm.plot_ctf_phases(mh_file_path, rename_dict=mh_merge_rules, phase_colors=mh_cols_ebsd, ax=ax_ebsd, title="A. EBSD Phase Map", scalebar_um=100, legend_on=False)
 _, phase_map_eds, comp_map = mm.plot_component_composite(mh0811, ax=ax_comp, fill_missing=True, 
                                                          title="B. mineralML-Generated EDS Phase Map",
                                                          phases=mh_eds_keep, phase_colors=mh_cols_eds, 
@@ -344,7 +344,7 @@ for i, phase in enumerate(missing):
 
 
 # Draw Maps
-phase_map, _, _, _ = mm.plot_ctf_phases(
+fig, phase_map, _, _, _ = mm.plot_ctf_phases(
     mh_file_path_bad, rename_dict=mh_merge_rules_new, phase_colors=mh_cols_ebsd_new,
     ax=ax_ebsd, title="A. EBSD Phase Map", scalebar_um=100, legend_on=False
 )
@@ -462,7 +462,7 @@ plt.show()
 # --- Process Bii Maps ---
 
 # EBSD
-bii_ebsd_phase_map, _, _, _ = mm.plot_ctf_phases(bii_file_path, rename_dict=bii_merge_rules, phase_colors=bii_cols)
+bii_fig, bii_ebsd_phase_map, _, _, _ = mm.plot_ctf_phases(bii_file_path, rename_dict=bii_merge_rules, phase_colors=bii_cols)
 plot_phase_proportions(bii_ebsd_phase_map, bii_cols, title="Bii EBSD Proportions")
 
 # EDS
@@ -486,7 +486,7 @@ gs = fig.add_gridspec(nrows=2, ncols=2, height_ratios=[4, 1], hspace=-0.05, wspa
 ax_ebsd, ax_comp, ax_bar = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, :])
 
 # Draw Maps
-phase_map_bii, _, _, _ = mm.plot_ctf_phases(bii_file_path, rename_dict=bii_merge_rules, phase_colors=bii_cols, 
+bii_fig, phase_map_bii, _, _, _ = mm.plot_ctf_phases(bii_file_path, rename_dict=bii_merge_rules, phase_colors=bii_cols, 
                                             ax=ax_ebsd, title="A. EBSD Phase Map", 
                                             scalebar_um=100, scalebar_loc="lower right", legend_on=False)
 _, phase_map_eds_bii, comp_map_bii = mm.plot_component_composite(bii, ax=ax_comp, fill_missing=True, 
