@@ -1391,12 +1391,12 @@ class GlassClassifier(GlassCalculator):
         sio2 = df_class.get('SiO2', pd.Series(0, index=df_class.index)).fillna(0)
 
         # Plot by TAS Submineral if classification exists
-        if subclass and "Submineral" in df_class.columns:
+        if subclass and "TAS" in df_class.columns:
             cmap = plt.get_cmap("tab10")
-            unique_rocks = df_class["Submineral"].unique()
+            unique_rocks = df_class["TAS"].unique()
 
             for i, rock in enumerate(unique_rocks):
-                mask = df_class["Submineral"] == rock
+                mask = df_class["TAS"] == rock
                 
                 ax.scatter(sio2[mask], 
                            tot_alkalis[mask], 
@@ -2682,7 +2682,6 @@ class PyroxeneClassifier(BaseMineralCalculator):
                                     edgecolor='k', s=22, alpha=0.85)
 
             if label_set:
-                fs = 12
                 lab_z = 120
                 ax = tax_sod.get_axes()
                 ax.text(0.375, 0.4, label_set["Omphacite"], ha='center', va='center', zorder=lab_z)

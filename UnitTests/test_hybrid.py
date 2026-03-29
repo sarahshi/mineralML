@@ -344,101 +344,325 @@ def _toy_df(n=60):
     return df
 
 
-# class TestNeuralNetworkDriver(unittest.TestCase):
-#     @patch("mineralML.hybrid.balance")
-#     @patch("mineralML.hybrid.train_nn")
-#     @patch("mineralML.hybrid.save_model_nn")
-#     @patch("mineralML.hybrid.classification_report")
-#     @patch("mineralML.hybrid.np.savez")
-#     @patch("mineralML.hybrid.MultiClassClassifier.load_state_dict", return_value=None)
-#     @patch("mineralML.hybrid.torch.cuda.is_available", return_value=False)
-#     def test_grid_search_wiring_and_best_selection(
-#         self,
-#         _cuda_off,
-#         _p_ld,
-#         p_savez,
-#         p_class_report,
-#         p_save_model,
-#         p_train_nn,
-#         p_balance,
-#     ):
-#         # --- Arrange ---
-#         df = _toy_df(n=60)
+# ---------------------------------------------------------------------------
+#  convert_fe_to_feot
+# ---------------------------------------------------------------------------
 
-#         p_balance.side_effect = lambda d, n=1000: d
+class TestConvertFeToFeot(unittest.TestCase):
 
-#         # Fake train_nn returning different "best" losses per (call index)
-#         fake_states = [{"w": 1}, {"w": 2}, {"w": 3}, {"w": 4}]
-#         best_losses = [0.50, 0.40, 0.60, 0.35]  # lowest on 4th call
-#         def _train_return(*args, **kwargs):
-#             idx = p_train_nn.call_count - 1  # 0-based
-#             return (None, None, [1.0], [1.0], best_losses[idx], fake_states[idx])
-#         p_train_nn.side_effect = _train_return
+    def test_feo_only(self):
+        df = pd.DataFrame({"FeO": [10.0], "SiO2": [50.0]})
+        out = mm.convert_fe_to_feot(df)
+        self.assertAlmostEqual(out["FeOt"].iloc[0], 10.0, places=4)
+        self.assertNotIn("FeO", out.columns)
 
-#         p_class_report.return_value = {"macro avg": {"f1-score": 0.5}}
-#         p_savez.return_value = None
+    def test_feot_only_passthrough(self):
+        df = pd.DataFrame({"FeOt": [10.0], "SiO2": [50.0]})
+        out = mm.convert_fe_to_feot(df)
+        self.assertAlmostEqual(out["FeOt"].iloc[0], 10.0, places=4)
 
-#         hls_list = [[8, 4], [16, 8]]
-#         kl_list = [0.01, 0.1]
+    def test_fe2o3_only_converted(self):
+        fe2o3_val = 5.0
+        fe_conv = 159.688 / (2 * 71.8464)
+        expected = fe2o3_val / fe_conv
+        df = pd.DataFrame({"Fe2O3": [fe2o3_val], "SiO2": [50.0]})
+        out = mm.convert_fe_to_feot(df)
+        self.assertAlmostEqual(out["FeOt"].iloc[0], expected, places=4)
+        self.assertNotIn("Fe2O3", out.columns)
 
-#         # --- Act ---
-#         best_state = mm.neuralnetwork(
-#             df=df,
-#             hls_list=hls_list,
-#             kl_weight_decay_list=kl_list,
-#             lr=1e-3,
-#             wd=1e-4,
-#             dr=0.1,
-#             ep=2,
-#             n=0.2,
-#             balanced=True,
-#         )
+    def test_feo_plus_fe2o3_summed(self):
+        fe_conv = 159.688 / (2 * 71.8464)
+        df = pd.DataFrame({"FeO": [8.0], "Fe2O3": [2.0], "SiO2": [50.0]})
+        out = mm.convert_fe_to_feot(df)
+        expected = 8.0 + 2.0 / fe_conv
+        self.assertAlmostEqual(out["FeOt"].iloc[0], expected, places=4)
 
-#         # --- Assert ---
-#         p_balance.assert_called_once()
-#         self.assertEqual(p_train_nn.call_count, len(hls_list) * len(kl_list))
-#         self.assertEqual(best_state, fake_states[-1])
-#         self.assertTrue(p_save_model.called)
-#         args, kwargs = p_save_model.call_args
-#         self.assertIs(args[1], fake_states[-1])
-#         self.assertIsInstance(args[0], torch.optim.Optimizer)
-#         self.assertIsInstance(args[2], str)
-#         self.assertGreaterEqual(p_class_report.call_count, 2)
-#         self.assertGreaterEqual(p_savez.call_count, 3)
+    def test_does_not_mutate_input(self):
+        df = pd.DataFrame({"FeO": [10.0], "SiO2": [50.0]})
+        original_cols = list(df.columns)
+        mm.convert_fe_to_feot(df)
+        self.assertEqual(list(df.columns), original_cols)
 
-#     @patch("mineralML.supervised.balance")
-#     @patch("mineralML.supervised.train_nn")
-#     @patch("mineralML.supervised.save_model_nn")
-#     @patch("mineralML.supervised.classification_report")
-#     @patch("mineralML.supervised.np.savez")
-#     @patch("mineralML.supervised.MultiClassClassifier.load_state_dict", return_value=None)
-#     @patch("mineralML.supervised.torch.cuda.is_available", return_value=False)
-#     def test_unbalanced_path_and_small_grid(
-#         self, _cuda_off, _p_ld, p_savez, p_class_report, p_save_model, p_train_nn, p_balance
-#     ):
-#         # Arrange: tiny grid, balanced=False (balance() should NOT be called)
-#         df = _toy_df(n=45)
-#         p_balance.side_effect = lambda d, n=1000: d
-#         p_train_nn.return_value = (None, None, [1.0], [1.0], 0.99, {"w": 99})
-#         p_class_report.return_value = {"macro avg": {"f1-score": 0.1}}
 
-#         best_state = mm.neuralnetwork(
-#             df=df,
-#             hls_list=[[8]],
-#             kl_weight_decay_list=[0.2],
-#             lr=1e-3,
-#             wd=1e-4,
-#             dr=0.1,
-#             ep=1,
-#             n=0.25,
-#             balanced=False,
-#         )
+# ---------------------------------------------------------------------------
+#  prep_df extended options
+# ---------------------------------------------------------------------------
 
-#         # Assert
-#         p_balance.assert_not_called()
-#         self.assertEqual(best_state, {"w": 99})
-#         p_train_nn.assert_called_once()
-#         self.assertGreaterEqual(p_savez.call_count, 2)
+class TestPrepDfOptions(unittest.TestCase):
+
+    def test_convert_fe_true(self):
+        df = pd.DataFrame({
+            "SiO2": [50.0], "FeO": [10.0], "MgO": [8.0],
+            "Mineral": ["Olivine"],
+        })
+        out = mm.prep_df(df, convert_fe=True, verbose=False)
+        self.assertIn("FeOt", out.columns)
+        self.assertNotIn("FeO", out.columns)
+
+    def test_fe_variants_without_feot_raises(self):
+        df = pd.DataFrame({
+            "SiO2": [50.0], "FeO": [10.0], "MgO": [8.0],
+            "Mineral": ["Olivine"],
+        })
+        with self.assertRaises(ValueError):
+            mm.prep_df(df, convert_fe=False, verbose=False)
+
+    def test_drop_empty_rows(self):
+        df = pd.DataFrame({
+            "SiO2": [50.0, 0.0], "FeOt": [10.0, 0.0], "MgO": [8.0, 0.0],
+            "Mineral": ["Olivine", "Unknown"],
+        })
+        out = mm.prep_df(df, drop_empty_rows=True, min_oxide_count=2, verbose=False)
+        # Second row has 0 non-zero oxides, should be dropped
+        self.assertEqual(len(out), 1)
+
+
+# ---------------------------------------------------------------------------
+#  format_oxide_label
+# ---------------------------------------------------------------------------
+
+class TestFormatOxideLabel(unittest.TestCase):
+
+    def test_total_passthrough(self):
+        self.assertEqual(mm.format_oxide_label("Total"), "Total")
+
+    def test_subscript_formatting(self):
+        label = mm.format_oxide_label("SiO2")
+        self.assertIn("_2", label)
+        self.assertTrue(label.startswith("$"))
+
+    def test_feot_formatting(self):
+        label = mm.format_oxide_label("FeOt")
+        self.assertIn("_t", label)
+
+
+# ---------------------------------------------------------------------------
+#  _mineral_colormap
+# ---------------------------------------------------------------------------
+
+class TestMineralColormap(unittest.TestCase):
+
+    def test_returns_cmap_and_norm(self):
+        from mineralML.hybrid import _mineral_colormap
+        cmap, norm = _mineral_colormap(10)
+        self.assertIsNotNone(cmap)
+        self.assertIsNotNone(norm)
+
+
+# ---------------------------------------------------------------------------
+#  Model architecture classes
+# ---------------------------------------------------------------------------
+
+class TestFeatureExtractor(unittest.TestCase):
+
+    def test_forward_shape(self):
+        model = mm.FeatureExtractor(input_dim=11, classes=7, hidden_layer_sizes=[16, 8])
+        x = torch.randn(5, 11)
+        logits = model(x)
+        self.assertEqual(logits.shape, (5, 7))
+
+    def test_forward_with_features(self):
+        model = mm.FeatureExtractor(input_dim=11, classes=7, hidden_layer_sizes=[16, 8])
+        x = torch.randn(5, 11)
+        logits, h = model(x, return_features=True)
+        self.assertEqual(logits.shape, (5, 7))
+        self.assertEqual(h.shape, (5, 8))  # last hidden layer size
+
+    def test_bayesian_classifier_head(self):
+        model = mm.FeatureExtractor(
+            input_dim=11, classes=7, hidden_layer_sizes=[16, 8],
+            use_bayesian_classifier=True
+        )
+        self.assertIsInstance(model.classifier, mm.VariationalLayer)
+        x = torch.randn(3, 11)
+        logits = model(x)
+        self.assertEqual(logits.shape, (3, 7))
+
+
+class TestLatentProjector(unittest.TestCase):
+
+    def test_nonlinear_forward(self):
+        proj = mm.LatentProjector(feat_dim=8, hidden=16, nonlinear=True)
+        h = torch.randn(5, 8)
+        z2 = proj(h)
+        self.assertEqual(z2.shape, (5, 2))
+
+    def test_linear_forward(self):
+        proj = mm.LatentProjector(feat_dim=8, nonlinear=False)
+        h = torch.randn(5, 8)
+        z2 = proj(h)
+        self.assertEqual(z2.shape, (5, 2))
+
+
+class TestReconstructionDecoder(unittest.TestCase):
+
+    def test_forward_shape(self):
+        dec = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[16, 8])
+        z2 = torch.randn(5, 2)
+        recon = dec(z2)
+        self.assertEqual(recon.shape, (5, 11))
+
+
+class TestReconstructionWrapper(unittest.TestCase):
+
+    def _make_wrapper(self):
+        clf = mm.FeatureExtractor(input_dim=11, classes=7, hidden_layer_sizes=[16, 8])
+        mapper = mm.LatentProjector(feat_dim=8, hidden=16)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11)
+        return mm.ReconstructionWrapper(clf, mapper, decoder)
+
+    def test_forward_returns_three_tensors(self):
+        wrapper = self._make_wrapper()
+        x = torch.randn(5, 11)
+        logits, recon, z2 = wrapper(x)
+        self.assertEqual(logits.shape, (5, 7))
+        self.assertEqual(recon.shape, (5, 11))
+        self.assertEqual(z2.shape, (5, 2))
+
+    def test_latent_dim_attribute(self):
+        wrapper = self._make_wrapper()
+        self.assertEqual(wrapper.latent_dim, 2)
+
+
+# ---------------------------------------------------------------------------
+#  kl_divergence_sum
+# ---------------------------------------------------------------------------
+
+class TestKLDivergenceSum(unittest.TestCase):
+
+    def test_model_with_variational_layers(self):
+        model = mm.FeatureExtractor(
+            input_dim=11, classes=7, hidden_layer_sizes=[16, 8],
+            use_bayesian_feature_layer=True
+        )
+        # Need a forward pass to populate weights
+        _ = model(torch.randn(2, 11))
+        kl = mm.kl_divergence_sum(model)
+        self.assertIsInstance(kl, (float, torch.Tensor))
+        self.assertGreaterEqual(float(kl), 0.0)
+
+    def test_model_without_variational_layers(self):
+        # Plain linear model with no VariationalLayers
+        model = nn.Sequential(nn.Linear(11, 8), nn.Linear(8, 4))
+        kl = mm.kl_divergence_sum(model)
+        self.assertEqual(float(kl), 0.0)
+
+
+# ---------------------------------------------------------------------------
+#  enable_mc_sampling
+# ---------------------------------------------------------------------------
+
+class TestEnableMCSampling(unittest.TestCase):
+
+    def _make_model(self):
+        return mm.FeatureExtractor(
+            input_dim=11, classes=7, hidden_layer_sizes=[16, 8],
+            use_bayesian_feature_layer=True, dropout_rate=0.2
+        )
+
+    def test_batchnorm_stays_eval(self):
+        model = self._make_model()
+        mm.enable_mc_sampling(model, enable_dropout=True)
+        for m in model.modules():
+            if isinstance(m, nn.BatchNorm1d):
+                self.assertFalse(m.training)
+
+    def test_variational_set_to_train(self):
+        model = self._make_model()
+        mm.enable_mc_sampling(model, enable_dropout=False)
+        for m in model.modules():
+            if isinstance(m, mm.VariationalLayer):
+                self.assertTrue(m.training)
+
+    def test_dropout_enabled_when_requested(self):
+        model = self._make_model()
+        mm.enable_mc_sampling(model, enable_dropout=True)
+        for m in model.modules():
+            if isinstance(m, nn.Dropout):
+                self.assertTrue(m.training)
+
+    def test_dropout_disabled_when_not_requested(self):
+        model = self._make_model()
+        mm.enable_mc_sampling(model, enable_dropout=False)
+        for m in model.modules():
+            if isinstance(m, nn.Dropout):
+                self.assertFalse(m.training)
+
+
+# ---------------------------------------------------------------------------
+#  _downsample
+# ---------------------------------------------------------------------------
+
+class TestDownsample(unittest.TestCase):
+
+    def test_small_array_unchanged(self):
+        from mineralML.hybrid import _downsample
+        Z = np.random.randn(100, 2)
+        labels = np.arange(100)
+        Z_out, labels_out = _downsample(Z, labels, max_points=200)
+        np.testing.assert_array_equal(Z_out, Z)
+        np.testing.assert_array_equal(labels_out, labels)
+
+    def test_large_array_downsampled(self):
+        from mineralML.hybrid import _downsample
+        Z = np.random.randn(1000, 2)
+        labels = np.arange(1000)
+        Z_out, labels_out = _downsample(Z, labels, max_points=100)
+        self.assertEqual(Z_out.shape[0], 100)
+        self.assertEqual(labels_out.shape[0], 100)
+
+    def test_none_input(self):
+        from mineralML.hybrid import _downsample
+        Z_out, labels_out = _downsample(None, None, max_points=100)
+        self.assertIsNone(Z_out)
+        self.assertIsNone(labels_out)
+
+    def test_no_labels(self):
+        from mineralML.hybrid import _downsample
+        Z = np.random.randn(500, 2)
+        Z_out, labels_out = _downsample(Z, labels=None, max_points=50)
+        self.assertEqual(Z_out.shape[0], 50)
+        self.assertIsNone(labels_out)
+
+
+# ---------------------------------------------------------------------------
+#  build_model_from_config
+# ---------------------------------------------------------------------------
+
+class TestBuildModelFromConfig(unittest.TestCase):
+
+    def test_builds_wrapper(self):
+        config = {
+            "input_dim": 11,
+            "classes": 7,
+            "hidden_layer_sizes": [16, 8],
+            "feat_dim": 8,
+            "dropout_rate": 0.1,
+            "use_bayesian_feature_layer": True,
+            "use_bayesian_classifier": False,
+            "mapper_hidden": 16,
+            "mapper_nonlinear": True,
+            "decoder_hidden_sizes": [16, 8],
+        }
+        wrapper = mm.build_model_from_config(config, device="cpu")
+        self.assertIsInstance(wrapper, mm.ReconstructionWrapper)
+
+        # Verify forward pass works
+        x = torch.randn(3, 11)
+        logits, recon, z2 = wrapper(x)
+        self.assertEqual(logits.shape, (3, 7))
+        self.assertEqual(recon.shape, (3, 11))
+        self.assertEqual(z2.shape, (3, 2))
+
+    def test_mismatched_feat_dim_raises(self):
+        config = {
+            "input_dim": 11,
+            "classes": 7,
+            "hidden_layer_sizes": [16, 8],
+            "feat_dim": 99,  # doesn't match last hidden layer (8)
+        }
+        with self.assertRaises(ValueError):
+            mm.build_model_from_config(config, device="cpu")
 
 
 if __name__ == "__main__":
