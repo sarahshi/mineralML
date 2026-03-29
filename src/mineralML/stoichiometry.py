@@ -1352,12 +1352,14 @@ class GlassClassifier(GlassCalculator):
         tas_ids = cm.predict(tas_df)
         
         def get_rock_name(tas_id):
+            if isinstance(tas_id, list):
+                tas_id = tas_id[0] if tas_id else np.nan
             if pd.isna(tas_id):
                 return "Unclassified"
             return cm.fields.get(tas_id, {"name": "Unclassified"})["name"]
 
         # Append Submineral classifications to the output dataframe
-        comps["TAS"] = tas_ids.apply(get_rock_name)
+        comps["TAS"] = tas_ids.apply(get_rock_name).astype(str)
             
         return comps
 
