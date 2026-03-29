@@ -812,8 +812,9 @@ class TestTrainNNHybridBottleneck(unittest.TestCase):
     @patch.object(plt, "show")
     def test_plot_latent_on_train(self, _show):
         clf = _tiny_model()
-        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
-        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        mapper = mm.LatentProjector(feat_dim=4, hidden=16)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[64, 32])
+
         optimizer = torch.optim.Adam(
             list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
         )
