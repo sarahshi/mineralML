@@ -24,7 +24,7 @@ def _get_oxides():
         return mm.OXIDES
     raise AttributeError("Could not find OXIDES in mineralML.")
 
-def tiny_loader(n=32, in_features=11, n_classes=4, batch=16):
+def tiny_loader(n=32, in_features=11, n_classes=23, batch=16):
     x = torch.randn(n, in_features)
     y = torch.randint(0, n_classes, (n,))
     return DataLoader(TensorDataset(x, y), batch_size=batch, shuffle=False)
@@ -674,7 +674,7 @@ class TestBuildModelFromConfig(unittest.TestCase):
 #  Helpers for training-loop tests
 # ---------------------------------------------------------------------------
 
-def _tiny_model(in_dim=11, n_classes=4, hls=None):
+def _tiny_model(in_dim=11, n_classes=23, hls=None):
     """Build a small FeatureExtractor for fast tests."""
     hls = hls or [8, 4]
     return mm.FeatureExtractor(
@@ -682,7 +682,7 @@ def _tiny_model(in_dim=11, n_classes=4, hls=None):
         dropout_rate=0.0, use_bayesian_feature_layer=True,
     )
 
-def _tiny_wrapper(in_dim=11, n_classes=4, hls=None, feat_dim=4):
+def _tiny_wrapper(in_dim=11, n_classes=23, hls=None, feat_dim=4):
     """Build a small ReconstructionWrapper for fast tests."""
     hls = hls or [8, 4]
     clf = mm.FeatureExtractor(
@@ -703,7 +703,7 @@ class TestTrainNNHybridClassifier(unittest.TestCase):
     def test_returns_loss_dicts_and_best_state(self):
         model = _tiny_model()
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+        loader = tiny_loader(n=32, in_features=11, n_classes=23, batch=16)
 
         train_losses, valid_losses, best_valid, best_state = mm.train_nn_hybrid_classifier(
             model, optimizer, loader, loader,
@@ -725,7 +725,7 @@ class TestTrainNNHybridClassifier(unittest.TestCase):
         # With patience=1 and a tiny model, early stopping should kick in
         model = _tiny_model()
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-6)  # very low LR -> little improvement
-        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+        loader = tiny_loader(n=32, in_features=11, n_classes=23, batch=16)
 
         train_losses, valid_losses, _, _ = mm.train_nn_hybrid_classifier(
             model, optimizer, loader, loader,
@@ -749,7 +749,7 @@ class TestTrainNNHybridBottleneck(unittest.TestCase):
         optimizer = torch.optim.Adam(
             list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
         )
-        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+        loader = tiny_loader(n=32, in_features=11, n_classes=23, batch=16)
 
         train_losses, valid_losses, best_valid, best_mapper, best_decoder = (
             mm.train_nn_hybrid_bottleneck(
@@ -773,7 +773,7 @@ class TestTrainNNHybridBottleneck(unittest.TestCase):
         optimizer = torch.optim.Adam(
             list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
         )
-        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+        loader = tiny_loader(n=32, in_features=11, n_classes=23, batch=16)
 
         # Snapshot classifier weights before training
         clf_before = {k: v.clone() for k, v in clf.state_dict().items()}
@@ -796,7 +796,7 @@ class TestTrainNNHybridBottleneck(unittest.TestCase):
         optimizer = torch.optim.Adam(
             list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
         )
-        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+        loader = tiny_loader(n=32, in_features=11, n_classes=23, batch=16)
 
         train_losses, valid_losses, _, _, _ = mm.train_nn_hybrid_bottleneck(
             clf, mapper, decoder, optimizer, loader, loader,
@@ -818,7 +818,7 @@ class TestTrainNNHybridBottleneck(unittest.TestCase):
         optimizer = torch.optim.Adam(
             list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
         )
-        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+        loader = tiny_loader(n=32, in_features=11, n_classes=23, batch=16)
 
         # Exercise the plot_on="train" branch
         mm.train_nn_hybrid_bottleneck(
@@ -890,7 +890,7 @@ class TestTrainHybridModel(unittest.TestCase):
         df = self._make_df(n=80)
 
         # Fake Stage A: return loss dicts and a real small state dict
-        tiny = _tiny_model(n_classes=4, hls=[8, 4])
+        tiny = _tiny_model(n_classes=23, hls=[8, 4])
         mock_cls.return_value = (
             {"total": [1.0], "classification": [0.8], "kl": [0.01]},
             {"total": [1.1], "classification": [0.9], "kl": [0.01]},
@@ -949,7 +949,7 @@ class TestTrainHybridModel(unittest.TestCase):
 
         df = self._make_df(n=80)
 
-        tiny = _tiny_model(n_classes=4, hls=[8, 4])
+        tiny = _tiny_model(n_classes=23, hls=[8, 4])
         mock_cls.return_value = (
             {"total": [1.0], "classification": [0.8], "kl": [0.01]},
             {"total": [1.1], "classification": [0.9], "kl": [0.01]},
@@ -1000,7 +1000,7 @@ class TestTrainHybridModel(unittest.TestCase):
 
         df = self._make_df(n=80)
 
-        tiny = _tiny_model(n_classes=4, hls=[8, 4])
+        tiny = _tiny_model(n_classes=23, hls=[8, 4])
         mock_cls.return_value = (
             {"total": [1.0], "classification": [0.8], "kl": [0.01]},
             {"total": [1.1], "classification": [0.9], "kl": [0.01]},
