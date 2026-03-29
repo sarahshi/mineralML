@@ -393,6 +393,7 @@ class TestConvertFeToFeot(unittest.TestCase):
 #  prep_df extended options
 # ---------------------------------------------------------------------------
 
+
 class TestPrepDfOptions(unittest.TestCase):
 
     def test_convert_fe_true(self):
@@ -426,6 +427,7 @@ class TestPrepDfOptions(unittest.TestCase):
 #  format_oxide_label
 # ---------------------------------------------------------------------------
 
+
 class TestFormatOxideLabel(unittest.TestCase):
 
     def test_total_passthrough(self):
@@ -445,6 +447,7 @@ class TestFormatOxideLabel(unittest.TestCase):
 #  _mineral_colormap
 # ---------------------------------------------------------------------------
 
+
 class TestMineralColormap(unittest.TestCase):
 
     def test_returns_cmap_and_norm(self):
@@ -457,6 +460,7 @@ class TestMineralColormap(unittest.TestCase):
 # ---------------------------------------------------------------------------
 #  Model architecture classes
 # ---------------------------------------------------------------------------
+
 
 class TestFeatureExtractor(unittest.TestCase):
 
@@ -544,7 +548,7 @@ class TestKLDivergenceSum(unittest.TestCase):
         _ = model(torch.randn(2, 11))
         kl = mm.kl_divergence_sum(model)
         self.assertIsInstance(kl, (float, torch.Tensor))
-        self.assertGreaterEqual(float(kl), 0.0)
+        self.assertGreaterEqual(kl.detach().item(), 0.0)
 
     def test_model_without_variational_layers(self):
         # Plain linear model with no VariationalLayers
