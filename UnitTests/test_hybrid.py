@@ -839,7 +839,8 @@ class TestComputeZ2FromDf(unittest.TestCase):
 
     @patch("mineralML.hybrid.norm_data")
     def test_returns_z2_and_preds(self, mock_norm):
-        wrapper = _tiny_wrapper()
+        n_classes = 4
+        wrapper = _tiny_wrapper(n_classes=n_classes)
         wrapper.eval()
 
         oxides = _get_oxides()
@@ -853,7 +854,7 @@ class TestComputeZ2FromDf(unittest.TestCase):
         self.assertEqual(Z2.shape, (N, 2))
         self.assertEqual(preds.shape, (N,))
         self.assertTrue(np.all(preds >= 0))
-        self.assertTrue(np.all(preds < 4))  # 4 classes
+        self.assertTrue(np.all(preds < n_classes))
 
 
 # ---------------------------------------------------------------------------

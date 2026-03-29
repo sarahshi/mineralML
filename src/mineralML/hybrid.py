@@ -1589,10 +1589,10 @@ def train_hybrid_model(
     )
 
     # load best Stage B
-    if best_mapper_state is not None:
-        mapper2d.load_state_dict(best_mapper_state)
-    if best_decoder_state is not None:
-        decoder.load_state_dict(best_decoder_state)
+    # if best_mapper_state is not None:
+    #     mapper2d.load_state_dict(best_mapper_state)
+    # if best_decoder_state is not None:
+    #     decoder.load_state_dict(best_decoder_state)
 
     best_model = ReconstructionWrapper(classifier, mapper2d, decoder).to(device)
     best_model.eval()
@@ -2209,6 +2209,7 @@ def compute_z2_from_df(df, wrapper, batch_size=256, device=None):
     """
 
     device = torch.device(device) if device else next(wrapper.parameters()).device
+    wrapper = wrapper.to(device)
     wrapper.eval()
 
     X_df = df[OXIDES].fillna(0.0)
@@ -2224,21 +2225,22 @@ def compute_z2_from_df(df, wrapper, batch_size=256, device=None):
 
     N = len(dataset)
     Z2_out = np.empty((N, 2), dtype=np.float32)
-    Preds_out = np.empty(N, dtype=np.int32)  # <-- Pre-allocate predictions array
+    Preds_out = np.empty(N, dtype=np.int64)
 
     idx = 0
     for (x_batch,) in dataloader:
         x_batch = x_batch.to(device)
 
         # Grab logits as well as z2
-        logits, _, z2 = wrapper(x_batch)
-
+        # logits, _, z2 = wrapper(x_batch)
+        logits, h = wrapper.classifier(x_batch, return_features=True)
+        z2 = wrapper.mapper2d(h)
         # Get the predicted class index (highest logit)
         preds = logits.argmax(dim=1)
 
         batch_len = x_batch.size(0)
-        Z2_out[idx : idx + batch_len] = z2.cpu().numpy()
-        Preds_out[idx : idx + batch_len] = preds.cpu().numpy()  # <-- Save predictions
+        Z2_out[idx: idx + batch_len] = z2.detach().cpu().numpy()
+        Preds_out[idx: idx + batch_len] = preds.detach().cpu().numpy()
         idx += batch_len
 
     return Z2_out, Preds_out
