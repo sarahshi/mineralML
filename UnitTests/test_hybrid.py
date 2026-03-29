@@ -1,4 +1,5 @@
 import types
+import os
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -8,6 +9,10 @@ from math import sqrt
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 import mineralML as mm
 
@@ -663,6 +668,260 @@ class TestBuildModelFromConfig(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             mm.build_model_from_config(config, device="cpu")
+
+
+# ---------------------------------------------------------------------------
+#  Helpers for training-loop tests
+# ---------------------------------------------------------------------------
+
+def _tiny_model(in_dim=11, n_classes=4, hls=None):
+    """Build a small FeatureExtractor for fast tests."""
+    hls = hls or [8, 4]
+    return mm.FeatureExtractor(
+        input_dim=in_dim, classes=n_classes, hidden_layer_sizes=hls,
+        dropout_rate=0.0, use_bayesian_feature_layer=True,
+    )
+
+def _tiny_wrapper(in_dim=11, n_classes=4, hls=None, feat_dim=4):
+    """Build a small ReconstructionWrapper for fast tests."""
+    hls = hls or [8, 4]
+    clf = mm.FeatureExtractor(
+        input_dim=in_dim, classes=n_classes, hidden_layer_sizes=hls,
+        dropout_rate=0.0, use_bayesian_feature_layer=True,
+    )
+    mapper = mm.LatentProjector(feat_dim=feat_dim, hidden=8, nonlinear=True)
+    decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=in_dim, decoder_hidden_sizes=[8])
+    return mm.ReconstructionWrapper(clf, mapper, decoder)
+
+
+# ---------------------------------------------------------------------------
+#  train_nn_hybrid_classifier
+# ---------------------------------------------------------------------------
+
+class TestTrainNNHybridClassifier(unittest.TestCase):
+
+    def test_returns_loss_dicts_and_best_state(self):
+        model = _tiny_model()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+
+        train_losses, valid_losses, best_valid, best_state = mm.train_nn_hybrid_classifier(
+            model, optimizer, loader, loader,
+            n_epoch=3, kl_weight_decay=0.01, kl_decay_epochs=2, patience=10,
+        )
+
+        # Loss dicts have the right keys
+        for key in ("total", "classification", "kl"):
+            self.assertIn(key, train_losses)
+            self.assertIn(key, valid_losses)
+            self.assertEqual(len(train_losses[key]), 3)
+
+        # Best state is a valid state_dict
+        self.assertIsInstance(best_state, dict)
+        self.assertIsInstance(best_valid, float)
+        self.assertGreater(best_valid, 0.0)
+
+    def test_early_stopping(self):
+        # With patience=1 and a tiny model, early stopping should kick in
+        model = _tiny_model()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-6)  # very low LR -> little improvement
+        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+
+        train_losses, valid_losses, _, _ = mm.train_nn_hybrid_classifier(
+            model, optimizer, loader, loader,
+            n_epoch=100, kl_weight_decay=0.0, kl_decay_epochs=1, patience=1,
+        )
+
+        # Should have stopped well before 100 epochs
+        self.assertLess(len(train_losses["total"]), 100)
+
+
+# ---------------------------------------------------------------------------
+#  train_nn_hybrid_bottleneck
+# ---------------------------------------------------------------------------
+
+class TestTrainNNHybridBottleneck(unittest.TestCase):
+
+    def test_returns_loss_dicts_and_best_states(self):
+        clf = _tiny_model()
+        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        optimizer = torch.optim.Adam(
+            list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
+        )
+        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+
+        train_losses, valid_losses, best_valid, best_mapper, best_decoder = (
+            mm.train_nn_hybrid_bottleneck(
+                clf, mapper, decoder, optimizer, loader, loader,
+                n_epoch=3, patience=10, plot_latent=False,
+            )
+        )
+
+        self.assertIn("reconstruction", train_losses)
+        self.assertIn("reconstruction", valid_losses)
+        self.assertEqual(len(train_losses["reconstruction"]), 3)
+
+        self.assertIsInstance(best_valid, float)
+        self.assertIsInstance(best_mapper, dict)
+        self.assertIsInstance(best_decoder, dict)
+
+    def test_classifier_stays_frozen(self):
+        clf = _tiny_model()
+        mapper = mm.LatentProjector(feat_dim=4, hidden=8)
+        decoder = mm.ReconstructionDecoder(z_dim=2, output_dim=11, decoder_hidden_sizes=[8])
+        optimizer = torch.optim.Adam(
+            list(mapper.parameters()) + list(decoder.parameters()), lr=1e-3
+        )
+        loader = tiny_loader(n=32, in_features=11, n_classes=4, batch=16)
+
+        # Snapshot classifier weights before training
+        clf_before = {k: v.clone() for k, v in clf.state_dict().items()}
+
+        mm.train_nn_hybrid_bottleneck(
+            clf, mapper, decoder, optimizer, loader, loader,
+            n_epoch=2, patience=10, plot_latent=False,
+        )
+
+        # Classifier weights should be unchanged
+        for key, before in clf_before.items():
+            after = clf.state_dict()[key]
+            self.assertTrue(torch.equal(before, after), f"Classifier param {key} was modified")
+
+
+# ---------------------------------------------------------------------------
+#  compute_z2_from_df
+# ---------------------------------------------------------------------------
+
+class TestComputeZ2FromDf(unittest.TestCase):
+
+    @patch("mineralML.hybrid.norm_data")
+    def test_returns_z2_and_preds(self, mock_norm):
+        wrapper = _tiny_wrapper()
+        wrapper.eval()
+
+        oxides = _get_oxides()
+        N = 10
+        df = pd.DataFrame(np.random.rand(N, len(oxides)), columns=oxides)
+
+        mock_norm.return_value = np.zeros((N, len(oxides)), dtype=np.float32)
+
+        Z2, preds = mm.compute_z2_from_df(df, wrapper, device="cpu")
+
+        self.assertEqual(Z2.shape, (N, 2))
+        self.assertEqual(preds.shape, (N,))
+        self.assertTrue(np.all(preds >= 0))
+        self.assertTrue(np.all(preds < 4))  # 4 classes
+
+
+# ---------------------------------------------------------------------------
+#  plot_loss_curves
+# ---------------------------------------------------------------------------
+
+class TestPlotLossCurves(unittest.TestCase):
+
+    def test_saves_figure(self):
+        from tempfile import TemporaryDirectory
+        train = {
+            "cls_classification": [1.0, 0.8, 0.6],
+            "cls_kl": [0.01, 0.02, 0.03],
+            "cls_total": [1.01, 0.82, 0.63],
+            "dec_reconstruction": [5.0, 3.0, 2.0],
+        }
+        valid = {
+            "cls_classification": [1.1, 0.9, 0.7],
+            "cls_kl": [0.01, 0.02, 0.03],
+            "cls_total": [1.11, 0.92, 0.73],
+            "dec_reconstruction": [5.5, 3.5, 2.5],
+        }
+        with TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "losses.pdf")
+            mm.plot_loss_curves(train, valid, path)
+            self.assertTrue(os.path.exists(path))
+
+    def test_handles_empty_histories(self):
+        from tempfile import TemporaryDirectory
+        train = {"cls_classification": [], "cls_kl": [], "cls_total": [], "dec_reconstruction": []}
+        valid = {"cls_classification": [], "cls_kl": [], "cls_total": [], "dec_reconstruction": []}
+        with TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "losses_empty.pdf")
+            mm.plot_loss_curves(train, valid, path)
+            self.assertTrue(os.path.exists(path))
+
+
+# ---------------------------------------------------------------------------
+#  plot_latent_space_training
+# ---------------------------------------------------------------------------
+
+class TestPlotLatentSpaceTraining(unittest.TestCase):
+
+    def test_returns_latents_and_labels(self):
+        from tempfile import TemporaryDirectory
+        import matplotlib
+        matplotlib.use("Agg")
+
+        wrapper = _tiny_wrapper()
+        wrapper.eval()
+
+        N, in_dim, n_classes = 20, 11, 4
+        x = torch.randn(N, in_dim)
+        y = torch.randint(0, n_classes, (N,))
+        dataset = TensorDataset(x, y)
+
+        with TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "latent.pdf")
+            latents, labels = mm.plot_latent_space_training(
+                model=wrapper, dataset=dataset, title="Test", filename=path,
+            )
+
+            self.assertEqual(latents.shape, (N, 2))
+            self.assertEqual(labels.shape, (N,))
+            self.assertTrue(os.path.exists(path))
+
+
+# ---------------------------------------------------------------------------
+#  plot_latent_space (mock-heavy, depends on checkpoint + reference data)
+# ---------------------------------------------------------------------------
+
+class TestPlotLatentSpace(unittest.TestCase):
+
+    @patch("mineralML.hybrid.load_hybrid_checkpoint")
+    @patch("mineralML.hybrid.compute_z2_from_df")
+    @patch("mineralML.hybrid.np.load")
+    @patch("mineralML.hybrid.os.path.exists", return_value=True)
+    @patch.object(plt, "show")
+    def test_runs_without_error(self, _show, _exists, mock_npload, mock_z2, mock_ckpt):
+        import matplotlib
+        matplotlib.use("Agg")
+
+        oxides = _get_oxides()
+        N = 10
+        n_classes = 4
+
+        # Mock the reference latent data file
+        mock_npload.return_value.__enter__ = lambda s: {
+            "valid_latents": np.random.randn(50, 2).astype(np.float32),
+            "valid_labels": np.random.randint(0, n_classes, 50),
+        }
+        mock_npload.return_value.__exit__ = lambda s, *a: None
+
+        # Mock the model checkpoint
+        wrapper = _tiny_wrapper(n_classes=n_classes)
+        mock_ckpt.return_value = (wrapper, None, None)
+
+        # Mock compute_z2_from_df
+        mock_z2.return_value = (
+            np.random.randn(N, 2).astype(np.float32),
+            np.random.randint(0, n_classes, N),
+        )
+
+        # Build the input DataFrame
+        df = pd.DataFrame(np.random.rand(N, len(oxides)), columns=oxides)
+        df["Predict_Mineral"] = "Olivine"
+
+        # Should run without raising
+        mm.plot_latent_space(df, label_column="Predict_Mineral")
+        plt.close("all")
 
 
 if __name__ == "__main__":
