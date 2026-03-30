@@ -2,6 +2,19 @@
 Change Log
 ==========
 
+Version 0.0.3.9
+===============
+Added ``renormalize`` argument to `prep_df` for optional renormalization of oxide compositions. Increased default iterations in `predict_class_prob`. Added new functions for processing microanalytical data from Cameca, Probe for EPMA, and AZtec formats. Added stoichiometry calculations for glasses. Added glass plotting to documentation.Updated `mapping.py` to return figure objects from `plot_ctf_phases`. Patched `stoichiometry.py` for pyrolite output compatibility. 
+
+Updated ``rtd_environment.yml`` for pyrolite dependency. Added ``openpyxl`` to ``setup.py`` dependencies.
+
+Removed deprecated `supervised.py` module and legacy ``parametermatrix`` files. Removed unused data files and updated ``.gitignore``.
+
+Expanded unit test suite with new and extended coverage across ``test_hybrid.py``, ``test_mapping.py``, ``test_stoichiometry.py``, ``test_core.py``, ``test_confusion_matrix.py``, ``test_synthetic_minerals.py``, and ``test_microanalysis.py``.
+
+Committed EDS and EBSD maps from Mount Hood and Tuolumne samples. Added EBSD-EDS mapping example notebook (``mineralML_mapping_ebsd.ipynb``) and updated documentation, examples, and README with mapping figure. Updated Google Colab implementation.
+
+
 Version 0.0.3.8
 ===============
 Refactored `predict_class_prob` to use centralized hybrid checkpoint loading. Removed duplicate manual model reconstruction from prediction. Aligned prediction and reconstruction paths to use the same loaded wrapper. Improved handling when oxide columns or `ZrO2` are absent. Avoided in-place modification of input DataFrames when computing `Total`. Clamped Monte Carlo variance to zero before square root to avoid invalid standard deviations.

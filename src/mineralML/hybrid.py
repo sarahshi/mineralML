@@ -1758,7 +1758,7 @@ def predict_class_prob(
     return_recon_oxides=False,
     scaler_path=_DEFAULT_SCALER_FILE,
     verbose=True,
-    seed=42,
+    seed=88,
 ):
     """
     Predicts mineral classes with Monte Carlo Bayesian averaging using the
