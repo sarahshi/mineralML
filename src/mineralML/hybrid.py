@@ -21,6 +21,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn.functional as F
 
 from .core import *
+from .core import same_seeds
 from .stoichiometry import *
 from .constants import OXIDES
 
@@ -115,8 +116,8 @@ def convert_fe_to_feot(df):
     return df
 
 
-def prep_df(df, convert_fe=False, drop_empty_rows=False, min_oxide_count=2,
-            verbose=True):
+def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False, 
+            min_oxide_count=2, verbose=True):
     """
     Prepares a DataFrame for analysis by performing data cleaning specific
     to mineralogical data. Handles missing values and ensures the presence
@@ -127,6 +128,7 @@ def prep_df(df, convert_fe=False, drop_empty_rows=False, min_oxide_count=2,
         df (pd.DataFrame): Input DataFrame containing mineral composition data.
             Metadata columns ('Mineral', 'Source', 'SampleID', 'Sample',
             'Sample Name', 'Sample ID') are preserved in the output when present.
+        renormalize (bool): If True, renormalizes the oxide columns to 100 wt%.
         convert_fe (bool): If True, automatically converts FeO, Fe2O3, and
             Fe2O3t columns to FeOt using ``Fe_Conversion()``. If False
             (the default), raises a ValueError when these columns are present
@@ -193,6 +195,22 @@ def prep_df(df, convert_fe=False, drop_empty_rows=False, min_oxide_count=2,
 
     # Fill remaining NaN values with 0 for oxides only
     df.loc[:, oxides_plus_zr] = df.loc[:, oxides_plus_zr].fillna(0)
+
+    n_renormed = 0
+    if renormalize:
+        totals = df[oxides_plus_zr].sum(axis=1)
+        renorm_mask = totals > 0
+        n_renormed = renorm_mask.sum()
+        df.loc[renorm_mask, oxides_plus_zr] = (
+            df.loc[renorm_mask, oxides_plus_zr]
+            .div(totals[renorm_mask], axis=0)
+            .mul(100.0)
+        )
+        if verbose:
+            print(
+                f"prep_df: Renormalized {n_renormed} row(s) to 100 wt%"
+                f" ({(~renorm_mask).sum()} row(s) skipped — zero total)."
+            )
 
     # Optionally drop near-empty rows
     n_dropped = 0
@@ -1730,15 +1748,17 @@ def train_hybrid_model(
     return best_model_state
 
 
+
 def predict_class_prob(
     df,
-    n_iterations=50,
+    n_iterations=250,
     *,
     model_path=None,
     mc_dropout=True,
     return_recon_oxides=False,
     scaler_path=_DEFAULT_SCALER_FILE,
     verbose=True,
+    seed=42,
 ):
     """
     Predicts mineral classes with Monte Carlo Bayesian averaging using the
@@ -1755,28 +1775,31 @@ def predict_class_prob(
         return_recon_oxides (bool): If True, appends reconstructed oxide columns
             to the output DataFrame.
         scaler_path (str): Filename or relative path to the saved scaler .npz file.
+        seed (int|None): If provided, calls same_seeds(seed) before MC sampling
+            to make predictions fully reproducible. If None (default), MC draws
+            are non-deterministic.
  
     Returns:
         result_df (pd.DataFrame): Predictions including 'Predict_Mineral',
             'Prediction_Score', 'Prediction_Score_Sigma', 'Second_Predict_Mineral',
             and 'Second_Prediction_Score'.
     """
-
+ 
     # ---- set up result DataFrame  ----
     oxides = OXIDES
     oxides_plus_zr = oxides + ["ZrO2"]
     metadata = ["Mineral", "Source", "SampleID", "Sample", "Sample Name", "Sample ID"]
-
+ 
     available_cols = [c for c in (oxides_plus_zr + metadata) if c in df.columns]
     result_df = df[available_cols].copy()
-
+ 
     result_df["Predict_Mineral"] = pd.Series(None, index=df.index, dtype="object")
     result_df["Second_Predict_Mineral"] = pd.Series(None, index=df.index, dtype="object")
     result_df["Prediction_Score"] = pd.Series(np.nan, index=df.index, dtype="float64")
     result_df["Prediction_Score_Sigma"] = pd.Series(np.nan, index=df.index, dtype="float64")
     result_df["Second_Prediction_Score"] = pd.Series(np.nan, index=df.index, dtype="float64")
     result_df["Submineral"] = pd.Series(None, index=df.index, dtype="object")
-
+ 
     si = df.get("SiO2", pd.Series(0.0, index=df.index))
     zr = df.get("ZrO2", pd.Series(0.0, index=df.index))
     
@@ -1784,7 +1807,7 @@ def predict_class_prob(
     total = df.get("Total")
     if total is None:
         total = df[df.columns.intersection(oxides_plus_zr)].sum(axis=1, skipna=True)
-
+ 
     # Detect invalid rows (fewer than 1 non-zero oxide or Total too low)
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
     if oxide_cols_in_df:
@@ -1793,19 +1816,19 @@ def predict_class_prob(
         invalid_mask = pd.Series(True, index=df.index)
     
     invalid_mask |= (total < 50)
-
+ 
     zircon_mask = (zr > 50) & ~invalid_mask
     quartz_mask = (si > 90) & ~invalid_mask
     carbonate_mask = ((si < 5) & (total < 70)) if "CaO" in df.columns else pd.Series(False, index=df.index)
     carbonate_mask &= ~invalid_mask
     non_empirical_mask = ~(invalid_mask | zircon_mask | quartz_mask | carbonate_mask)
-
+ 
     result_df["Predict_Mineral"] = np.select(
         [invalid_mask, zircon_mask, quartz_mask, carbonate_mask],
         [None, "Zircon", "SiO2_Polymorph", "Carbonate"],
         default=None
     )
-
+ 
     if verbose:
         n_total = len(df)
         n_invalid = int(invalid_mask.sum())
@@ -1813,7 +1836,7 @@ def predict_class_prob(
         n_quartz = int(quartz_mask.sum())
         n_carbonate = int(carbonate_mask.sum())
         n_nn = int(non_empirical_mask.sum())
-
+ 
         print(
             f"mineralML: {n_total} rows — "
             f"{n_nn} classified by neural network, "
@@ -1821,7 +1844,7 @@ def predict_class_prob(
             f"(Zircon: {n_zircon}, SiO2 polymorph: {n_quartz}, Carbonate: {n_carbonate}), "
             f"{n_invalid} skipped (invalid/empty)"
         )
-
+ 
     if non_empirical_mask.any():
         non_emp_df = df.loc[non_empirical_mask].copy()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1832,37 +1855,37 @@ def predict_class_prob(
             strict=True,
             eval_mode=True,
         )
-
+ 
         classifier = enable_mc_sampling(
             wrapper.classifier,
             enable_dropout=mc_dropout,
         )
-
+ 
         norm_wt = norm_data(non_emp_df, scaler_path=scaler_path).astype(
             np.float32, copy=False
         )
         input_data = torch.from_numpy(norm_wt).to(device)
-
+ 
         if return_recon_oxides:
             wrapper.eval()
             with torch.inference_mode():
                 N = input_data.shape[0]
                 BATCH_R = 2**13
                 recon_acc = []
-
+ 
                 for start in range(0, N, BATCH_R):
                     end = min(start + BATCH_R, N)
                     xb = input_data[start:end]
                     _logits, recon_norm, _z2 = wrapper(xb)
                     recon_acc.append(recon_norm.detach().cpu().numpy())
-
+ 
                 recon_norm = np.concatenate(recon_acc, axis=0)
-
+ 
                 mean, std = load_scaler(scaler_path=scaler_path)
                 mean_vec = mean[OXIDES].to_numpy(dtype=np.float32)
                 std_vec = std[OXIDES].to_numpy(dtype=np.float32)
                 recon_out = recon_norm * std_vec[None, :] + mean_vec[None, :]
-
+ 
             recon_cols = [f"{c}_recon" for c in OXIDES]
             recon_non_emp = pd.DataFrame(
                 recon_out,
@@ -1871,69 +1894,72 @@ def predict_class_prob(
                 dtype=float,
             )
             recon_df = recon_non_emp.reindex(df.index)
-
+ 
         # ---- Monte Carlo Bayesian averaging ----
+        if seed is not None:
+            same_seeds(seed)
+ 
         with torch.inference_mode():
             N = len(input_data)
             C = wrapper.classifier.classes
             BATCH = 2**13
             K = 10
-
+ 
             probs_mean = torch.empty((N, C), device=device, dtype=torch.float32)
             probs_var = torch.empty((N, C), device=device, dtype=torch.float32)
-
+ 
             for start in range(0, N, BATCH):
                 end = min(start + BATCH, N)
                 x = input_data[start:end]
                 b = x.shape[0]
-
+ 
                 done = 0
                 acc = torch.zeros((b, C), device=device, dtype=torch.float32)
                 acc2 = torch.zeros((b, C), device=device, dtype=torch.float32)
-
+ 
                 while done < n_iterations:
                     kk = min(K, n_iterations - done)
-
+ 
                     for _ in range(kk):
                         logits = classifier(x)
                         s = torch.softmax(logits, dim=1)
                         acc += s
                         acc2 += s**2
-
+ 
                     done += kk
-
+ 
                 mean_chunk = acc / float(n_iterations)
                 var_chunk = (acc2 / float(n_iterations)) - mean_chunk**2
-
+ 
                 probs_mean[start:end] = mean_chunk
                 probs_var[start:end] = var_chunk
-
+ 
             pred_score_matrix = probs_mean.detach().cpu().numpy()
             std_matrix = np.sqrt(probs_var.clamp(min=0).detach().cpu().numpy())
-
+ 
         # ---- top-2 predictions ----
         top_two_indices = np.argsort(pred_score_matrix, axis=1)[:, -2:]
         first_idx = top_two_indices[:, 1]
         second_idx = top_two_indices[:, 0]
-
+ 
         first_probs = pred_score_matrix[np.arange(len(pred_score_matrix)), first_idx]
         first_uncertainty = std_matrix[np.arange(len(std_matrix)), first_idx]
         second_probs = pred_score_matrix[np.arange(len(pred_score_matrix)), second_idx]
-
+ 
         first_mins = class2mineral(first_idx)
         second_mins = class2mineral(second_idx)
-
+ 
         result_df.loc[non_empirical_mask, "Predict_Mineral"] = first_mins
         result_df.loc[non_empirical_mask, "Prediction_Score"] = first_probs
         result_df.loc[non_empirical_mask, "Prediction_Score_Sigma"] = first_uncertainty
         result_df.loc[non_empirical_mask, "Second_Predict_Mineral"] = second_mins
         result_df.loc[non_empirical_mask, "Second_Prediction_Score"] = second_probs
-
+ 
     # Process specialized classifiers
     oxide_cols = [c for c in result_df.columns if c in OXIDES]
     mineral_col = "Predict_Mineral" if "Predict_Mineral" in result_df.columns else None
     cols = oxide_cols + ([mineral_col] if mineral_col else [])
-
+ 
     def _merge_subclass(mask, Classifier, want_sub=True):
         if not mask.any():
             return
@@ -1946,15 +1972,15 @@ def predict_class_prob(
             result_df.loc[mask, "Predict_Mineral"] = out["Mineral"].values
         if want_sub and "Submineral" in out.columns:
             result_df.loc[mask, "Submineral"] = out["Submineral"].values
-
+ 
     # Pyroxene classification
     px_mask = result_df["Predict_Mineral"] == "Pyroxene"
     _merge_subclass(px_mask, PyroxeneClassifier, want_sub=True)
-
+ 
     # Feldspar classification
     fspar_mask = result_df["Predict_Mineral"] == "Feldspar"
     _merge_subclass(fspar_mask, FeldsparClassifier, want_sub=True)
-
+ 
     # Oxide classification
     # ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinel_Group", "Oxide"])
     # # ox_mask = result_df["Predict_Mineral"].isin(["Oxide"])
@@ -1965,7 +1991,7 @@ def predict_class_prob(
         result_df.loc[ox_mask, "Submineral"] = result_df.loc[ox_mask, "Predict_Mineral"].values
         # Collapse Predict_Mineral to "Oxide"
         result_df.loc[ox_mask, "Predict_Mineral"] = "Oxide"
-
+ 
     cols = list(result_df.columns)
     for col, after in [
         ("Prediction_Score_Sigma", "Prediction_Score"),
@@ -1975,10 +2001,10 @@ def predict_class_prob(
             cols.remove(col)
             cols.insert(cols.index(after) + 1, col)
     result_df = result_df[cols]
-
+ 
     if return_recon_oxides and recon_df is not None:
         result_df = pd.concat([result_df, recon_df], axis=1)
-
+ 
     return result_df
 
 
@@ -2611,6 +2637,7 @@ def predict_class_prob_nnwr(
     return_recon_oxides=False,
     scaler_path=_DEFAULT_SCALER_FILE,
     verbose=True,
+    seed=42,
 ):
     """Deprecated — use `predict_class_prob` instead."""
     warnings.warn(
@@ -2627,6 +2654,7 @@ def predict_class_prob_nnwr(
         return_recon_oxides=return_recon_oxides,
         scaler_path=scaler_path,
         verbose=verbose,
+        seed=42,
     )
 
 
