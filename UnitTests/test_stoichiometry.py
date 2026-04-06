@@ -590,8 +590,8 @@ class TestGlassClassifier(unittest.TestCase):
         df_class = clf.calculate_components(subclass=True)
         fig, ax = clf.plot(df_class=df_class)
         self.assertIsInstance(fig, plt.Figure)
-        self.assertEqual(ax.get_xlabel(), "SiO$_2$ (wt%)")
-        self.assertEqual(ax.get_ylabel(), "Na$_2$O + K$_2$O (wt%)")
+        self.assertEqual(ax.get_xlabel(), "SiO$\\mathregular{_2}$ (wt%)")
+        self.assertEqual(ax.get_ylabel(), "Na$\\mathregular{_2}$O + K$\\mathregular{_2}$O (wt%)")
         plt.close(fig)
  
     def test_plot_no_subclass(self):
