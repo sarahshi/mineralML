@@ -21,3 +21,4 @@ dependencies:
     - pip:
         - pyrolite
         - python-ternary
+        - mineralML
