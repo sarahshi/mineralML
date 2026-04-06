@@ -2281,6 +2281,7 @@ def plot_latent_space(
     new_kws=None,
     max_points=250_000,
     filename=None,
+    seed=88,
 ):
     """
     Plots a 2D latent space overlaying new data on top of reference (training) data.
@@ -2298,7 +2299,9 @@ def plot_latent_space(
         new_kws (dict|None): Keyword arguments for the foreground (new data) scatter.
         max_points (int): Maximum number of points to plot per layer.
         filename (str|None): Path to save the figure. If None, displays interactively.
-    """
+        seed (int|None): If provided, calls same_seeds(seed) to make predictions fully
+            reproducible. If None (default), results are non-deterministic.
+        """
  
     # Load Training Background
     latent_path = os.path.join(
@@ -2314,6 +2317,9 @@ def plot_latent_space(
         )
 
     # Compute Foreground Z2 and predictions
+    if seed is not None:
+        same_seeds(seed)
+
     wrapper, _, _ = load_hybrid_checkpoint(
         model_path=None,
         device=None,
@@ -2426,23 +2432,44 @@ def plot_latent_space(
     # Plot Reference Data (Background) and create dummy legend markers
     uniq_ref_classes = np.unique(yr).astype(int)
     ref_kws.pop("c", None)
+    ref_color_override = ref_kws.get("color", None)  # str, or dict, or None
+    kws_ref = {k: v for k, v in ref_kws.items() if k != "color"}
+
     for cls in uniq_ref_classes:
         if cls < 0:
-            continue  # Skip unmapped
+            continue
         mask = yr == cls
         name = label_names.get(cls, f"Class {cls}")
-        color = cmap(norm(cls))
-        ax.scatter(Zr[mask, 0], Zr[mask, 1], color=color, **ref_kws)
+        
+        if isinstance(ref_color_override, dict):
+            color = ref_color_override.get(name, cmap(norm(cls)))
+        elif ref_color_override is not None:
+            color = ref_color_override
+        else:
+            color = cmap(norm(cls))
+        
+        ax.scatter(Zr[mask, 0], Zr[mask, 1], color=color, **kws_ref)
         ax.scatter([], [], s=40, marker="o", color=color, ec="k", lw=0.5, label=name)
 
     # Plot new data in foreground
     uniq_new_classes = np.unique(yn).astype(int)
+    new_color_override = new_kws.get("color", None)
+    kws_new = {k: v for k, v in new_kws.items() if k != "color"}
+
     for cls in uniq_new_classes:
         if cls < 0:
             continue
         mask = yn == cls
-        color = cmap(norm(cls))
-        ax.scatter(Zn[mask, 0], Zn[mask, 1], color=color, **new_kws)
+        name = label_names.get(cls, f"Class {cls}")
+        
+        if isinstance(new_color_override, dict):
+            color = new_color_override.get(name, cmap(norm(cls)))
+        elif new_color_override is not None:
+            color = new_color_override
+        else:
+            color = cmap(norm(cls))
+        
+        ax.scatter(Zn[mask, 0], Zn[mask, 1], color=color, **kws_new)
 
     # Final formatting and legend
     if len(uniq_ref_classes) <= 30:
@@ -2637,7 +2664,7 @@ def predict_class_prob_nnwr(
     return_recon_oxides=False,
     scaler_path=_DEFAULT_SCALER_FILE,
     verbose=True,
-    seed=42,
+    seed=88,
 ):
     """Deprecated — use `predict_class_prob` instead."""
     warnings.warn(

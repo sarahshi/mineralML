@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 from scipy import interpolate
 
-from .constants import OXIDES, OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP
+import matplotlib.pyplot as plt
+import matplotlib.path as mpath
+import matplotlib.patches as mpatches
+
+from .constants import OXIDES, OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP, TAS_CONFIG
 
 # %%
 
@@ -1290,6 +1294,140 @@ class GarnetCalculator(BaseMineralCalculator):
         return pd.concat([base_update, sites], axis=1)
 
 
+class TASClassifier:
+    """
+    Total Alkali-Silica classifier backed by a polygon JSON config.
+
+    Fields with empty or missing 'poly' entries are skipped. Classification
+    uses matplotlib.path.Path for point-in-polygon tests and is vectorized
+    over all valid fields.
+
+    Parameters:
+        config (dict): TAS config dict with 'fields' key mapping IDs to dicts
+            containing 'name' (list[str]) and 'poly' (list of [x, y] vertices).
+    """
+
+    # Skip pseudo-fields that carry no polygon geometry
+    _SKIP_IDS = {"nan", "none"}
+
+    def __init__(self, config: dict = TAS_CONFIG):
+        self.config = config
+        self.fields = config["fields"]
+        self.axes = config["axes"]  # {"x": "SiO2", "y": "Na2O + K2O"}
+
+        # Pre-build matplotlib Paths for every non-empty polygon field
+        self._paths: dict[str, mpath.Path] = {}
+        for field_id, cfg in self.fields.items():
+            if field_id in self._SKIP_IDS:
+                continue
+            verts = cfg.get("poly", [])
+            if len(verts) < 3:
+                continue
+            arr = np.asarray(verts, dtype=float)
+            # Close the polygon if not already closed
+            if not np.allclose(arr[0], arr[-1]):
+                arr = np.vstack([arr, arr[0]])
+            self._paths[field_id] = mpath.Path(arr)
+
+    def predict(self, sio2, total_alkali):
+        """
+        Classify points into TAS field IDs.
+
+        Parameters:
+            sio2 (array-like): SiO2 values (wt%).
+            total_alkali (array-like): Na2O + K2O values (wt%).
+
+        Returns:
+            pd.Series: Field IDs (str); unclassified points get np.nan.
+        """
+
+        # Capture index before converting to array
+        index = getattr(sio2, "index", None)
+
+        pts = np.column_stack([
+            np.asarray(sio2, dtype=float),
+            np.asarray(total_alkali, dtype=float),
+        ])
+        result = np.full(len(pts), np.nan, dtype=object)
+
+        for field_id, path in self._paths.items():
+            inside = path.contains_points(pts)
+            result[inside] = field_id
+
+        return pd.Series(result, index=index, dtype=object)
+
+    def get_rock_name(self, field_id, which="volcanic", for_display=False):
+        """
+        Resolve a field ID to its rock name.
+
+        Parameters:
+            field_id (str|float): A field ID string or NaN for unclassified points.
+            which (str): 'volcanic' returns index 0 of the name list;
+                'intrusive' returns index -1.
+            for_display (bool): If True, returns the 'label' entry (with line breaks)
+                when available, falling back to 'name'. If False, always uses 'name'.
+
+        Returns:
+            str: Rock name, or 'Unclassified' if the field ID is not found.
+        """
+        if pd.isna(field_id):
+            return "Unclassified"
+        cfg = self.fields.get(field_id)
+        if cfg is None:
+            return "Unclassified"
+        key = "label" if (for_display and "label" in cfg) else "name"
+        names = cfg[key]
+        if isinstance(names, str):
+            return names
+        idx = 0 if which.startswith("volc") else -1
+        return names[idx] if names else "Unclassified"
+
+    def add_to_axes(self, ax, add_labels=True, which_labels="volcanic",
+                    label_fontsize=7, **patch_kwargs):
+        """
+        Draw TAS polygon boundaries (and optionally labels) onto an axis.
+
+        Parameters:
+            ax (matplotlib.axes.Axes): Target axis.
+            add_labels (bool): Whether to annotate each field at its centroid.
+            which_labels (str): 'volcanic' or 'intrusive' — selects which rock
+                name to show.
+            label_fontsize (int): Font size for field labels.
+            **patch_kwargs: Passed to matplotlib.patches.Polygon
+                (e.g. linewidth, alpha, edgecolor).
+
+        Returns:
+            ax (matplotlib.axes.Axes): The modified axis.
+        """
+
+        defaults = dict(fill=False, edgecolor="k", linewidth=0.6, zorder=0)
+        defaults.update(patch_kwargs)
+
+        for field_id, path in self._paths.items():
+            verts = path.vertices[:-1]  # drop closing duplicate
+            patch = mpatches.Polygon(verts, **defaults)
+            ax.add_patch(patch)
+
+            if add_labels:
+                cx, cy = verts.mean(axis=0)
+                label = self.get_rock_name(field_id, which=which_labels, for_display=True)
+                ax.annotate(
+                    "\n".join(label.split()),
+                    xy=(cx, cy),
+                    ha="center",
+                    va="center",
+                    fontsize=label_fontsize,
+                    color="0.35",
+                    zorder=1,
+                )
+
+        ax.set_xlim(30, 90)
+        ax.set_ylim(0, 20)
+        ax.set_xlabel("SiO$\\mathregular{_2}$ (wt%)")
+        ax.set_ylabel("Na$\\mathregular{_2}$O + K$\\mathregular{_2}$O (wt%)")
+        return ax
+
+
 class GlassCalculator(BaseMineralCalculator):
     """Glass-specific calculations."""
     OXYGEN_BASIS = 0
@@ -1315,118 +1453,108 @@ class GlassCalculator(BaseMineralCalculator):
 
 
 class GlassClassifier(GlassCalculator):
-    """General glass calculations for TAS classification and plotting."""
+    """General glass calculations with built-in TAS classification and plotting."""
 
-    def calculate_components(self, subclass=True,
-                             which_model="LeMaitreCombined"):
+    def calculate_components(self, subclass=True, which_name="volcanic"):
         """
-        Calculates base components (MgNo) and immediately classifies 
-        the glass using the pyrolite TAS diagram.
+        Calculates base components and optionally appends TAS classification.
+
+        Parameters:
+            subclass (bool): If True, adds a 'TAS' column with rock names.
+            which_name (str): 'volcanic' or 'intrusive' — selects which rock
+                name variant to use.
+
+        Returns:
+            comps (pd.DataFrame): Component dataframe with optional 'TAS' column.
         """
-        import pandas as pd
-        from pyrolite.util.classification import TAS
-        
-        # Get base components (moles, MgNo, etc.) from GlassCalculator
+
         comps = super().calculate_components()
-        
-        # Default assignment
         comps["Mineral"] = "Glass"
-        
+
         if not subclass:
             return comps
 
-        # TAS classification requires Weight % (wt%), retained in `comps`
-        sio2 = comps.get('SiO2', pd.Series(0, index=comps.index))
-        na2o = comps.get('Na2O', pd.Series(0, index=comps.index))
-        k2o = comps.get('K2O', pd.Series(0, index=comps.index))
+        sio2 = comps.get("SiO2", pd.Series(0.0, index=comps.index)).fillna(0)
+        na2o = comps.get("Na2O", pd.Series(0.0, index=comps.index)).fillna(0)
+        k2o  = comps.get("K2O",  pd.Series(0.0, index=comps.index)).fillna(0)
+        total_alkali = na2o + k2o
 
-        tas_df = pd.DataFrame({
-            'SiO2': sio2,
-            'Na2O': na2o,
-            'K2O': k2o,
-            'Na2O + K2O': na2o + k2o,
-        })
+        clf = TASClassifier()
+        field_ids = clf.predict(sio2, total_alkali)
+        comps["TAS"] = field_ids.apply(
+            lambda fid: clf.get_rock_name(fid, which=which_name)
+        ).astype(str)
 
-        # Predict TAS IDs and map them to their actual rock names
-        cm = TAS(which_model=which_model)
-        tas_ids = cm.predict(tas_df)
-        
-        def get_rock_name(tas_id):
-            if isinstance(tas_id, list):
-                tas_id = tas_id[0] if tas_id else np.nan
-            if pd.isna(tas_id):
-                return "Unclassified"
-            return cm.fields.get(tas_id, {"name": "Unclassified"})["name"]
-
-        # Append Submineral classifications to the output dataframe
-        comps["TAS"] = tas_ids.apply(get_rock_name).astype(str)
-            
         return comps
 
-    def plot(self, df_class=None, subclass=True, which_model="LeMaitreCombined",
-             figsize=(8, 6), ax=None, **kwargs):
+    def plot(self, df_class=None, subclass=True, which_name="volcanic",
+             figsize=(8, 6), ax=None, **scatter_kwargs):
         """
-        Plots the glasses on a TAS (Total Alkali-Silica) diagram.
+        Plot glasses on a TAS diagram.
+
+        Parameters:
+            df_class (pd.DataFrame|None): Pre-computed output of
+                calculate_components(). Runs it automatically if None.
+            subclass (bool): If True, colour-codes points by TAS rock type.
+            which_name (str): 'volcanic' or 'intrusive' label variant for both
+                field labels and the legend.
+            figsize (tuple): Figure size passed to plt.subplots if creating a
+                new figure.
+            ax (matplotlib.axes.Axes|None): Existing axis to plot onto. If None,
+                a new figure and axis are created.
+            **scatter_kwargs: Passed to ax.scatter (e.g. s=40, alpha=0.9).
+
+        Returns:
+            fig (matplotlib.figure.Figure): The figure object.
+            ax (matplotlib.axes.Axes): The axis object.
         """
-        import matplotlib.pyplot as plt
-        from pyrolite.util.classification import TAS
         
-        # Automatically run calculate_components if no dataframe is provided
         if df_class is None:
-            df_class = self.calculate_components(subclass=subclass)
+            df_class = self.calculate_components(subclass=subclass, which_name=which_name)
 
-        cm = TAS(which_model=which_model)
-
-        # Set up the plot axis if not provided
         if ax is None:
-            fig, ax = plt.subplots(1, 1, figsize=figsize)
+            fig, ax = plt.subplots(figsize=figsize)
         else:
             fig = ax.get_figure()
 
-        # Add Pyrolite's TAS background boundaries and labels
-        cm.add_to_axes(ax, alpha=0.5, linewidth=0.5, zorder=-1, add_labels=True)
+        clf = TASClassifier()
+        clf.add_to_axes(ax, add_labels=True, which_labels=which_name)
 
-        # Calculate Total Alkalis for the Y-axis
-        na2o = df_class.get('Na2O', pd.Series(0, index=df_class.index)).fillna(0)
-        k2o = df_class.get('K2O', pd.Series(0, index=df_class.index)).fillna(0)
-        tot_alkalis = na2o + k2o
-        sio2 = df_class.get('SiO2', pd.Series(0, index=df_class.index)).fillna(0)
+        sio2 = df_class.get("SiO2", pd.Series(0.0, index=df_class.index)).fillna(0)
+        na2o = df_class.get("Na2O", pd.Series(0.0, index=df_class.index)).fillna(0)
+        k2o  = df_class.get("K2O",  pd.Series(0.0, index=df_class.index)).fillna(0)
+        total_alkali = na2o + k2o
 
-        # Plot by TAS Submineral if classification exists
+        sc_defaults = dict(marker="o", edgecolors="k", linewidths=0.25, s=30, alpha=0.8, zorder=10)
+        sc_defaults.update(scatter_kwargs)
+
         if subclass and "TAS" in df_class.columns:
             cmap = plt.get_cmap("tab10")
             unique_rocks = df_class["TAS"].unique()
 
             for i, rock in enumerate(unique_rocks):
                 mask = df_class["TAS"] == rock
-                
-                ax.scatter(sio2[mask], 
-                           tot_alkalis[mask], 
-                           marker='o', 
-                           label=rock, 
-                           color=cmap(i % 10),
-                           edgecolor='k', 
-                           linewidth=0.25, 
-                           s=30, 
-                           alpha=0.8, 
-                           zorder=10)
-                
-            # Move legend outside the plot
-            ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), title="Rock Type", fontsize=10)
-            
+                ax.scatter(
+                    sio2[mask], total_alkali[mask],
+                    color=cmap(i % 10),
+                    label=rock,
+                    **sc_defaults,
+                )
+            ax.legend(
+                loc="upper left",
+                bbox_to_anchor=(1.02, 1),
+                title="Rock Type",
+                fontsize=9,
+                frameon=True,
+            )
         else:
-            # Simple scatter if no subclasses are requested
-            ax.scatter(sio2, tot_alkalis, 
-                       marker='o', c='tab:blue', edgecolors='k', 
-                       linewidth=0.25, label='Glass', alpha=0.8, zorder=10)
+            ax.scatter(sio2, total_alkali, c="tab:blue", label="Glass", **sc_defaults)
+            ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
 
-        # Formatting
-        ax.set_xlabel("SiO$_2$ (wt%)")
-        ax.set_ylabel("Na$_2$O + K$_2$O (wt%)")
-        ax.set_title("TAS Classification for Glasses")
-
+        ax.set_title("TAS Classification")
+        fig.tight_layout()
         return fig, ax
-    
+
 
 class KalsiliteCalculator(BaseMineralCalculator):
     """Kalsilite-specific calculations. K[AlSiO4]."""

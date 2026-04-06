@@ -19,6 +19,4 @@ dependencies:
     - torch 
     - pip
     - pip:
-        - pyrolite
         - python-ternary
-        - mineralML
