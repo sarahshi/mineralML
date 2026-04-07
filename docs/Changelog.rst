@@ -2,6 +2,11 @@
 Change Log
 ==========
 
+Version 0.0.3.10
+================
+The pyrolite dependency was removed given that it was only used for a single function in the documentation. The `plot_latent_space` function now includes a random seed for reproducibility of the latent space visualization, ensuring consistent results across runs.
+
+
 Version 0.0.3.9
 ===============
 Added ``renormalize`` argument to `prep_df` for optional renormalization of oxide compositions. Increased default iterations in `predict_class_prob`. Added new functions for processing microanalytical data from Cameca, Probe for EPMA, and AZtec formats. Added stoichiometry calculations for glasses. Added glass plotting to documentation.Updated `mapping.py` to return figure objects from `plot_ctf_phases`. Patched `stoichiometry.py` for pyrolite output compatibility. 
