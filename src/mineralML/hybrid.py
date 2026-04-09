@@ -1807,7 +1807,8 @@ def predict_class_prob(
     total = df.get("Total")
     if total is None:
         total = df[df.columns.intersection(oxides_plus_zr)].sum(axis=1, skipna=True)
- 
+    total = pd.to_numeric(total, errors='coerce')
+
     # Detect invalid rows (fewer than 1 non-zero oxide or Total too low)
     oxide_cols_in_df = [c for c in OXIDES if c in df.columns]
     if oxide_cols_in_df:

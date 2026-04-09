@@ -161,7 +161,7 @@ class BaseMineralCalculator:
         )
         last = self.metadata.reindex(
             index=idx,
-            columns=['Mineral','Source'],
+            columns=['Mineral','Source','Predict_Mineral','Prediction_Score','Prediction_Score_Sigma','Second_Predict_Mineral','Second_Prediction_Score'],
             fill_value=np.nan
         )
 

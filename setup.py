@@ -37,7 +37,6 @@ setup(
             'python-ternary',
             'scikit-image',
             'openpyxl',
-            'pyrolite',
             ],
 
     classifiers=[
