@@ -2,6 +2,14 @@
 Change Log
 ==========
 
+
+Version 0.0.3.11
+================
+Adapted all stoichiometry calculators to return the `Predict_Mineral`, `Prediction_Score`, `Prediction_Score_Sigma`, `Second_Predict_Mineral`, and `Second_Prediction_Score` from the `predict_class_prob` function (if present), in addition to the calculated components . This provides users with the predicted mineral class and associated confidence metrics alongside the stoichiometric calculations. 
+
+Removed last pyrolite dependency — thank you Nick Swanson-Hysell for catching one remaining line in setup.py.
+
+
 Version 0.0.3.10
 ================
 The pyrolite dependency was removed given that it was only used for a single function in the documentation. The `plot_latent_space` function now includes a random seed for reproducibility of the latent space visualization, ensuring consistent results across runs.
