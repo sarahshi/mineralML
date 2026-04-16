@@ -6,6 +6,24 @@ Welcome to ``mineralML``: An Open-Source Machine Learning Package for Probabilis
 
 The development of this tool is continually in progress. The manuscript is in review at Geochemistry, Geophysics, and Geosystems with the preprint shortly posted on Earth ArXiv. Please make sure you cite this tool if you use it. Software development takes time and and academia does not always recognize the effort taken, but it does recognize citations. 
 
+``mineralML`` is currently in review, with the preprint on Earth ArXiv :cite:p:`Shietal2026`. Please refer to the manuscript for a more detailed description of the development and validation of the method. If you use this package in your work, please cite: 
+
+.. code-block:: console
+
+   Shi, S., Wieser, P., Gordon, C., Toth, N., Antoshechkina, P., Gleeson, M., & Lehnert, K. (2026). mineralML: Leveraging Machine Learning for Probabilistic Mineral Classification. EarthArXiv eprints, X53J2M. doi: 10.31223/X53J2M.
+
+.. code-block:: text
+        
+    @article{Shietal2026,
+    title = {mineralML: Leveraging Machine Learning for Probabilistic Mineral Classification},
+    url = {http://dx.doi.org/10.31223/X53J2M},
+    DOI = {10.31223/x53j2m},
+    publisher = {California Digital Library (CDL)},
+    author = {Shi, Sarah and Wieser, Penny and Gordon, Charlotte and Toth, Norbert and Antoshechkina, Paula and Gleeson,  Matthew and Lehnert, Kerstin},
+    year = {2026},
+    month = mar 
+    }
+
 The open-source nature of the tool allows for continuous development. We welcome the submission of high quality mineral analyses that can be added to the training dataset. You can email `sarahshi@berkeley.edu <mailto:sarahshi@berkeley.edu>`_ or post an enhancement request or report of a bug on the issue page of the `mineralML GitHub repository <https://github.com/SarahShi/mineralML>`_. 
 
 
