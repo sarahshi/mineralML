@@ -2614,32 +2614,37 @@ def plot_harker(
         ax.set_xlabel(format_oxide_label(x))
         ax.set_ylabel(format_oxide_label(y))
 
-    # Legend Logic (Identical to your current implementation)
-    handles, labels = axes[0].get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
+    # Legend Logic
+    handles_all = []
+    labels_all = []
+    for ax in axes[:n]:
+        h, l = ax.get_legend_handles_labels()
+        handles_all.extend(h)
+        labels_all.extend(l)
+
+    by_label = dict(zip(labels_all, handles_all))
     if by_label:
-        has_empty_slot = (n % cols) != 0
-        leg_loc, leg_bbox = (
-            ("center left", (0.775, 0.2))
-            if has_empty_slot
-            else ("center left", (1.0, 0.5))
-        )
+        n_labels = len(by_label)
+        ncol = min(4, int(np.ceil(n_labels / 10))) if n_labels > 5 else 1
+
         leg = fig.legend(
             by_label.values(),
             by_label.keys(),
-            loc=leg_loc,
-            bbox_to_anchor=leg_bbox,
+            loc="lower right",
             frameon=True,
+            ncol=ncol,
+            columnspacing=1.0,
+            handletextpad=0.4,
         )
         for lh in leg.legend_handles:
-            lh.set_alpha(1.0)  # Ensure legend is opaque
+            lh.set_alpha(1.0)
 
     for ax in axes[n:]:
         ax.set_visible(False)
 
     plt.suptitle(title)
-    plt.tight_layout()
-    plt.show()
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    return fig, axes
 
 
 # %% Deprecated functions
