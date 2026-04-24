@@ -2561,6 +2561,7 @@ def extract_line_profile(
     Returns:
         profile_df (pd.DataFrame): Aggregated profile table, or one row per
             pixel when ``method="none"``.
+
         samples (pd.DataFrame): Raw projected strip pixels inside the strip.
     """
     data = np.asarray(data, dtype=float)
