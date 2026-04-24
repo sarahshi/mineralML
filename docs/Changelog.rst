@@ -3,6 +3,11 @@ Change Log
 ==========
 
 
+Version 0.0.3.12
+================
+Add line profile extraction, interactive transect tool, and batch extraction to mapping code
+
+
 Version 0.0.3.11
 ================
 Adapted all stoichiometry calculators to return the `Predict_Mineral`, `Prediction_Score`, `Prediction_Score_Sigma`, `Second_Predict_Mineral`, and `Second_Prediction_Score` from the `predict_class_prob` function (if present), in addition to the calculated components . This provides users with the predicted mineral class and associated confidence metrics alongside the stoichiometric calculations. 

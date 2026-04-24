@@ -2559,9 +2559,9 @@ def extract_line_profile(
             ``method="none"``).
 
     Returns:
-        profile_df (pd.DataFrame): Profile table — binned when method is
-            ``"mean"``/``"median"``, or one row per pixel when ``"none"``.
-        samples_df (pd.DataFrame): Raw projected strip pixels.
+        profile_df (pd.DataFrame): Aggregated profile table, or one row per
+            pixel when ``method="none"``.
+        samples (pd.DataFrame): Raw projected strip pixels inside the strip.
     """
     data = np.asarray(data, dtype=float)
     if data.ndim != 2:
