@@ -898,14 +898,15 @@ class TestRunMap(unittest.TestCase):
 
     @unittest.mock.patch("mineralML.mapping.predict_class_prob")
     @unittest.mock.patch.object(plt, "show")
-    def test_epoxy_threshold_masks_pixels(self, _show, mock_pred):
+    def test_total_threshold_masks_pixels(self, _show, mock_pred):
         shape = (4, 4)
         ox_maps = self._make_oxide_maps(shape)
-        # Set some pixels below threshold
-        ox_maps["SiO2"][0, :] = 1.0
+        # Set row 0 to very low values so the total falls below threshold
+        for k in ox_maps:
+            ox_maps[k][0, :] = 0.1
         mock_pred.return_value = self._make_mock_pred(shape[0] * shape[1])
 
-        result = mm.run_map(ox_maps, epoxy_threshold=10.0, show=False, n_iterations=1)
+        result = mm.run_map(ox_maps, total_threshold=50.0, show=False, n_iterations=1)
         # Row 0 should have been masked to NaN across all oxides
         self.assertTrue(np.all(np.isnan(result["oxide_maps"]["MgO"][0, :])))
         plt.close("all")

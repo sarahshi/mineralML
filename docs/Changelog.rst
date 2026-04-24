@@ -3,9 +3,21 @@ Change Log
 ==========
 
 
+Version 0.0.3.13
+================
+Replaced ``epoxy_threshold`` in ``run_map`` with ``total_threshold``, which masks pixels by summed oxide total rather than SiO2 alone, avoiding removal of valid low-SiO2 phases. ``run_map`` now stores the cleaned mineral map in ``result["mineral_map"]`` and adds a ``"Total"`` key to ``oxide_maps``. Background pixels are now ``None`` rather than ``"Unknown"``. 
+
+Added ``interactive_pixels``, a clickable tool for sampling oxide compositions pixel by pixel, with ``phase`` and ``oxide_key`` filtering, undo/clear/quit keybindings, and a live DataFrame output. Added ``phase`` parameter to ``interactive_line_profile`` to mask the map to specific phases before drawing transects. Renamed ``plot_profile_locations`` to ``plot_locations``, which now accepts both transect and pixel-pick tables. Renamed coordinate columns ``start_x/y``, ``end_x/y`` to ``x0/y0``, ``x1/y1``. Escape key added as alias for ``q`` in interactive tools.
+
+
 Version 0.0.3.12
 ================
-Add line profile extraction, interactive transect tool, and batch extraction to mapping code
+Remove `epoxy_threshold` parameter from `run_map`. This parameter was intended to filter out pixels of epoxy mounting material based on low analytical totals, but it was found to be too aggressive and resulted in excessive removal of valid mineral pixels. The epoxy filtering logic has been revised to use a more conservative threshold and additional criteria, rather than relying solely on a single total cutoff. This change improves the balance between removing mounting material and retaining valid mineral data in the maps.
+
+
+Version 0.0.3.12
+================
+Add line profile extraction, interactive transect tool, and batch extraction to mapping code. 
 
 
 Version 0.0.3.11
