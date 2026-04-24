@@ -2,6 +2,7 @@
 
 __author__ = "Sarah Shi"
 
+import ast
 import os
 import re
 import warnings
@@ -14,7 +15,7 @@ from skimage.morphology import remove_small_objects, remove_small_holes
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.font_manager as fm
-from matplotlib.colors import ListedColormap, to_rgb
+from matplotlib.colors import ListedColormap, is_color_like, to_hex, to_rgb
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 from mineralML.core import *
@@ -24,6 +25,140 @@ from mineralML.constants import *
 from .constants import OXIDES
 
 # %%
+
+
+def _legacy_remove_small_max_size(size):
+    """
+    Translate pre-0.26 skimage thresholds to the new ``max_size`` semantics.
+
+    Older ``min_size`` / ``area_threshold`` parameters removed objects or holes
+    strictly smaller than the given size. New ``max_size`` removes sizes less
+    than or equal to its value, so we subtract 1 to preserve legacy behavior.
+    """
+    return max(int(size) - 1, 0)
+
+
+def _coerce_profile_color(color, fallback=None):
+    """
+    Normalize saved profile colors into a Matplotlib-compatible value.
+
+    Handles RGBA tuples, hex strings, named colors, and tuple-like strings
+    produced by DataFrame serialization.
+    """
+    if fallback is None:
+        fallback = plt.get_cmap("tab10")(0)
+
+    if color is None or (isinstance(color, float) and pd.isna(color)):
+        return fallback
+
+    if is_color_like(color):
+        return color
+
+    if isinstance(color, str):
+        try:
+            parsed = ast.literal_eval(color)
+        except (ValueError, SyntaxError):
+            parsed = None
+        if parsed is not None and is_color_like(parsed):
+            return parsed
+
+    return fallback
+
+
+def _profile_value_column_names(key):
+    """
+    Canonical output column names for a specific profile variable.
+    """
+    return {
+        "raw": key,
+        "smoothed": f"{key}_smoothed",
+    }
+
+
+def _profile_table_for_key(profile_df, key):
+    """
+    Convert a generic profile dataframe into a key-named table.
+    """
+    out = profile_df.copy()
+    cols = _profile_value_column_names(key)
+    rename_map = {
+        "value_smoothed": cols["smoothed"],
+        "value": cols["raw"],
+    }
+    out = out.rename(columns=rename_map)
+    drop_cols = [c for c in ("bin", "key", "n_pixels") if c in out.columns]
+    if drop_cols:
+        out = out.drop(columns=drop_cols)
+    preferred = [
+        "profile_id",
+        "distance_px",
+        "distance_um",
+        key,
+        f"{key}_smoothed",
+    ]
+    ordered = [c for c in preferred if c in out.columns]
+    tail_cols = [
+        c for c in ("start_x", "start_y", "end_x", "end_y")
+        if c in out.columns
+    ]
+    ordered += [c for c in out.columns if c not in ordered and c not in tail_cols]
+    ordered += tail_cols
+    return out[ordered]
+
+
+def _resolve_profile_value_columns(profile_df):
+    """
+    Infer the raw and smoothed value columns from either generic or key-named
+    profile tables.
+    """
+    columns = list(profile_df.columns)
+    if "value" in columns:
+        raw_col = "value"
+    else:
+        excluded = {
+            "profile_id",
+            "distance_px",
+            "distance_um",
+            "bin",
+            "key",
+            "source",
+            "n_pixels",
+            "start_x",
+            "start_y",
+            "end_x",
+            "end_y",
+            "width_px",
+            "length_px",
+            "length_um",
+            "pixel_size_um",
+            "method",
+            "smooth_window",
+            "color",
+            "x",
+            "y",
+            "perp_distance_px",
+        }
+        candidates = [
+            c for c in columns if c not in excluded and not c.endswith("_smoothed")
+        ]
+        raw_col = candidates[0] if candidates else None
+
+    if "value_smoothed" in columns:
+        smoothed_col = "value_smoothed"
+    elif raw_col is not None and f"{raw_col}_smoothed" in columns:
+        smoothed_col = f"{raw_col}_smoothed"
+    else:
+        smoothed_candidates = [c for c in columns if c.endswith("_smoothed")]
+        smoothed_col = smoothed_candidates[0] if smoothed_candidates else raw_col
+
+    if raw_col is None or smoothed_col is None:
+        raise KeyError(
+            "Could not determine profile value columns. Expected either "
+            "'value'/'value_smoothed' or key-named columns like "
+            "'SiO2'/'SiO2_smoothed'."
+        )
+
+    return raw_col, smoothed_col
 
 
 def maps_to_df(E):
@@ -580,7 +715,9 @@ def remove_islands(
             [phase_min_sizes.get(p, min_size) for p in present_in_group]
         )
         cleaned_mask = remove_small_objects(
-            mask, min_size=group_min_size-1, connectivity=connectivity
+            mask,
+            max_size=_legacy_remove_small_max_size(group_min_size - 1),
+            connectivity=connectivity,
         )
         removed_pixels = mask & ~cleaned_mask
         cleaned_map[removed_pixels] = fill_val
@@ -595,7 +732,9 @@ def remove_islands(
         mask = cleaned_map == phase
         current_min_size = phase_min_sizes.get(phase, min_size)
         cleaned_mask = remove_small_objects(
-            mask, min_size=current_min_size, connectivity=connectivity
+            mask,
+            max_size=_legacy_remove_small_max_size(current_min_size),
+            connectivity=connectivity,
         )
         removed_pixels = mask & ~cleaned_mask
 
@@ -644,7 +783,10 @@ def fill_phase_holes(mineral_map, max_hole_size=10, exclude_phases=None):
         phase_mask = filled_map == phase
 
         # Fill holes that are completely surrounded by phase
-        filled_phase_mask = remove_small_holes(phase_mask, area_threshold=max_hole_size)
+        filled_phase_mask = remove_small_holes(
+            phase_mask,
+            max_size=_legacy_remove_small_max_size(max_hole_size),
+        )
 
         # Identify pixels that were just filled in
         new_pixels = filled_phase_mask & ~phase_mask
@@ -1459,6 +1601,7 @@ def plot_component_composite(
     fill_missing=True,
     max_hole_size=10,
     min_speck_size=5,
+    min_frac=0.0,
     feld_key="Feldspar.An",
     cpx_key="Clinopyroxene.XMg",
     opx_key="Orthopyroxene.XMg",
@@ -1501,6 +1644,9 @@ def plot_component_composite(
         fill_missing (bool): If True, interpolates small holes in the continuous data.
         max_hole_size (int): Maximum hole area (in pixels) to interpolate.
         min_speck_size (int): Minimum pixel area for a phase to be kept.
+        min_frac (float): Minimum pixel fraction required for a phase to be
+            included in the composite. Fractions are computed from the cleaned
+            mineral map after island removal / hole filling.
         feld_key (str): Dictionary key in res['component_maps'] for feldspar data.
         cpx_key (str): Dictionary key for clinopyroxene data.
         opx_key (str): Dictionary key for orthopyroxene data.
@@ -1577,6 +1723,14 @@ def plot_component_composite(
             phases = [phases]
         unique_phases = {p for p in unique_phases if p in phases}
 
+    if min_frac and min_frac > 0:
+        total_pixels = mineral_map.size
+        kept_by_frac = {
+            p for p in unique_phases
+            if (np.sum(mineral_map == p) / total_pixels) >= min_frac
+        }
+        unique_phases = kept_by_frac
+
     consumed_phases, active_components, active_masks, processed_comp_maps = (
         set(),
         [],
@@ -1637,7 +1791,8 @@ def plot_component_composite(
                     invalid_data_mask = ~np.isfinite(data)
                     valid_data_mask = ~invalid_data_mask
                     filled_data_mask = remove_small_holes(
-                        valid_data_mask, area_threshold=max_hole_size
+                        valid_data_mask,
+                        max_size=_legacy_remove_small_max_size(max_hole_size),
                     )
                     data_islands_mask = filled_data_mask & invalid_data_mask
 
@@ -1853,7 +2008,10 @@ def _plot_continuous_map(
         valid = np.isfinite(data)
         if np.isfinite(bg_value):
             valid &= (data != bg_value)
-        cleaned = remove_small_objects(valid, min_size=min_speck_size)
+        cleaned = remove_small_objects(
+            valid,
+            max_size=_legacy_remove_small_max_size(min_speck_size),
+        )
         data = np.where(cleaned, data, np.nan)
 
     mask = np.isnan(data)
@@ -2260,6 +2418,1163 @@ def plot_ctf_phases(
         fig = ax.get_figure()
 
     return fig, phase_map, raw_ids.reshape((y_cells, x_cells)), phase_mapping, unique_names
+
+
+# %%
+
+
+def get_profile_map(res, key, source="auto"):
+    """
+    Resolve a 2-D map for line-profile extraction from a ``run_map()`` result
+    or a plain oxide-map dict returned by ``load_maps_from_dir()``.
+
+    Parameters:
+        res (dict): Result dictionary returned by ``run_map()``, or a plain
+            dict of ``{oxide: 2D array}`` as returned by
+            ``load_maps_from_dir()``.
+        key (str): Map key to extract, e.g. ``"SiO2"`` or ``"Feldspar.An"``.
+        source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
+
+    Returns:
+        data (ndarray): 2-D float array for the requested map.
+    """
+    if not isinstance(res, dict):
+        raise TypeError("res must be a dict returned by run_map() or load_maps_from_dir().")
+
+    # Plain flat dict from load_maps_from_dir — treat as oxide_maps directly.
+    if "oxide_maps" not in res and "component_maps" not in res:
+        oxide_maps = res
+        component_maps = {}
+    else:
+        oxide_maps = res.get("oxide_maps", {}) or {}
+        component_maps = res.get("component_maps", {}) or {}
+
+    if source not in {"auto", "oxide", "component"}:
+        raise ValueError("source must be one of {'auto', 'oxide', 'component'}")
+
+    if source == "oxide":
+        if key not in oxide_maps:
+            available = ", ".join(sorted(oxide_maps))
+            raise KeyError(f"{key!r} not found in oxide_maps. Available: {available}")
+        return np.asarray(oxide_maps[key], dtype=float)
+
+    if source == "component":
+        if key not in component_maps:
+            available = ", ".join(sorted(component_maps))
+            raise KeyError(
+                f"{key!r} not found in component_maps. Available: {available}"
+            )
+        return np.asarray(component_maps[key], dtype=float)
+
+    if key in oxide_maps:
+        return np.asarray(oxide_maps[key], dtype=float)
+    if key in component_maps:
+        return np.asarray(component_maps[key], dtype=float)
+
+    available = sorted(set(oxide_maps) | set(component_maps))
+    raise KeyError(f"{key!r} not found. Available profile maps: {', '.join(available)}")
+
+
+def _line_strip_geometry(start, end, width_px):
+    """
+    Compute line-direction vectors and strip-outline coordinates.
+
+    Parameters:
+        start (array-like): (x, y) start coordinate in pixel space.
+        end (array-like): (x, y) end coordinate in pixel space.
+        width_px (float): Total strip width in pixels.
+
+    Returns:
+        geom (dict): Geometry fields for projection and plotting.
+    """
+    start = np.asarray(start, dtype=float)
+    end = np.asarray(end, dtype=float)
+
+    if start.shape != (2,) or end.shape != (2,):
+        raise ValueError("start and end must each be length-2 coordinates.")
+
+    vec = end - start
+    length_px = float(np.hypot(vec[0], vec[1]))
+    if length_px == 0:
+        raise ValueError("start and end cannot be identical.")
+
+    direction = vec / length_px
+    normal = np.array([-direction[1], direction[0]], dtype=float)
+    half_width = max(float(width_px), 0.0) / 2.0
+    offset = normal * half_width
+
+    outline = np.vstack(
+        [
+            start + offset,
+            end + offset,
+            end - offset,
+            start - offset,
+            start + offset,
+        ]
+    )
+
+    return {
+        "start": start,
+        "end": end,
+        "vec": vec,
+        "length_px": length_px,
+        "direction": direction,
+        "normal": normal,
+        "half_width": half_width,
+        "outline": outline,
+    }
+
+
+def extract_line_profile(
+    data,
+    start,
+    end,
+    width_px=1.0,
+    n_bins=None,
+    pixel_size_um=None,
+    method="none",
+    smooth_window=1,
+):
+    """
+    Extract a line profile from a 2-D map with a finite-width strip.
+    Pixels with centers inside the strip are projected onto the transect axis.
+    With ``method="none"`` every pixel is returned as its own row (no binning).
+    Otherwise pixels are aggregated into distance bins.
+
+    Parameters:
+        data (array-like): 2-D map to sample.
+        start (array-like): (x, y) start coordinate in pixel space.
+        end (array-like): (x, y) end coordinate in pixel space.
+        width_px (float): Total projection width in pixels.
+        n_bins (int|None): Number of bins along the profile. Ignored when
+            ``method="none"``. Defaults to roughly one bin per pixel of line
+            length.
+        pixel_size_um (float|None): Micrometres per pixel, used to populate
+            physical-distance columns.
+        method (str): Aggregation method, one of ``"mean"``, ``"median"``, or
+            ``"none"``. Use ``"none"`` to skip binning and return each pixel
+            as an individual data point.
+        smooth_window (int): Optional rolling window, in bins (or pixels when
+            ``method="none"``).
+
+    Returns:
+        profile_df (pd.DataFrame): Profile table — binned when method is
+            ``"mean"``/``"median"``, or one row per pixel when ``"none"``.
+        samples_df (pd.DataFrame): Raw projected strip pixels.
+    """
+    data = np.asarray(data, dtype=float)
+    if data.ndim != 2:
+        raise ValueError("data must be a 2-D array.")
+
+    if method not in {"mean", "median", "none"}:
+        raise ValueError("method must be one of {'mean', 'median', 'none'}")
+
+    geom = _line_strip_geometry(start, end, width_px)
+
+    yy, xx = np.indices(data.shape, dtype=float)
+    values = data.ravel()
+    points = np.column_stack([xx.ravel(), yy.ravel()])
+
+    finite = np.isfinite(values)
+    rel = points[finite] - geom["start"]
+    dist_along = rel @ geom["direction"]
+    dist_perp = rel @ geom["normal"]
+
+    in_strip = (
+        (dist_along >= 0.0)
+        & (dist_along <= geom["length_px"])
+        & (np.abs(dist_perp) <= geom["half_width"])
+    )
+
+    samples = pd.DataFrame(
+        {
+            "x": points[finite, 0][in_strip],
+            "y": points[finite, 1][in_strip],
+            "distance_px": dist_along[in_strip],
+            "perp_distance_px": dist_perp[in_strip],
+            "value": values[finite][in_strip],
+        }
+    ).sort_values("distance_px", kind="mergesort")
+
+    if method == "none":
+        profile_df = samples[["x", "y", "distance_px", "perp_distance_px", "value"]].copy()
+        profile_df["distance_um"] = (
+            profile_df["distance_px"] * pixel_size_um
+            if pixel_size_um is not None
+            else np.nan
+        )
+        smooth_window = int(max(smooth_window, 1))
+        if smooth_window > 1:
+            profile_df["value_smoothed"] = (
+                profile_df["value"]
+                .rolling(window=smooth_window, center=True, min_periods=1)
+                .mean()
+            )
+        else:
+            profile_df["value_smoothed"] = profile_df["value"]
+
+        profile_df.attrs["start"] = tuple(np.asarray(start, dtype=float))
+        profile_df.attrs["end"] = tuple(np.asarray(end, dtype=float))
+        profile_df.attrs["width_px"] = float(width_px)
+        profile_df.attrs["length_px"] = geom["length_px"]
+        profile_df.attrs["pixel_size_um"] = pixel_size_um
+        profile_df.attrs["method"] = method
+        profile_df.attrs["smooth_window"] = smooth_window
+
+        return profile_df, profile_df
+
+    if n_bins is None:
+        n_bins = max(int(np.ceil(geom["length_px"])), 1)
+    n_bins = int(n_bins)
+    if n_bins < 1:
+        raise ValueError("n_bins must be >= 1")
+
+    bin_edges = np.linspace(0.0, geom["length_px"], n_bins + 1)
+    bin_centres = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+    if samples.empty:
+        profile_df = pd.DataFrame(
+            {
+                "bin": np.arange(n_bins, dtype=int),
+                "distance_px": bin_centres,
+                "value": np.full(n_bins, np.nan),
+                "n_pixels": np.zeros(n_bins, dtype=int),
+                "distance_um": (
+                    bin_centres * pixel_size_um
+                    if pixel_size_um is not None
+                    else np.full(n_bins, np.nan)
+                ),
+            }
+        )
+    else:
+        samples["bin"] = np.minimum(
+            np.digitize(samples["distance_px"], bin_edges, right=False) - 1,
+            n_bins - 1,
+        ).astype(int)
+
+        grouped = samples.groupby("bin", sort=True)["value"]
+        if method == "median":
+            values_by_bin = grouped.median()
+        else:
+            values_by_bin = grouped.mean()
+        counts_by_bin = grouped.size()
+
+        profile_df = pd.DataFrame(
+            {
+                "bin": np.arange(n_bins, dtype=int),
+                "distance_px": bin_centres,
+            }
+        )
+        profile_df["value"] = profile_df["bin"].map(values_by_bin).astype(float)
+        profile_df["n_pixels"] = (
+            profile_df["bin"].map(counts_by_bin).fillna(0).astype(int)
+        )
+        profile_df["distance_um"] = (
+            profile_df["distance_px"] * pixel_size_um
+            if pixel_size_um is not None
+            else np.nan
+        )
+
+    smooth_window = int(max(smooth_window, 1))
+    if smooth_window > 1:
+        profile_df["value_smoothed"] = (
+            profile_df["value"]
+            .rolling(window=smooth_window, center=True, min_periods=1)
+            .mean()
+        )
+    else:
+        profile_df["value_smoothed"] = profile_df["value"]
+
+    profile_df.attrs["start"] = tuple(np.asarray(start, dtype=float))
+    profile_df.attrs["end"] = tuple(np.asarray(end, dtype=float))
+    profile_df.attrs["width_px"] = float(width_px)
+    profile_df.attrs["length_px"] = geom["length_px"]
+    profile_df.attrs["pixel_size_um"] = pixel_size_um
+    profile_df.attrs["method"] = method
+    profile_df.attrs["smooth_window"] = smooth_window
+
+    samples.attrs["start"] = profile_df.attrs["start"]
+    samples.attrs["end"] = profile_df.attrs["end"]
+    samples.attrs["width_px"] = float(width_px)
+
+    return profile_df, samples
+
+
+def plot_line_profile(
+    profile_df,
+    ax=None,
+    label=None,
+    color="black",
+    show_counts=False,
+):
+    """
+    Plot a line-profile dataframe produced by ``extract_line_profile()``.
+
+    Parameters:
+        profile_df (pd.DataFrame): Output profile table from
+            ``extract_line_profile()``.
+        ax (matplotlib.axes.Axes|None): Existing axis to draw on.
+        label (str|None): Series label.
+        color (str): Line colour.
+        show_counts (bool): If True, add a secondary count histogram.
+
+    Returns:
+        ax (matplotlib.axes.Axes): Axis containing the profile.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 4))
+
+    xcol = "distance_um"
+    xlabel = "Distance (µm)"
+    if np.all(~np.isfinite(pd.to_numeric(profile_df[xcol], errors="coerce"))):
+        xcol = "distance_px"
+        xlabel = "Distance (px)"
+
+    _, ycol = _resolve_profile_value_columns(profile_df)
+    x = pd.to_numeric(profile_df[xcol], errors="coerce").to_numpy(dtype=float)
+    y = pd.to_numeric(profile_df[ycol], errors="coerce").to_numpy(dtype=float)
+
+    ax.plot(x, y, color=color, lw=2, label=label)
+    ax.scatter(x, y, color=color, s=12, zorder=3)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Value")
+    ax.grid(alpha=0.25)
+
+    if label:
+        ax.legend(frameon=False)
+
+    if show_counts:
+        ax2 = ax.twinx()
+        counts = pd.to_numeric(
+            profile_df["n_pixels"], errors="coerce"
+        ).to_numpy(dtype=float)
+        ax2.fill_between(x, counts, color="0.85", alpha=0.4)
+        ax2.set_ylabel("Pixels / bin")
+
+    return ax
+
+
+def interactive_line_profile(
+    res,
+    key,
+    method="none",
+    source="auto",
+    *,
+    width_px=3.0,
+    n_bins=None,
+    pixel_size_um=None,
+    smooth_window=1,
+    cmap="viridis",
+    vmin=None,
+    vmax=None,
+    title=None,
+    cbar_label=None,
+    layout="vertical",
+    multi=True,
+    figsize=None,
+):
+    """
+    Launch a clickable Jupyter transect tool for oxide or component maps.
+
+    Intended for notebook use with an interactive Matplotlib backend such as
+    ``%matplotlib widget``. Click once for the profile start and a second time
+    for the profile end. Press ``r`` to clear and redraw.
+
+    Parameters:
+        res (dict): Result dictionary returned by ``run_map()``.
+        key (str): Oxide or component key, e.g. ``"SiO2"`` or ``"Feldspar.An"``.
+        method (str): Aggregation method passed to ``extract_line_profile()``.
+        source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
+        width_px (float): Transect-strip width in pixels.
+        n_bins (int|None): Number of distance bins.
+        pixel_size_um (float|None): Micrometers per pixel.
+        smooth_window (int): Rolling smoothing window, in bins.
+        cmap (str): Colormap for the source map.
+        vmin (float|None): Lower display limit.
+        vmax (float|None): Upper display limit.
+        title (str|None): Title for the map panel.
+        cbar_label (str|None): Colorbar label for the map panel.
+        layout (str): ``"vertical"`` for stacked axes or ``"horizontal"``
+            for side-by-side axes.
+        multi (bool): If True, each completed click-pair is retained as a new
+            profile. If False, a new transect replaces the previous one.
+        figsize (tuple): Figure size.
+
+    Returns:
+        controller (dict): Dictionary with keys ``fig``, ``profiles``
+            (list of per-transect DataFrames), ``profiles_df`` (all transects
+            concatenated), ``samples`` (list of per-transect raw pixel
+            DataFrames), ``samples_df`` (all concatenated),
+            ``coordinates_df`` (transect metadata), and helper accessors
+            ``get_profile``, ``get_samples``, ``get_coordinates``.
+    """
+    backend = plt.get_backend().lower()
+    _non_interactive = {"agg", "cairo", "pdf", "pgf", "ps", "svg", "template",
+                        "module://matplotlib_inline.backend_inline"}
+    if backend in _non_interactive or backend.endswith("inline"):
+        warnings.warn(
+            "interactive_line_profile() needs an interactive Matplotlib backend. "
+            f"The current backend is {plt.get_backend()!r}, so the figure will "
+            "render as static and clicks will not register. In a notebook, try "
+            "`%matplotlib notebook`, or install `ipympl` and use "
+            "`%matplotlib widget`.",
+            UserWarning,
+        )
+
+    data = get_profile_map(res, key, source=source)
+
+    valid = data[np.isfinite(data)]
+    if vmin is None:
+        vmin = float(valid.min()) if valid.size else 0.0
+    if vmax is None:
+        vmax = float(valid.max()) if valid.size else 1.0
+    if title is None:
+        title = f"Interactive Line Profile: {key}"
+    if cbar_label is None:
+        cbar_label = key
+
+    if layout not in {"vertical", "horizontal"}:
+        raise ValueError("layout must be one of {'vertical', 'horizontal'}")
+
+    if layout == "vertical":
+        fig, (ax_map, ax_profile) = plt.subplots(
+            2,
+            1,
+            figsize=(5, 10) if figsize is None else figsize,
+            gridspec_kw={"height_ratios": [1.0, 1.0]},
+        )
+    else:
+        fig, (ax_map, ax_profile) = plt.subplots(
+            1,
+            2,
+            figsize=(10, 5) if figsize is None else figsize,
+            gridspec_kw={"width_ratios": [1.15, 1.0]},
+        )
+
+    masked = np.ma.masked_invalid(data)
+    im = ax_map.imshow(
+        masked,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        interpolation="none",
+        origin="upper",
+    )
+    fig.colorbar(im, ax=ax_map, fraction=0.046, pad=0.04, label=cbar_label)
+    ax_map.set_title(title)
+    ax_map.set_xlabel("X (px)")
+    ax_map.set_ylabel("Y (px)")
+
+    ax_profile.set_title("Profile")
+    ax_profile.set_xlabel("Distance")
+    ax_profile.set_ylabel("Value")
+    ax_profile.grid(alpha=0.25)
+
+    fig.suptitle(
+        "Click to delineate start and end.\n"
+        "'r': reset clicks | 'u': undo last | 'c': clear all | 'q': done",
+        y=0.96,
+        fontsize=11,
+    )
+
+    state = {
+        "points": [],
+        "current_artists": [],
+        "saved_artists": [],
+        "profiles_long": [],
+        "profiles": [],
+        "samples": [],
+        "records": [],
+        "colors": [],
+    }
+    controller = {
+        "fig": fig,
+        "profiles": [],
+        "profiles_df": None,
+        "samples": [],
+        "samples_df": None,
+        "coordinates_df": None,
+    }
+
+    def _get_profile(index=-1):
+        if not controller["profiles"]:
+            return None
+        return controller["profiles"][index]
+
+    def _get_samples(index=-1):
+        if not controller["samples"]:
+            return None
+        return controller["samples"][index]
+
+    def _get_coordinates():
+        return controller["coordinates_df"]
+
+    controller["get_profile"] = _get_profile
+    controller["get_samples"] = _get_samples
+    controller["get_coordinates"] = _get_coordinates
+
+    def _clear_artist_list(artists):
+        while artists:
+            artist = artists.pop()
+            artist.remove()
+
+    def _update_controller_tables():
+        controller["profiles"] = list(state["profiles"])
+        controller["samples"] = list(state["samples"])
+
+        controller["profiles_df"] = (
+            pd.concat(state["profiles"], ignore_index=True) if state["profiles"] else None
+        )
+        controller["samples_df"] = (
+            pd.concat(state["samples"], ignore_index=True) if state["samples"] else None
+        )
+        controller["coordinates_df"] = (
+            pd.DataFrame(state["records"]) if state["records"] else None
+        )
+
+    def _reset_profile_axis():
+        ax_profile.clear()
+        ax_profile.set_title("Profile")
+        ax_profile.set_xlabel("Distance")
+        ax_profile.set_ylabel("Value")
+        ax_profile.grid(alpha=0.25)
+
+    def _redraw_saved_profiles():
+        _reset_profile_axis()
+        for profile_df, color in zip(state["profiles"], state["colors"]):
+            label = f"{key} #{int(profile_df['profile_id'].iat[0])}"
+            plot_line_profile(profile_df, ax=ax_profile, label=label, color=color)
+        if state["profiles"]:
+            ax_profile.set_title(f"{key} Profiles ({len(state['profiles'])})")
+
+    def _color_for_profile(index):
+        cmap_obj = plt.get_cmap("tab10")
+        return cmap_obj(index % 10)
+
+    def _reset_current():
+        state["points"].clear()
+        _clear_artist_list(state["current_artists"])
+        fig.canvas.draw_idle()
+
+    def _clear_all():
+        _reset_current()
+        state["profiles_long"].clear()
+        state["profiles"].clear()
+        state["samples"].clear()
+        state["records"].clear()
+        state["colors"].clear()
+        _clear_artist_list(state["saved_artists"])
+        _update_controller_tables()
+        _reset_profile_axis()
+        fig.canvas.draw_idle()
+
+    def _draw_profile():
+        start, end = state["points"]
+        geom = _line_strip_geometry(start, end, width_px)
+        profile_df, samples_df = extract_line_profile(
+            data,
+            start=start,
+            end=end,
+            method=method,
+            width_px=width_px,
+            n_bins=n_bins,
+            pixel_size_um=pixel_size_um,
+            smooth_window=smooth_window,
+        )
+
+        if not multi:
+            _clear_artist_list(state["saved_artists"])
+            state["profiles_long"].clear()
+            state["profiles"].clear()
+            state["samples"].clear()
+            state["records"].clear()
+            state["colors"].clear()
+
+        profile_id = len(state["profiles_long"]) + 1
+        profile_color = _color_for_profile(profile_id - 1)
+
+        profile_df = profile_df.copy()
+        samples_df = samples_df.copy()
+
+        profile_df["profile_id"] = profile_id
+        profile_df["key"] = key
+        profile_df["source"] = source
+        profile_df["start_x"] = float(start[0])
+        profile_df["start_y"] = float(start[1])
+        profile_df["end_x"] = float(end[0])
+        profile_df["end_y"] = float(end[1])
+        profile_df["width_px"] = float(width_px)
+        profile_df["length_px"] = float(geom["length_px"])
+        profile_df["length_um"] = (
+            float(geom["length_px"] * pixel_size_um)
+            if pixel_size_um is not None
+            else np.nan
+        )
+        profile_df["color"] = to_hex(profile_color)
+
+        samples_df["profile_id"] = profile_id
+        samples_df["key"] = key
+        samples_df["source"] = source
+        samples_df["start_x"] = float(start[0])
+        samples_df["start_y"] = float(start[1])
+        samples_df["end_x"] = float(end[0])
+        samples_df["end_y"] = float(end[1])
+        samples_df["width_px"] = float(width_px)
+        samples_df["length_px"] = float(geom["length_px"])
+        samples_df["length_um"] = (
+            float(geom["length_px"] * pixel_size_um)
+            if pixel_size_um is not None
+            else np.nan
+        )
+        samples_df["color"] = to_hex(profile_color)
+
+        profile_df_clean = _profile_table_for_key(profile_df, key)
+
+        state["profiles_long"].append(profile_df)
+        state["profiles"].append(profile_df_clean)
+        state["samples"].append(samples_df)
+        state["colors"].append(profile_color)
+        state["records"].append(
+            {
+                "profile_id": profile_id,
+                "key": key,
+                "source": source,
+                "start_x": float(start[0]),
+                "start_y": float(start[1]),
+                "end_x": float(end[0]),
+                "end_y": float(end[1]),
+                "width_px": float(width_px),
+                "length_px": float(geom["length_px"]),
+                "length_um": (
+                    float(geom["length_px"] * pixel_size_um)
+                    if pixel_size_um is not None
+                    else np.nan
+                ),
+                "n_bins": int(len(profile_df)),
+                "pixel_size_um": pixel_size_um,
+                "method": method,
+                "smooth_window": int(max(smooth_window, 1)),
+                "color": to_hex(profile_color),
+            }
+        )
+        _update_controller_tables()
+
+        _clear_artist_list(state["current_artists"])
+        state["saved_artists"].append(
+            ax_map.plot(
+                [geom["start"][0], geom["end"][0]],
+                [geom["start"][1], geom["end"][1]],
+                color=profile_color,
+                lw=2,
+            )[0]
+        )
+        state["saved_artists"].append(
+            ax_map.scatter(
+                [geom["start"][0], geom["end"][0]],
+                [geom["start"][1], geom["end"][1]],
+                c=[profile_color, profile_color],
+                s=36,
+                zorder=5,
+                edgecolors="black",
+                linewidths=0.6,
+            )
+        )
+
+        if width_px > 0:
+            poly = mpatches.Polygon(
+                geom["outline"][:-1],
+                closed=True,
+                fill=False,
+                ec=profile_color,
+                lw=1.2,
+                ls="--",
+                alpha=0.9,
+            )
+            ax_map.add_patch(poly)
+            state["saved_artists"].append(poly)
+
+        _redraw_saved_profiles()
+        state["points"].clear()
+        fig.canvas.draw_idle()
+
+    def _on_click(event):
+        if event.inaxes != ax_map or event.xdata is None or event.ydata is None:
+            return
+
+        xy = np.array([event.xdata, event.ydata], dtype=float)
+        if len(state["points"]) >= 2:
+            _reset_current()
+        if not multi and controller["profiles"]:
+            _clear_all()
+
+        state["points"].append(xy)
+        marker = ax_map.scatter(
+            [xy[0]],
+            [xy[1]],
+            c="white",
+            s=30,
+            edgecolors="black",
+            linewidths=0.6,
+            zorder=5,
+        )
+        state["current_artists"].append(marker)
+
+        if len(state["points"]) == 2:
+            _draw_profile()
+        else:
+            fig.canvas.draw_idle()
+
+    def _on_key(event):
+        if event.key == "q":
+            fig.canvas.mpl_disconnect(cid_click)
+            fig.canvas.mpl_disconnect(cid_key)
+            fig.suptitle("Inactive (press saved)", fontsize=11)
+            fig.canvas.draw_idle()
+            return
+        if event.key == "r":
+            _reset_current()
+        elif event.key == "c":
+            _clear_all()
+        elif event.key == "u" and state["profiles"]:
+            _reset_current()
+            last_saved = len(state["profiles"]) > 0
+            if last_saved:
+                state["profiles_long"].pop()
+                state["profiles"].pop()
+                state["samples"].pop()
+                state["records"].pop()
+                state["colors"].pop()
+                if width_px > 0:
+                    n_art = 3
+                else:
+                    n_art = 2
+                for _ in range(n_art):
+                    artist = state["saved_artists"].pop()
+                    artist.remove()
+                _update_controller_tables()
+                _redraw_saved_profiles()
+                fig.canvas.draw_idle()
+
+    cid_click = fig.canvas.mpl_connect("button_press_event", _on_click)
+    cid_key = fig.canvas.mpl_connect("key_press_event", _on_key)
+
+    if layout == "vertical":
+        fig.tight_layout(rect=(0, 0, 1, 0.96), h_pad=2.0)
+    else:
+        fig.tight_layout(rect=(0, 0, 1, 0.96), w_pad=2.0)
+    plt.show()
+    return controller
+
+
+def batch_extract_line_profiles(
+    res,
+    transects,
+    keys=None,
+    source="auto",
+    *,
+    pixel_size_um=None,
+    method="mean",
+    smooth_window=1,
+    return_long=False,
+):
+    """
+    Batch-extract profiles for one or more map keys from saved transect coordinates.
+
+    Parameters:
+        res (dict): Result dictionary returned by ``run_map()``.
+        transects (pd.DataFrame|list[dict]): Table with at least
+            ``start_x``, ``start_y``, ``end_x``, ``end_y``. If ``width_px`` or
+            ``n_bins`` are present they are reused per transect.
+        keys (str|list[str]|None): Oxide/component keys to extract. If None,
+            defaults to available oxide maps in the canonical ``OXIDES`` order.
+        source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
+        pixel_size_um (float|None): Override physical pixel size. If None,
+            uses the value from each transect row when present.
+        method (str): Aggregation method passed to ``extract_line_profile()``.
+            Use ``"none"`` to keep individual pixels, ``"mean"`` or
+            ``"median"`` to bin along the transect.
+        smooth_window (int): Rolling smoothing window, in bins (or pixels when
+            ``method="none"``).
+        return_long (bool): If True, also return the long-format profile table
+            as a second output.
+
+    Returns:
+        profiles_df (pd.DataFrame): One row per pixel (``method="none"``) or
+            per bin, with each key as its own column.
+        profiles_long_df (pd.DataFrame, optional): Long-format table returned
+            only when ``return_long=True``.
+    """
+    if keys is None:
+        if isinstance(res, dict):
+            oxide_maps = res.get("oxide_maps", None)
+            oxide_maps = oxide_maps if oxide_maps is not None else res
+        else:
+            oxide_maps = {}
+        keys = [k for k in OXIDES if k in oxide_maps]
+        if not keys:
+            raise ValueError(
+                "No oxide keys were found; pass keys explicitly."
+            )
+    elif isinstance(keys, str):
+        keys = [keys]
+    else:
+        keys = list(keys)
+
+    if not keys:
+        raise ValueError("keys must contain at least one map key.")
+
+    transects_df = pd.DataFrame(transects).copy()
+    required = {"start_x", "start_y", "end_x", "end_y"}
+    missing = required - set(transects_df.columns)
+    if missing:
+        raise KeyError(
+            f"transects is missing required columns: {', '.join(sorted(missing))}"
+        )
+
+    if "profile_id" not in transects_df.columns:
+        transects_df["profile_id"] = np.arange(1, len(transects_df) + 1)
+    if "width_px" not in transects_df.columns:
+        transects_df["width_px"] = 1.0
+    if "n_bins" not in transects_df.columns:
+        transects_df["n_bins"] = np.nan
+
+    profiles_out = []
+
+    for key in keys:
+        data = get_profile_map(res, key, source=source)
+        for row in transects_df.itertuples(index=False):
+            row_pixel_size_um = pixel_size_um
+            if row_pixel_size_um is None and hasattr(row, "pixel_size_um"):
+                val = getattr(row, "pixel_size_um")
+                row_pixel_size_um = val if pd.notna(val) else None
+
+            row_n_bins = None
+            if hasattr(row, "n_bins") and pd.notna(getattr(row, "n_bins")):
+                row_n_bins = int(getattr(row, "n_bins"))
+
+            profile_df, _ = extract_line_profile(
+                data,
+                start=(float(row.start_x), float(row.start_y)),
+                end=(float(row.end_x), float(row.end_y)),
+                width_px=float(row.width_px),
+                n_bins=row_n_bins,
+                pixel_size_um=row_pixel_size_um,
+                method=method,
+                smooth_window=smooth_window,
+            )
+
+            profile_df = profile_df.copy()
+            profile_df["profile_id"] = int(row.profile_id)
+            profile_df["key"] = key
+            profile_df["source"] = source
+            profile_df["start_x"] = float(row.start_x)
+            profile_df["start_y"] = float(row.start_y)
+            profile_df["end_x"] = float(row.end_x)
+            profile_df["end_y"] = float(row.end_y)
+            profile_df["width_px"] = float(row.width_px)
+            profiles_out.append(profile_df)
+
+    profiles_long_df = (
+        pd.concat(profiles_out, ignore_index=True)
+        if profiles_out
+        else pd.DataFrame()
+    )
+
+    if profiles_long_df.empty:
+        profiles_df = pd.DataFrame()
+    elif method == "none":
+        join_cols = ["profile_id", "x", "y", "distance_px", "perp_distance_px",
+                     "distance_um", "start_x", "start_y", "end_x", "end_y", "width_px", "source"]
+
+        wide = None
+        for key in keys:
+            sub = profiles_long_df[profiles_long_df["key"] == key][
+                join_cols + ["value", "value_smoothed"]
+            ].rename(columns={"value": key, "value_smoothed": f"{key}_smoothed"})
+            if wide is None:
+                wide = sub
+            else:
+                wide = wide.merge(sub, on=join_cols, how="outer")
+
+        if wide is None:
+            profiles_df = pd.DataFrame()
+        else:
+            value_cols = []
+            for key in keys:
+                if key in wide.columns:
+                    value_cols.append(key)
+                if f"{key}_smoothed" in wide.columns:
+                    value_cols.append(f"{key}_smoothed")
+            ordered = (
+                ["profile_id", "x", "y", "distance_px", "perp_distance_px", "distance_um"]
+                + value_cols
+                + ["start_x", "start_y", "end_x", "end_y", "width_px", "source"]
+            )
+            ordered = [c for c in ordered if c in wide.columns]
+            profiles_df = wide[ordered].sort_values(
+                ["profile_id", "distance_px"]
+            ).reset_index(drop=True)
+    else:
+        meta_cols = [
+            "profile_id",
+            "distance_px",
+            "distance_um",
+            "start_x",
+            "start_y",
+            "end_x",
+            "end_y",
+            "width_px",
+        ]
+
+        wide_tables = []
+        for key in keys:
+            sub = profiles_long_df[profiles_long_df["key"] == key].copy()
+            if sub.empty:
+                continue
+
+            sub = _profile_table_for_key(sub, key)
+            keep_cols = meta_cols + [
+                key,
+                f"{key}_smoothed",
+            ]
+            wide_tables.append(sub[keep_cols])
+
+        if not wide_tables:
+            profiles_df = pd.DataFrame()
+        else:
+            profiles_df = wide_tables[0]
+            for tbl in wide_tables[1:]:
+                profiles_df = profiles_df.merge(tbl, on=meta_cols, how="outer")
+            profiles_df = profiles_df.sort_values(["profile_id", "distance_px"]).reset_index(
+                drop=True
+            )
+            preferred = ["profile_id", "distance_px", "distance_um"]
+            value_cols = []
+            for key in keys:
+                if key in profiles_df.columns:
+                    value_cols.append(key)
+                smoothed_col = f"{key}_smoothed"
+                if smoothed_col in profiles_df.columns:
+                    value_cols.append(smoothed_col)
+            tail_cols = [
+                c for c in ("start_x", "start_y", "end_x", "end_y")
+                if c in profiles_df.columns
+            ]
+            ordered = [c for c in preferred if c in profiles_df.columns]
+            ordered += [c for c in value_cols if c not in ordered]
+            ordered += [
+                c for c in profiles_df.columns
+                if c not in ordered and c not in tail_cols
+            ]
+            ordered += tail_cols
+            profiles_df = profiles_df[ordered]
+
+    if return_long:
+        return profiles_df, profiles_long_df
+    return profiles_df
+
+
+def plot_profile_locations(
+    res,
+    transects,
+    map_key=None,
+    source="auto",
+    *,
+    cmap="viridis",
+    vmin=None,
+    vmax=None,
+    title=None,
+    cbar_label=None,
+    show_width=True,
+    annotate=True,
+    annotate_offset_px=4.0,
+    ax=None,
+    figsize=(7, 7),
+):
+    """
+    Plot saved transect start/end locations on top of a map or blank canvas.
+
+    Parameters:
+        res (dict): Result dictionary returned by ``run_map()``.
+        transects (pd.DataFrame|list[dict]): Table with at least
+            ``start_x``, ``start_y``, ``end_x``, ``end_y``. If ``profile_id``,
+            ``width_px``, or ``color`` exist they are used in the overlay.
+        map_key (str|None): Background oxide/component key. If None, uses a
+            blank pixel-space canvas based on ``res['shape']``.
+        source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
+        cmap (str): Background colormap when ``map_key`` is provided.
+        vmin (float|None): Lower display limit for the background map.
+        vmax (float|None): Upper display limit for the background map.
+        title (str|None): Plot title.
+        cbar_label (str|None): Colorbar label for the background map.
+        show_width (bool): If True, draw the finite-width strip outline when
+            ``width_px`` is available.
+        annotate (bool): If True, label transects and start/end markers.
+        annotate_offset_px (float): Pixel offset used to move annotation labels
+            off the transect, measured normal to the line.
+        ax (matplotlib.axes.Axes|None): Existing axis to draw on.
+        figsize (tuple): Figure size when creating a new figure.
+
+    Returns:
+        fig (matplotlib.figure.Figure): Figure containing the overlay.
+        ax (matplotlib.axes.Axes): Axis containing the map and transects.
+    """
+    transects_df = pd.DataFrame(transects).copy()
+    required = {"start_x", "start_y", "end_x", "end_y"}
+    missing = required - set(transects_df.columns)
+    if missing:
+        raise KeyError(
+            f"transects is missing required columns: {', '.join(sorted(missing))}"
+        )
+
+    if "profile_id" not in transects_df.columns:
+        transects_df["profile_id"] = np.arange(1, len(transects_df) + 1)
+    if "width_px" not in transects_df.columns:
+        transects_df["width_px"] = np.nan
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+
+    if map_key is not None:
+        data = get_profile_map(res, map_key, source=source)
+        valid = data[np.isfinite(data)]
+        if vmin is None:
+            vmin = float(valid.min()) if valid.size else 0.0
+        if vmax is None:
+            vmax = float(valid.max()) if valid.size else 1.0
+        if cbar_label is None:
+            cbar_label = map_key
+
+        im = ax.imshow(
+            np.ma.masked_invalid(data),
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            interpolation="none",
+            origin="upper",
+        )
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=cbar_label)
+        h, w = data.shape
+    else:
+        if not isinstance(res, dict) or "shape" not in res:
+            raise KeyError("res['shape'] is required when map_key is None.")
+        h, w = res["shape"]
+        ax.set_facecolor("#f5f5f5")
+        ax.set_xlim(-0.5, w - 0.5)
+        ax.set_ylim(h - 0.5, -0.5)
+
+    for i, row in enumerate(transects_df.itertuples(index=False)):
+        raw_color = (
+            getattr(row, "color")
+            if hasattr(row, "color") and pd.notna(getattr(row, "color"))
+            else None
+        )
+        color = _coerce_profile_color(raw_color, fallback=plt.get_cmap("tab10")(i % 10))
+
+        start = np.array([float(row.start_x), float(row.start_y)], dtype=float)
+        end = np.array([float(row.end_x), float(row.end_y)], dtype=float)
+        pid = int(row.profile_id)
+        geom = _line_strip_geometry(start, end, 0.0)
+        label_offset = geom["normal"] * float(annotate_offset_px)
+
+        ax.plot(
+            [start[0], end[0]],
+            [start[1], end[1]],
+            color=color,
+            lw=2,
+            alpha=0.95,
+        )
+
+        ax.scatter(
+            [start[0]],
+            [start[1]],
+            c=[color],
+            s=40,
+            marker="o",
+            edgecolors="black",
+            linewidths=0.7,
+            zorder=5,
+        )
+        ax.scatter(
+            [end[0]],
+            [end[1]],
+            c=[color],
+            s=48,
+            marker="s",
+            edgecolors="black",
+            linewidths=0.7,
+            zorder=5,
+        )
+
+        width_px = getattr(row, "width_px", np.nan)
+        if show_width and pd.notna(width_px) and float(width_px) > 0:
+            geom_w = _line_strip_geometry(start, end, float(width_px))
+            poly = mpatches.Polygon(
+                geom_w["outline"][:-1],
+                closed=True,
+                fill=False,
+                ec=color,
+                lw=1.0,
+                ls="--",
+                alpha=0.8,
+            )
+            ax.add_patch(poly)
+
+        if annotate:
+            mid = 0.5 * (start + end)
+            start_label_xy = start + label_offset
+            end_label_xy = end + label_offset
+            mid_label_xy = mid + 1.25 * label_offset
+            # ax.text(
+            #     start_label_xy[0],
+            #     start_label_xy[1],
+            #     f"S{pid}",
+            #     color="black",
+            #     fontsize=8,
+            #     ha="left",
+            #     va="bottom",
+            #     bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.85),
+            # )
+            # ax.text(
+            #     end_label_xy[0],
+            #     end_label_xy[1],
+            #     f"E{pid}",
+            #     color="black",
+            #     fontsize=8,
+            #     ha="left",
+            #     va="bottom",
+            #     bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.85),
+            # )
+            ax.text(
+                mid_label_xy[0],
+                mid_label_xy[1],
+                f"{pid}",
+                color="black",
+                fontsize=9,
+                ha="center",
+                va="center",
+                bbox=dict(boxstyle="circle,pad=0.2", fc="white", ec=color, alpha=0.9),
+            )
+
+    if title is None:
+        if map_key is None:
+            title = "Profile Locations"
+        else:
+            title = f"Profile Locations: {map_key}"
+
+    ax.set_title(title)
+    ax.set_xlabel("X (px)")
+    ax.set_ylabel("Y (px)")
+    ax.set_aspect("equal")
+
+    if map_key is not None:
+        ax.set_xlim(-0.5, w - 0.5)
+        ax.set_ylim(h - 0.5, -0.5)
+
+    fig.tight_layout()
+    return fig, ax
 
 
 # %%
