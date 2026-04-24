@@ -48,6 +48,7 @@ Welcome to mineralML's documentation!
    :caption: Mapped EDS Data
 
    examples/mineralML_mapping
+   examples/mineralML_interactive
 
 
 .. toctree::
