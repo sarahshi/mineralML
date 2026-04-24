@@ -1385,6 +1385,10 @@ def run_map(
         for key in ox_maps:
             ox_maps[key] = np.where(total_mask, np.nan, ox_maps[key])
 
+    # Capture raw total before renormalization.
+    _raw_total_stack = np.stack([ox_maps[k] for k in ox_maps], axis=0)
+    raw_total_map = np.nansum(_raw_total_stack, axis=0)
+
     # Do not apply renormalization above, but here after total filter.
     if renormalize:
         ox_maps = renormalize_maps(ox_maps)
@@ -1531,6 +1535,8 @@ def run_map(
     ox_maps["Total"] = (
         df_ordered[total_cols].sum(axis=1, skipna=True).to_numpy().reshape(H, W)
     )
+    if renormalize:
+        ox_maps["Total_raw"] = raw_total_map
 
     if show:
         plt.show()
@@ -2551,7 +2557,7 @@ def interactive_pixels(
     )
     ax_map.axis("off")
 
-    oxides = [k for k in oxide_maps if k != "Total"]
+    oxides = [k for k in oxide_maps if k not in ("Total", "Total_raw")]
     state = {"rows": [], "markers": []}
     controller = {"fig": fig, "picks": pd.DataFrame()}
 
@@ -2609,6 +2615,8 @@ def interactive_pixels(
         for ox in oxides:
             row[ox] = oxide_maps[ox][y, x]
         row["Total"] = oxide_maps["Total"][y, x]
+        if "Total_raw" in oxide_maps:
+            row["Total_raw"] = oxide_maps["Total_raw"][y, x]
         state["rows"].append(row)
 
         pick_num = len(state["rows"])
@@ -2621,12 +2629,14 @@ def interactive_pixels(
         _update_picks()
         fig.canvas.draw_idle()
 
-        print(f"\n#{pick_num}  Pixel ({x}, {y})  —  Phase: {phase}")
+        print(f"\n#{pick_num}  Pixel ({x}, {y})  —  Phase: {clicked_phase}")
         print(f"{'Oxide':<10} {'wt%':>8}")
         print("-" * 20)
         for ox in oxides:
             print(f"{ox:<10} {row[ox]:>8.2f}")
         print(f"{'Total':<10} {row['Total']:>8.2f}")
+        if "Total_raw" in row:
+            print(f"{'Total_raw':<10} {row['Total_raw']:>8.2f}")
 
     def _on_key(event):
         if event.key in ("q", "escape"):
