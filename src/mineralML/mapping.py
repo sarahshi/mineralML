@@ -38,6 +38,20 @@ def _legacy_remove_small_max_size(size):
     return max(int(size) - 1, 0)
 
 
+def _remove_small_objects_compat(mask, size, **kwargs):
+    try:
+        return remove_small_objects(mask, max_size=_legacy_remove_small_max_size(size), **kwargs)
+    except TypeError:
+        return remove_small_objects(mask, min_size=size, **kwargs)
+
+
+def _remove_small_holes_compat(mask, size, **kwargs):
+    try:
+        return remove_small_holes(mask, max_size=_legacy_remove_small_max_size(size), **kwargs)
+    except TypeError:
+        return remove_small_holes(mask, area_threshold=size, **kwargs)
+
+
 def _coerce_profile_color(color, fallback=None):
     """
     Normalize saved profile colors into a Matplotlib-compatible value.
@@ -714,10 +728,8 @@ def remove_islands(
         group_min_size = max(
             [phase_min_sizes.get(p, min_size) for p in present_in_group]
         )
-        cleaned_mask = remove_small_objects(
-            mask,
-            max_size=_legacy_remove_small_max_size(group_min_size - 1),
-            connectivity=connectivity,
+        cleaned_mask = _remove_small_objects_compat(
+            mask, group_min_size - 1, connectivity=connectivity
         )
         removed_pixels = mask & ~cleaned_mask
         cleaned_map[removed_pixels] = fill_val
@@ -731,10 +743,8 @@ def remove_islands(
         # Type match natively, so 1 == 1 works, and 'Quartz' == 'Quartz' works
         mask = cleaned_map == phase
         current_min_size = phase_min_sizes.get(phase, min_size)
-        cleaned_mask = remove_small_objects(
-            mask,
-            max_size=_legacy_remove_small_max_size(current_min_size),
-            connectivity=connectivity,
+        cleaned_mask = _remove_small_objects_compat(
+            mask, current_min_size, connectivity=connectivity
         )
         removed_pixels = mask & ~cleaned_mask
 
@@ -783,10 +793,7 @@ def fill_phase_holes(mineral_map, max_hole_size=10, exclude_phases=None):
         phase_mask = filled_map == phase
 
         # Fill holes that are completely surrounded by phase
-        filled_phase_mask = remove_small_holes(
-            phase_mask,
-            max_size=_legacy_remove_small_max_size(max_hole_size),
-        )
+        filled_phase_mask = _remove_small_holes_compat(phase_mask, max_hole_size)
 
         # Identify pixels that were just filled in
         new_pixels = filled_phase_mask & ~phase_mask
@@ -1790,10 +1797,7 @@ def plot_component_composite(
                 if fill_missing:
                     invalid_data_mask = ~np.isfinite(data)
                     valid_data_mask = ~invalid_data_mask
-                    filled_data_mask = remove_small_holes(
-                        valid_data_mask,
-                        max_size=_legacy_remove_small_max_size(max_hole_size),
-                    )
+                    filled_data_mask = _remove_small_holes_compat(valid_data_mask, max_hole_size)
                     data_islands_mask = filled_data_mask & invalid_data_mask
 
                     if np.any(data_islands_mask):
@@ -2008,10 +2012,7 @@ def _plot_continuous_map(
         valid = np.isfinite(data)
         if np.isfinite(bg_value):
             valid &= (data != bg_value)
-        cleaned = remove_small_objects(
-            valid,
-            max_size=_legacy_remove_small_max_size(min_speck_size),
-        )
+        cleaned = _remove_small_objects_compat(valid, min_speck_size)
         data = np.where(cleaned, data, np.nan)
 
     mask = np.isnan(data)
