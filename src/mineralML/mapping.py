@@ -112,7 +112,7 @@ def _profile_table_for_key(profile_df, key):
     ]
     ordered = [c for c in preferred if c in out.columns]
     tail_cols = [
-        c for c in ("start_x", "start_y", "end_x", "end_y")
+        c for c in ("x0", "y0", "x1", "y1")
         if c in out.columns
     ]
     ordered += [c for c in out.columns if c not in ordered and c not in tail_cols]
@@ -137,10 +137,10 @@ def _resolve_profile_value_columns(profile_df):
             "key",
             "source",
             "n_pixels",
-            "start_x",
-            "start_y",
-            "end_x",
-            "end_y",
+            "x0",
+            "y0",
+            "x1",
+            "y1",
             "width_px",
             "length_px",
             "length_um",
@@ -892,9 +892,9 @@ def plot_phase_map(
     # Mapping phase names to integer IDs
     phase_to_id = {p: i + 1 for i, p in enumerate(phases)}
     id_to_phase = {i + 1: p for i, p in enumerate(phases)} 
-    id_to_phase[0] = "Unknown" 
-    
-    # Any phase filtered out above won't be in `phase_to_id`, remaining 0 (Unknown)
+    id_to_phase[0] = None
+
+    # Any phase filtered out above won't be in `phase_to_id`, remaining 0 (NaN)
     ids = np.zeros(mineral_map_2d.shape, dtype=int)
     for p, pid in phase_to_id.items():
         ids[mineral_map_2d == p] = pid
@@ -986,7 +986,7 @@ def plot_phase_map(
                 frameon=False, title="Phases", fontsize=8
             )
 
-    cleaned_mineral_map = np.vectorize(lambda x: id_to_phase.get(x, "Unknown"))(ids)
+    cleaned_mineral_map = np.vectorize(lambda x: id_to_phase.get(x, None))(ids)
     return fig, ax_map, cleaned_mineral_map
 
 
@@ -1297,7 +1297,7 @@ def plot_pred_score_histograms(
 def run_map(
     sample_input,
     renormalize=False,
-    epoxy_threshold=None,
+    total_threshold=None,
     n_iterations=50,
     min_frac=0.00001,
     pred_score_threshold=0.6,
@@ -1324,13 +1324,14 @@ def run_map(
     Parameters:
         sample_input (str | Path | dict): Directory path or a dict of oxide maps.
         renormalize (bool): If True, scale each pixel so oxides sum to 100 wt%.
-            Applied after epoxy masking.
-        epoxy_threshold (float | None): Pixels with SiO2 below this value (wt%)
-            are set to NaN before renormalization and prediction. Set to None
-            to disable masking.
+            Applied after total masking.
+        total_threshold (float | None): Pixels with oxide total below this
+            value (wt%) are set to NaN before renormalization and prediction.
+            Use this to mask epoxy/background.
         n_iterations (int): MC forward passes for prediction.
         min_frac (float): Minimum pixel fraction required to keep a phase.
-        pred_score_threshold (float): Set label to NaN where max prediction score < threshold.
+        pred_score_threshold (float): Label NaN where max prediction score < 
+            threshold.
         units (str): Input format — 'element_wt%' or 'oxide_wt%'.
         top_k (int|None): Cap displayed phases after filtering.
         phases (list[str]|None): Explicit phases to plot (overrides auto-pick).
@@ -1340,9 +1341,14 @@ def run_map(
             (``plot_phase_counts``), or "stacked" for a stacked horizontal
             bar (``plot_phase_proportions``).
         components_spec (dict|None): Custom mineral formula logic.
-        remove_islands_flag (bool): If True, removes small isolated pixel clusters.
-        fill_holes_flag (bool): If True, fills small holes within continuous phases.
-        hole_size (int): Maximum hole area (in pixels) to fill.
+        remove_islands_flag (bool): If True, removes isolated pixel clusters
+            smaller than 2 pixels (4-connected) from the phase map. Useful
+            for cleaning up salt-and-pepper noise in the epoxy region.
+        fill_holes_flag (bool): If True, fills enclosed background holes within
+            continuous phase regions up to ``hole_size`` pixels. Useful for
+            patching small gaps inside large mineral grains.
+        hole_size (int): Maximum hole area (in pixels) to fill when
+            ``fill_holes_flag`` is True.
         scalebar_um (float, optional): Length of the scale bar in micrometers.
         pixel_size_um (float): Physical size of a single pixel in micrometers.
         scalebar_loc (str): Location of the scale bar (e.g., 'lower left').
@@ -1352,7 +1358,8 @@ def run_map(
     Returns:
         result (dict): Dictionary with keys 'figs', 'shape', 'oxide_maps',
             'df_pred', 'mineral_map', 'pred_score_map', 'kept_phases',
-            'component_maps', 'component_frames'.
+            'component_maps', 'component_frames'. ``oxide_maps`` includes a
+            ``'Total'`` key with the per-pixel oxide sum.
     """
 
     # Load and prepare data
@@ -1372,12 +1379,13 @@ def run_map(
     if not ox_maps:
         raise ValueError(f"No oxide maps found or provided in: {sample_dir}")
 
-    if epoxy_threshold is not None and "SiO2" in ox_maps:
-        epoxy_mask = ox_maps["SiO2"] < epoxy_threshold
+    if total_threshold is not None:
+        raw_total = np.nansum(np.stack(list(ox_maps.values())), axis=0)
+        total_mask = raw_total < total_threshold
         for key in ox_maps:
-            ox_maps[key] = np.where(epoxy_mask, np.nan, ox_maps[key])
+            ox_maps[key] = np.where(total_mask, np.nan, ox_maps[key])
 
-    # Do not apply renormalization above, but here after epoxy filter.
+    # Do not apply renormalization above, but here after total filter.
     if renormalize:
         ox_maps = renormalize_maps(ox_maps)
 
@@ -1425,7 +1433,7 @@ def run_map(
         os.path.basename(sample_dir) if isinstance(sample_dir, str) else "Sample"
     )
 
-    fig_map, _, _ = plot_phase_map(
+    fig_map, _, mineral_map = plot_phase_map(
         mineral_map,
         phases=kept,
         min_frac=min_frac,
@@ -1516,6 +1524,12 @@ def run_map(
         pred_score_threshold=pred_score_threshold,
         components_spec=spec,
         oxide_list=OXIDES,
+    )
+
+    oxides_plus_zr = list(OXIDES) + ["ZrO2"]
+    total_cols = df_ordered.columns.intersection(oxides_plus_zr)
+    ox_maps["Total"] = (
+        df_ordered[total_cols].sum(axis=1, skipna=True).to_numpy().reshape(H, W)
     )
 
     if show:
@@ -1684,6 +1698,8 @@ def plot_component_composite(
         mineral_map (ndarray): The cleaned 2D categorical map used as the base.
         processed_comp_maps (dict): The smoothed/filled 2D continuous component data.
     """
+
+    plt.close("all")
 
     if mask_config is None:
         mask_config = {
@@ -2424,6 +2440,240 @@ def plot_ctf_phases(
 # %%
 
 
+def interactive_pixels(
+    result,
+    cmap_name="tab20",
+    phase_colors=None,
+    phase=None,
+    oxide_key=None,
+    oxide_cmap="viridis",
+    vmin=None,
+    vmax=None,
+):
+    """
+    Display the phase map and collect oxide compositions by clicking pixels.
+
+    Uses the same colormap and legend style as ``plot_phase_map``. Each click
+    places a marker on the map, prints the oxide values, and appends a row to
+    ``controller["picks"]``. Requires an interactive Matplotlib backend
+    (``%matplotlib widget`` in a notebook).
+
+    Keybindings:
+        r/u: undo the last picked pixel
+        c: clear all picks
+        q: quit (disconnect click and key handlers)
+
+    Parameters:
+        result (dict): Result dictionary returned by ``run_map()``.
+        cmap_name (str): Matplotlib colormap for the phase map display.
+        phase_colors (dict|None): Optional manual color overrides {PhaseName: color}.
+        phase (str|list[str]|None): If provided, only pixels matching this phase
+            are shown and clickable. Others are rendered as background.
+        oxide_key (str|None): If provided, display this oxide or component as a
+            heatmap instead of the phase map (e.g. ``"SiO2"``). The phase map
+            legend is replaced by a colorbar.
+        oxide_cmap (str): Colormap for the oxide heatmap when ``map_key`` is set.
+        vmin (float|None): Lower display limit for the oxide heatmap.
+        vmax (float|None): Upper display limit for the oxide heatmap.
+
+    Returns:
+        controller (dict): Dict with keys ``'fig'`` and ``'picks'``.
+            ``picks`` is a ``pd.DataFrame`` that grows with each click,
+            with columns ``x``, ``y``, ``phase``, and one column per oxide.
+    """
+    plt.close("all")
+    backend = plt.get_backend().lower()
+    _non_interactive = {"agg", "cairo", "pdf", "pgf", "ps", "svg", "template",
+                        "module://matplotlib_inline.backend_inline"}
+    if backend in _non_interactive or backend.endswith("inline"):
+        warnings.warn(
+            "interactive_pixels() needs an interactive Matplotlib backend. "
+            f"The current backend is {plt.get_backend()!r}. In a notebook, "
+            "try `%matplotlib widget` (requires ipympl).",
+            UserWarning,
+        )
+
+    mineral_map = result["mineral_map"]
+    oxide_maps = result["oxide_maps"]
+    H, W = mineral_map.shape
+
+    # Derive phases from what actually exists in the cleaned mineral_map,
+    # preserving the order from kept_phases where possible.
+    present = {v for v in mineral_map.ravel() if v is not None and v != "nan"}
+    kept_phases = [p for p in result["kept_phases"] if p in present]
+
+    # Optionally restrict to a single phase or list of phases.
+    if phase is not None:
+        phase_filter = {phase} if isinstance(phase, str) else set(phase)
+        kept_phases = [p for p in kept_phases if p in phase_filter]
+
+    phase_to_id = {p: i + 1 for i, p in enumerate(kept_phases)}
+    ids = np.zeros((H, W), dtype=int)
+    for p, pid in phase_to_id.items():
+        ids[mineral_map == p] = pid
+
+    fig, (ax_map, ax_leg) = plt.subplots(
+        1, 2, figsize=(10, 7),
+        gridspec_kw={"width_ratios": [5, 1]},
+    )
+
+    if oxide_key is not None:
+        data = get_profile_map(result, oxide_key, source="auto")
+        if phase is not None:
+            phase_mask = np.isin(mineral_map, list(kept_phases))
+            data = np.where(phase_mask, data, np.nan)
+        valid = data[np.isfinite(data)]
+        _vmin = float(valid.min()) if vmin is None and valid.size else (vmin or 0.0)
+        _vmax = float(valid.max()) if vmax is None and valid.size else (vmax or 1.0)
+        im = ax_map.imshow(np.ma.masked_invalid(data), cmap=oxide_cmap,
+                           vmin=_vmin, vmax=_vmax, interpolation="none", origin="upper")
+        ax_leg.axis("off")
+        fig.colorbar(im, ax=ax_leg, fraction=0.8, pad=0.05, label=oxide_key)
+    else:
+        palette = _make_palette(kept_phases, cmap_name=cmap_name)
+        if phase_colors:
+            for p, c in phase_colors.items():
+                if p in palette:
+                    palette[p] = c
+        bg_color = (1.0, 1.0, 1.0, 1.0)
+        listed_cmap = ListedColormap([bg_color] + [palette[p] for p in kept_phases])
+        ax_map.imshow(ids, cmap=listed_cmap, vmin=0, vmax=len(kept_phases),
+                      interpolation="none", origin="upper")
+        handles = [mpatches.Patch(facecolor=palette[p], label=p) for p in kept_phases]
+        ax_leg.axis("off")
+        ax_leg.legend(handles=handles, loc="upper left", frameon=False, title="Phases",
+                      borderaxespad=0.0, handlelength=1.2, handletextpad=0.6, fontsize=8)
+
+    fig.suptitle(
+        "Click pixels to sample oxide composition\n"
+        "'r'/'u': undo last  |  'c': clear all  |  'q'/Esc: done",
+        fontsize=11,
+    )
+    ax_map.axis("off")
+
+    oxides = [k for k in oxide_maps if k != "Total"]
+    state = {"rows": [], "markers": []}
+    controller = {"fig": fig, "picks": pd.DataFrame()}
+
+    try:
+        from IPython.display import display, clear_output, HTML
+        import ipywidgets as widgets
+        _out = widgets.Output()
+        _btn = widgets.Button(description="Copy to clipboard", icon="clipboard",
+                              layout=widgets.Layout(width="160px"))
+
+        def _on_copy(_):
+            if controller["picks"].empty:
+                return
+            tsv = controller["picks"].to_csv(sep="\t", index=False)
+            escaped = tsv.replace("`", "\\`")
+            script = (
+                "<script>"
+                f"navigator.clipboard.writeText(`{escaped}`);"
+                "</script>"
+            )
+            with _out:
+                clear_output(wait=True)
+                display(HTML(script))
+                display(controller["picks"])
+
+        _btn.on_click(_on_copy)
+        _use_widget = True
+    except ImportError:
+        _use_widget = False
+
+    def _update_picks():
+        controller["picks"] = (
+            pd.DataFrame(state["rows"]).reset_index(drop=True)
+            if state["rows"] else pd.DataFrame()
+        )
+        if _use_widget:
+            with _out:
+                clear_output(wait=True)
+                if not controller["picks"].empty:
+                    display(controller["picks"])
+
+    def _on_click(event):
+        if event.inaxes != ax_map or event.xdata is None or event.ydata is None:
+            return
+        x, y = int(round(event.xdata)), int(round(event.ydata))
+        if not (0 <= x < W and 0 <= y < H):
+            return
+
+        clicked_phase = mineral_map[y, x]
+        if phase is not None:
+            phase_filter = {phase} if isinstance(phase, str) else set(phase)
+            if clicked_phase not in phase_filter:
+                return
+        row = {"x": x, "y": y, "phase": clicked_phase}
+        for ox in oxides:
+            row[ox] = oxide_maps[ox][y, x]
+        row["Total"] = oxide_maps["Total"][y, x]
+        state["rows"].append(row)
+
+        pick_num = len(state["rows"])
+        marker = ax_map.scatter([x], [y], c="white", s=30, edgecolors="black",
+                                linewidths=0.6, zorder=5)
+        label_artist = ax_map.text(x + 3, y - 3, str(pick_num), fontsize=7,
+                                   color="white", zorder=6)
+        state["markers"].append((marker, label_artist))
+
+        _update_picks()
+        fig.canvas.draw_idle()
+
+        print(f"\n#{pick_num}  Pixel ({x}, {y})  —  Phase: {phase}")
+        print(f"{'Oxide':<10} {'wt%':>8}")
+        print("-" * 20)
+        for ox in oxides:
+            print(f"{ox:<10} {row[ox]:>8.2f}")
+        print(f"{'Total':<10} {row['Total']:>8.2f}")
+
+    def _on_key(event):
+        if event.key in ("q", "escape"):
+            fig.canvas.mpl_disconnect(cid_click)
+            fig.canvas.mpl_disconnect(cid_key)
+            fig.suptitle("Inactive — picks saved in controller['picks']", fontsize=10)
+            fig.canvas.draw_idle()
+        elif event.key in ("u", "r") and state["rows"]:
+            state["rows"].pop()
+            marker, label_artist = state["markers"].pop()
+            marker.remove()
+            label_artist.remove()
+            _update_picks()
+            fig.canvas.draw_idle()
+            print(f"Undid last pick. {len(state['rows'])} picks remaining.")
+        elif event.key == "c":
+            state["rows"].clear()
+            for marker, label_artist in state["markers"]:
+                marker.remove()
+                label_artist.remove()
+            state["markers"].clear()
+            _update_picks()
+            fig.canvas.draw_idle()
+            print("Cleared all picks.")
+
+    cid_click = fig.canvas.mpl_connect("button_press_event", _on_click)
+    cid_key = fig.canvas.mpl_connect("key_press_event", _on_key)
+
+    def _on_close(_event):
+        fig.canvas.mpl_disconnect(cid_click)
+        fig.canvas.mpl_disconnect(cid_key)
+
+    fig.canvas.mpl_connect("close_event", _on_close)
+
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    plt.show()
+
+    if _use_widget:
+        display(widgets.HBox([_btn]))
+        display(_out)
+
+    return controller
+
+
+# %%
+
+
 def get_profile_map(res, key, source="auto"):
     """
     Resolve a 2-D map for line-profile extraction from a ``run_map()`` result
@@ -2762,6 +3012,7 @@ def interactive_line_profile(
     method="none",
     source="auto",
     *,
+    phase=None,
     width_px=3.0,
     n_bins=None,
     pixel_size_um=None,
@@ -2787,6 +3038,8 @@ def interactive_line_profile(
         key (str): Oxide or component key, e.g. ``"SiO2"`` or ``"Feldspar.An"``.
         method (str): Aggregation method passed to ``extract_line_profile()``.
         source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
+        phase (str|list[str]|None): If provided, mask the map so only pixels
+            matching this phase are shown; all others are set to NaN.
         width_px (float): Transect-strip width in pixels.
         n_bins (int|None): Number of distance bins.
         pixel_size_um (float|None): Micrometers per pixel.
@@ -2810,6 +3063,7 @@ def interactive_line_profile(
             ``coordinates_df`` (transect metadata), and helper accessors
             ``get_profile``, ``get_samples``, ``get_coordinates``.
     """
+    plt.close("all")
     backend = plt.get_backend().lower()
     _non_interactive = {"agg", "cairo", "pdf", "pgf", "ps", "svg", "template",
                         "module://matplotlib_inline.backend_inline"}
@@ -2824,6 +3078,11 @@ def interactive_line_profile(
         )
 
     data = get_profile_map(res, key, source=source)
+
+    if phase is not None and "mineral_map" in res:
+        phase_filter = {phase} if isinstance(phase, str) else set(phase)
+        phase_mask = np.isin(res["mineral_map"], list(phase_filter))
+        data = np.where(phase_mask, data, np.nan)
 
     valid = data[np.isfinite(data)]
     if vmin is None:
@@ -2874,7 +3133,7 @@ def interactive_line_profile(
 
     fig.suptitle(
         "Click to delineate start and end.\n"
-        "'r': reset clicks | 'u': undo last | 'c': clear all | 'q': done",
+        "'r': reset clicks | 'u': undo last | 'c': clear all | 'q'/Esc: done",
         y=0.96,
         fontsize=11,
     )
@@ -3001,10 +3260,10 @@ def interactive_line_profile(
         profile_df["profile_id"] = profile_id
         profile_df["key"] = key
         profile_df["source"] = source
-        profile_df["start_x"] = float(start[0])
-        profile_df["start_y"] = float(start[1])
-        profile_df["end_x"] = float(end[0])
-        profile_df["end_y"] = float(end[1])
+        profile_df["x0"] = int(round(start[0]))
+        profile_df["y0"] = int(round(start[1]))
+        profile_df["x1"] = int(round(end[0]))
+        profile_df["y1"] = int(round(end[1]))
         profile_df["width_px"] = float(width_px)
         profile_df["length_px"] = float(geom["length_px"])
         profile_df["length_um"] = (
@@ -3017,10 +3276,10 @@ def interactive_line_profile(
         samples_df["profile_id"] = profile_id
         samples_df["key"] = key
         samples_df["source"] = source
-        samples_df["start_x"] = float(start[0])
-        samples_df["start_y"] = float(start[1])
-        samples_df["end_x"] = float(end[0])
-        samples_df["end_y"] = float(end[1])
+        samples_df["x0"] = int(round(start[0]))
+        samples_df["y0"] = int(round(start[1]))
+        samples_df["x1"] = int(round(end[0]))
+        samples_df["y1"] = int(round(end[1]))
         samples_df["width_px"] = float(width_px)
         samples_df["length_px"] = float(geom["length_px"])
         samples_df["length_um"] = (
@@ -3041,10 +3300,10 @@ def interactive_line_profile(
                 "profile_id": profile_id,
                 "key": key,
                 "source": source,
-                "start_x": float(start[0]),
-                "start_y": float(start[1]),
-                "end_x": float(end[0]),
-                "end_y": float(end[1]),
+                "x0": int(round(start[0])),
+                "y0": int(round(start[1])),
+                "x1": int(round(end[0])),
+                "y1": int(round(end[1])),
                 "width_px": float(width_px),
                 "length_px": float(geom["length_px"]),
                 "length_um": (
@@ -3127,7 +3386,7 @@ def interactive_line_profile(
             fig.canvas.draw_idle()
 
     def _on_key(event):
-        if event.key == "q":
+        if event.key in ("q", "escape"):
             fig.canvas.mpl_disconnect(cid_click)
             fig.canvas.mpl_disconnect(cid_key)
             fig.suptitle("Inactive (press saved)", fontsize=11)
@@ -3185,7 +3444,7 @@ def batch_extract_line_profiles(
     Parameters:
         res (dict): Result dictionary returned by ``run_map()``.
         transects (pd.DataFrame|list[dict]): Table with at least
-            ``start_x``, ``start_y``, ``end_x``, ``end_y``. If ``width_px`` or
+            ``x0``, ``y0``, ``x1``, ``y1``. If ``width_px`` or
             ``n_bins`` are present they are reused per transect.
         keys (str|list[str]|None): Oxide/component keys to extract. If None,
             defaults to available oxide maps in the canonical ``OXIDES`` order.
@@ -3226,7 +3485,7 @@ def batch_extract_line_profiles(
         raise ValueError("keys must contain at least one map key.")
 
     transects_df = pd.DataFrame(transects).copy()
-    required = {"start_x", "start_y", "end_x", "end_y"}
+    required = {"x0", "y0", "x1", "y1"}
     missing = required - set(transects_df.columns)
     if missing:
         raise KeyError(
@@ -3256,8 +3515,8 @@ def batch_extract_line_profiles(
 
             profile_df, _ = extract_line_profile(
                 data,
-                start=(float(row.start_x), float(row.start_y)),
-                end=(float(row.end_x), float(row.end_y)),
+                start=(float(row.x0), float(row.y0)),
+                end=(float(row.x1), float(row.y1)),
                 width_px=float(row.width_px),
                 n_bins=row_n_bins,
                 pixel_size_um=row_pixel_size_um,
@@ -3269,10 +3528,10 @@ def batch_extract_line_profiles(
             profile_df["profile_id"] = int(row.profile_id)
             profile_df["key"] = key
             profile_df["source"] = source
-            profile_df["start_x"] = float(row.start_x)
-            profile_df["start_y"] = float(row.start_y)
-            profile_df["end_x"] = float(row.end_x)
-            profile_df["end_y"] = float(row.end_y)
+            profile_df["x0"] = float(row.x0)
+            profile_df["y0"] = float(row.y0)
+            profile_df["x1"] = float(row.x1)
+            profile_df["y1"] = float(row.y1)
             profile_df["width_px"] = float(row.width_px)
             profiles_out.append(profile_df)
 
@@ -3286,7 +3545,7 @@ def batch_extract_line_profiles(
         profiles_df = pd.DataFrame()
     elif method == "none":
         join_cols = ["profile_id", "x", "y", "distance_px", "perp_distance_px",
-                     "distance_um", "start_x", "start_y", "end_x", "end_y", "width_px", "source"]
+                     "distance_um", "x0", "y0", "x1", "y1", "width_px", "source"]
 
         wide = None
         for key in keys:
@@ -3310,7 +3569,7 @@ def batch_extract_line_profiles(
             ordered = (
                 ["profile_id", "x", "y", "distance_px", "perp_distance_px", "distance_um"]
                 + value_cols
-                + ["start_x", "start_y", "end_x", "end_y", "width_px", "source"]
+                + ["x0", "y0", "x1", "y1", "width_px", "source"]
             )
             ordered = [c for c in ordered if c in wide.columns]
             profiles_df = wide[ordered].sort_values(
@@ -3321,10 +3580,10 @@ def batch_extract_line_profiles(
             "profile_id",
             "distance_px",
             "distance_um",
-            "start_x",
-            "start_y",
-            "end_x",
-            "end_y",
+            "x0",
+            "y0",
+            "x1",
+            "y1",
             "width_px",
         ]
 
@@ -3359,7 +3618,7 @@ def batch_extract_line_profiles(
                 if smoothed_col in profiles_df.columns:
                     value_cols.append(smoothed_col)
             tail_cols = [
-                c for c in ("start_x", "start_y", "end_x", "end_y")
+                c for c in ("x0", "y0", "x1", "y1")
                 if c in profiles_df.columns
             ]
             ordered = [c for c in preferred if c in profiles_df.columns]
@@ -3376,7 +3635,7 @@ def batch_extract_line_profiles(
     return profiles_df
 
 
-def plot_profile_locations(
+def plot_locations(
     res,
     transects,
     map_key=None,
@@ -3394,13 +3653,17 @@ def plot_profile_locations(
     figsize=(7, 7),
 ):
     """
-    Plot saved transect start/end locations on top of a map or blank canvas.
+    Plot transect lines or pixel pick locations on top of a map or blank canvas.
+
+    Accepts either a transects table (from ``interactive_line_profile`` or
+    ``batch_line_profiles``) with columns ``x0``, ``y0``, ``x1``, ``y1``, or a
+    pixel picks table (from ``extract_pixel_comp``) with columns ``x``, ``y``.
+    The input type is detected automatically.
 
     Parameters:
         res (dict): Result dictionary returned by ``run_map()``.
-        transects (pd.DataFrame|list[dict]): Table with at least
-            ``start_x``, ``start_y``, ``end_x``, ``end_y``. If ``profile_id``,
-            ``width_px``, or ``color`` exist they are used in the overlay.
+        transects (pd.DataFrame|list[dict]): Transect table with ``x0``, ``y0``,
+            ``x1``, ``y1``, or pixel picks table with ``x``, ``y``.
         map_key (str|None): Background oxide/component key. If None, uses a
             blank pixel-space canvas based on ``res['shape']``.
         source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
@@ -3410,29 +3673,37 @@ def plot_profile_locations(
         title (str|None): Plot title.
         cbar_label (str|None): Colorbar label for the background map.
         show_width (bool): If True, draw the finite-width strip outline when
-            ``width_px`` is available.
-        annotate (bool): If True, label transects and start/end markers.
-        annotate_offset_px (float): Pixel offset used to move annotation labels
-            off the transect, measured normal to the line.
+            ``width_px`` is available (transect mode only).
+        annotate (bool): If True, label each point or transect with its index.
+        annotate_offset_px (float): Pixel offset for transect annotation labels.
         ax (matplotlib.axes.Axes|None): Existing axis to draw on.
         figsize (tuple): Figure size when creating a new figure.
 
     Returns:
         fig (matplotlib.figure.Figure): Figure containing the overlay.
-        ax (matplotlib.axes.Axes): Axis containing the map and transects.
+        ax (matplotlib.axes.Axes): Axis containing the map and overlay.
     """
     transects_df = pd.DataFrame(transects).copy()
-    required = {"start_x", "start_y", "end_x", "end_y"}
-    missing = required - set(transects_df.columns)
-    if missing:
-        raise KeyError(
-            f"transects is missing required columns: {', '.join(sorted(missing))}"
-        )
+    cols = set(transects_df.columns)
 
-    if "profile_id" not in transects_df.columns:
-        transects_df["profile_id"] = np.arange(1, len(transects_df) + 1)
-    if "width_px" not in transects_df.columns:
-        transects_df["width_px"] = np.nan
+    plt.close("all")
+
+    # Detect mode: pixel picks have x/y but no x0/y0/x1/y1
+    _is_picks = {"x", "y"}.issubset(cols) and not {"x0", "x1"}.issubset(cols)
+
+    if not _is_picks:
+        required = {"x0", "y0", "x1", "y1"}
+        missing = required - cols
+        if missing:
+            raise KeyError(
+                f"transects is missing required columns: {', '.join(sorted(missing))}"
+            )
+
+    if not _is_picks:
+        if "profile_id" not in transects_df.columns:
+            transects_df["profile_id"] = np.arange(1, len(transects_df) + 1)
+        if "width_px" not in transects_df.columns:
+            transects_df["width_px"] = np.nan
 
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
@@ -3467,101 +3738,62 @@ def plot_profile_locations(
         ax.set_xlim(-0.5, w - 0.5)
         ax.set_ylim(h - 0.5, -0.5)
 
-    for i, row in enumerate(transects_df.itertuples(index=False)):
-        raw_color = (
-            getattr(row, "color")
-            if hasattr(row, "color") and pd.notna(getattr(row, "color"))
-            else None
-        )
-        color = _coerce_profile_color(raw_color, fallback=plt.get_cmap("tab10")(i % 10))
-
-        start = np.array([float(row.start_x), float(row.start_y)], dtype=float)
-        end = np.array([float(row.end_x), float(row.end_y)], dtype=float)
-        pid = int(row.profile_id)
-        geom = _line_strip_geometry(start, end, 0.0)
-        label_offset = geom["normal"] * float(annotate_offset_px)
-
-        ax.plot(
-            [start[0], end[0]],
-            [start[1], end[1]],
-            color=color,
-            lw=2,
-            alpha=0.95,
-        )
-
-        ax.scatter(
-            [start[0]],
-            [start[1]],
-            c=[color],
-            s=40,
-            marker="o",
-            edgecolors="black",
-            linewidths=0.7,
-            zorder=5,
-        )
-        ax.scatter(
-            [end[0]],
-            [end[1]],
-            c=[color],
-            s=48,
-            marker="s",
-            edgecolors="black",
-            linewidths=0.7,
-            zorder=5,
-        )
-
-        width_px = getattr(row, "width_px", np.nan)
-        if show_width and pd.notna(width_px) and float(width_px) > 0:
-            geom_w = _line_strip_geometry(start, end, float(width_px))
-            poly = mpatches.Polygon(
-                geom_w["outline"][:-1],
-                closed=True,
-                fill=False,
-                ec=color,
-                lw=1.0,
-                ls="--",
-                alpha=0.8,
+    if _is_picks:
+        for i, row in enumerate(transects_df.itertuples(index=False)):
+            color = plt.get_cmap("tab10")(i % 10)
+            ax.scatter([row.x], [row.y], c=[color], s=40, edgecolors="black",
+                       linewidths=0.7, zorder=5)
+            if annotate:
+                ax.text(
+                    row.x + float(annotate_offset_px),
+                    row.y - float(annotate_offset_px),
+                    str(i + 1),
+                    color="black", fontsize=9, ha="left", va="bottom",
+                    bbox=dict(boxstyle="circle,pad=0.2", fc="white", ec=color, alpha=0.9),
+                )
+    else:
+        for i, row in enumerate(transects_df.itertuples(index=False)):
+            raw_color = (
+                getattr(row, "color")
+                if hasattr(row, "color") and pd.notna(getattr(row, "color"))
+                else None
             )
-            ax.add_patch(poly)
+            color = _coerce_profile_color(raw_color, fallback=plt.get_cmap("tab10")(i % 10))
 
-        if annotate:
-            mid = 0.5 * (start + end)
-            start_label_xy = start + label_offset
-            end_label_xy = end + label_offset
-            mid_label_xy = mid + 1.25 * label_offset
-            # ax.text(
-            #     start_label_xy[0],
-            #     start_label_xy[1],
-            #     f"S{pid}",
-            #     color="black",
-            #     fontsize=8,
-            #     ha="left",
-            #     va="bottom",
-            #     bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.85),
-            # )
-            # ax.text(
-            #     end_label_xy[0],
-            #     end_label_xy[1],
-            #     f"E{pid}",
-            #     color="black",
-            #     fontsize=8,
-            #     ha="left",
-            #     va="bottom",
-            #     bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.85),
-            # )
-            ax.text(
-                mid_label_xy[0],
-                mid_label_xy[1],
-                f"{pid}",
-                color="black",
-                fontsize=9,
-                ha="center",
-                va="center",
-                bbox=dict(boxstyle="circle,pad=0.2", fc="white", ec=color, alpha=0.9),
-            )
+            start = np.array([float(row.x0), float(row.y0)], dtype=float)
+            end = np.array([float(row.x1), float(row.y1)], dtype=float)
+            pid = int(row.profile_id)
+            geom = _line_strip_geometry(start, end, 0.0)
+            label_offset = geom["normal"] * float(annotate_offset_px)
+
+            ax.plot([start[0], end[0]], [start[1], end[1]], color=color, lw=2, alpha=0.95)
+            ax.scatter([start[0]], [start[1]], c=[color], s=40, marker="o",
+                       edgecolors="black", linewidths=0.7, zorder=5)
+            ax.scatter([end[0]], [end[1]], c=[color], s=48, marker="s",
+                       edgecolors="black", linewidths=0.7, zorder=5)
+
+            width_px = getattr(row, "width_px", np.nan)
+            if show_width and pd.notna(width_px) and float(width_px) > 0:
+                geom_w = _line_strip_geometry(start, end, float(width_px))
+                poly = mpatches.Polygon(
+                    geom_w["outline"][:-1], closed=True, fill=False,
+                    ec=color, lw=1.0, ls="--", alpha=0.8,
+                )
+                ax.add_patch(poly)
+
+            if annotate:
+                mid = 0.5 * (start + end)
+                mid_label_xy = mid + 1.25 * label_offset
+                ax.text(
+                    mid_label_xy[0], mid_label_xy[1], f"{pid}",
+                    color="black", fontsize=9, ha="center", va="center",
+                    bbox=dict(boxstyle="circle,pad=0.2", fc="white", ec=color, alpha=0.9),
+                )
 
     if title is None:
-        if map_key is None:
+        if _is_picks:
+            title = "Pixel Pick Locations" if map_key is None else f"Pixel Pick Locations: {map_key}"
+        elif map_key is None:
             title = "Profile Locations"
         else:
             title = f"Profile Locations: {map_key}"
