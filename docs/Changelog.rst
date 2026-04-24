@@ -3,6 +3,11 @@ Change Log
 ==========
 
 
+Version 0.0.3.14
+================
+Updated ``interactive_pixel`` to provide an unnormalized total (``Total_raw``) in addition to the renormalized total, giving users insight into the original analytical totals for each pixel. This allows users to assess the raw data quality and make informed decisions about the reliability of classifications, especially for pixels near the total threshold. Updated documentation and examples to reflect this new output.
+
+
 Version 0.0.3.13
 ================
 Replaced ``epoxy_threshold`` in ``run_map`` with ``total_threshold``, which masks pixels by summed oxide total rather than SiO2 alone, avoiding removal of valid low-SiO2 phases. ``run_map`` now stores the cleaned mineral map in ``result["mineral_map"]`` and adds a ``"Total"`` key to ``oxide_maps``. Background pixels are now ``None`` rather than ``"Unknown"``. 
