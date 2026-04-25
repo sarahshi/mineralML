@@ -1709,11 +1709,13 @@ def plot_component_composite(
         raise ValueError("mineral_map is required in res.")
 
     mineral_map = np.asarray(raw_mineral_map, dtype=object).copy()
-    bad_vals = {"nan", "NaN"}
+    bad_vals = {"nan", "NaN", "None", "none", "null", ""}
 
-    # Standardize NaNs
+    # Standardize NaNs and None-like strings
     is_actual_nan = pd.isna(mineral_map)
     mineral_map[is_actual_nan] = "nan"
+    none_strings = {"None", "none", "null", ""}
+    mineral_map[np.isin(mineral_map, list(none_strings))] = "nan"
 
     # Clean up map by removing small islands
     if remove_islands_flag:
@@ -1912,6 +1914,8 @@ def plot_component_composite(
             ax_map, ax_legend = fig.add_subplot(111), None
     else:
         ax_map, fig, ax_legend = ax, ax.get_figure(), None
+
+    ax_map.set_facecolor("white")
 
     # Store the image objects so we can attach colorbars to them
     comp_images = []
