@@ -1320,6 +1320,8 @@ def run_map(
     """
     Load, convert, predict, and plot for one folder of CSV maps.
     Always computes mineral components and returns a full results dictionary.
+    Use ``remove_islands_flag`` and ``fill_holes_flag`` to clean the phase map
+    before plotting and downstream analysis.
  
     Parameters:
         sample_input (str | Path | dict): Directory path or a dict of oxide maps.
@@ -1625,23 +1627,11 @@ def plot_component_composite(
     res,
     title="Composite",
     save_path=None,
-    fill_missing=True,
-    max_hole_size=10,
-    min_speck_size=5,
+    remove_islands_flag=True,
+    fill_holes_flag=True,
+    hole_size=10,
     min_frac=0.0,
-    feld_key="Feldspar.An",
-    cpx_key="Clinopyroxene.XMg",
-    opx_key="Orthopyroxene.XMg",
-    ol_key="Olivine.XFo",
-    amp_key="Amphibole.XMg",
     phases=None,
-    component_labels={
-        "Plagioclase": ("Feldspar", "Plagioclase", "Anorthite", "Albite"),
-        "Clinopyroxene": ("Clinopyroxene", "Augite", "Diopside"),
-        "Orthopyroxene": ("Orthopyroxene", "Enstatite", "Hypersthene"),
-        "Olivine": ("Olivine", "Forsterite", "Fayalite"),
-        "Amphibole": ("Amphibole", "Tremolite", "Actinolite", "Anthrophyllite", "Grunerite"),
-    },
     mask_config=None,
     phase_colors=None,
     smooth_sigma=0.0,
@@ -1662,25 +1652,24 @@ def plot_component_composite(
     """
     Renders a composite map overlaying continuous solid-solution compositions
     (e.g., Plagioclase An%, Olivine Fo%) on top of a categorical phase mask.
- 
+    Small holes in the phase map and compositional data can be filled with
+    ``fill_holes_flag``, and isolated pixel clusters removed via
+    ``remove_islands_flag`` — matching the same parameters in ``run_map``.
+
     Parameters:
         res (dict): The result dictionary returned by ``run_map()``,
             containing 'mineral_map' and 'component_maps'.
         title (str): Title of the composite plot.
         save_path (str, optional): Filepath to save the figure (e.g., 'plot.png').
-        fill_missing (bool): If True, interpolates small holes in the continuous data.
-        max_hole_size (int): Maximum hole area (in pixels) to interpolate.
-        min_speck_size (int): Minimum pixel area for a phase to be kept.
+        remove_islands_flag (bool): If True, removes isolated pixel clusters
+            smaller than 2 pixels from the phase map.
+        fill_holes_flag (bool): If True, fills small holes in both the phase
+            map and continuous component data up to ``hole_size`` pixels.
+        hole_size (int): Maximum hole area (in pixels) to fill.
         min_frac (float): Minimum pixel fraction required for a phase to be
             included in the composite. Fractions are computed from the cleaned
             mineral map after island removal / hole filling.
-        feld_key (str): Dictionary key in res['component_maps'] for feldspar data.
-        cpx_key (str): Dictionary key for clinopyroxene data.
-        opx_key (str): Dictionary key for orthopyroxene data.
-        ol_key (str): Dictionary key for olivine data.
-        amp_key (str): Dictionary key for amphibole data.
         phases (list[str], optional): Explicit list of phases to plot.
-        component_labels (dict): Mapping to group sub-phases into overarching component logic.
         mask_config (dict, optional): Custom layer masking configuration (e.g., mapping Glass).
         phase_colors (dict, optional): Custom categorical colors for leftover phases.
         smooth_sigma (float): Gaussian blur sigma for smoothing compositional data.
@@ -1727,10 +1716,10 @@ def plot_component_composite(
     mineral_map[is_actual_nan] = "nan"
 
     # Clean up map by removing small islands
-    if min_speck_size > 0:
+    if remove_islands_flag:
         mineral_map = remove_islands(
             mineral_map,
-            min_size=min_speck_size,
+            min_size=2,
             fill_val="nan",
             phase_min_sizes={"Glass": 20},
             grouped_phases=[
@@ -1740,8 +1729,8 @@ def plot_component_composite(
             ],
         )
 
-    if fill_missing:
-        mineral_map = fill_phase_holes(mineral_map, max_hole_size=max_hole_size)
+    if fill_holes_flag:
+        mineral_map = fill_phase_holes(mineral_map, max_hole_size=hole_size)
 
     # Identify unique phases for plotting
     unique_str_array = np.unique(mineral_map.astype(str))
@@ -1770,43 +1759,51 @@ def plot_component_composite(
     comp_defs = [
         {
             "id": "Plagioclase",
-            "key": feld_key,
+            "key": "Feldspar.An",
             "ramp": "teal",
             "leg": "Plagioclase\n(An)",
             "col": "#009988",
         },
         {
             "id": "Clinopyroxene",
-            "key": cpx_key,
+            "key": "Clinopyroxene.XMg",
             "ramp": "red",
             "leg": "Clinopyroxene\n(Mg#)",
             "col": "#e7b3b1",
         },
         {
             "id": "Orthopyroxene",
-            "key": opx_key,
+            "key": "Orthopyroxene.XMg",
             "ramp": "maroon",
             "leg": "Orthopyroxene\n(Mg#)",
             "col": "#5A0F0F",
         },
         {
             "id": "Olivine",
-            "key": ol_key,
+            "key": "Olivine.XFo",
             "ramp": "green",
             "leg": "Olivine\n(Fo)",
             "col": "#666633",
         },
         {
             "id": "Amphibole",
-            "key": amp_key,
+            "key": "Amphibole.XMg",
             "ramp": "brown",
             "leg": "Amphibole\n(Mg#)",
             "col": "#5E2910",
         },
     ]
 
+    _component_labels = {
+        "Plagioclase": ("Feldspar", "Plagioclase", "Anorthite", "Albite"),
+        "Clinopyroxene": ("Clinopyroxene", "Augite", "Diopside"),
+        "Orthopyroxene": ("Orthopyroxene", "Enstatite", "Hypersthene"),
+        "Olivine": ("Olivine", "Forsterite", "Fayalite"),
+        "Amphibole": ("Amphibole", "Tremolite", "Actinolite", "Anthrophyllite", "Grunerite"),
+    }
+
     for cd in comp_defs:
-        labels = component_labels.get(cd["id"], (cd["id"],))
+        labels = _component_labels.get(cd["id"], (cd["id"],))
         present_labels = [l for l in labels if l in unique_phases]
         if present_labels:
             raw_data = comp_maps.get(cd["key"], None)
@@ -1816,10 +1813,10 @@ def plot_component_composite(
                 # ------------------------------------------
                 # Fill islands in continuous data
                 # ------------------------------------------
-                if fill_missing:
+                if fill_holes_flag:
                     invalid_data_mask = ~np.isfinite(data)
                     valid_data_mask = ~invalid_data_mask
-                    filled_data_mask = _remove_small_holes_compat(valid_data_mask, max_hole_size)
+                    filled_data_mask = _remove_small_holes_compat(valid_data_mask, hole_size)
                     data_islands_mask = filled_data_mask & invalid_data_mask
 
                     if np.any(data_islands_mask):
@@ -2448,6 +2445,7 @@ def plot_ctf_phases(
 
 def interactive_pixels(
     result,
+    region=1,
     cmap_name="tab20",
     phase_colors=None,
     phase=None,
@@ -2458,11 +2456,11 @@ def interactive_pixels(
 ):
     """
     Display the phase map and collect oxide compositions by clicking pixels.
-
-    Uses the same colormap and legend style as ``plot_phase_map``. Each click
-    places a marker on the map, prints the oxide values, and appends a row to
-    ``controller["picks"]``. Requires an interactive Matplotlib backend
-    (``%matplotlib widget`` in a notebook).
+    Each click places a marker on the map, prints the oxide values, and appends
+    a row to ``controller["picks"]``. Set ``region`` to an odd integer greater
+    than 1 to average over an n×n box of same-phase pixels around each click
+    rather than recording a single pixel. Requires an interactive Matplotlib
+    backend (``%matplotlib widget`` in a notebook).
 
     Keybindings:
         r/u: undo the last picked pixel
@@ -2471,6 +2469,10 @@ def interactive_pixels(
 
     Parameters:
         result (dict): Result dictionary returned by ``run_map()``.
+        region (int): Odd integer side length of the square region to average
+            around each clicked pixel. Default ``region=1`` records the single
+            clicked pixel. Set to ``3``, ``5``, etc. to average over an n×n
+            box — only pixels matching the clicked pixel phase are included.
         cmap_name (str): Matplotlib colormap for the phase map display.
         phase_colors (dict|None): Optional manual color overrides {PhaseName: color}.
         phase (str|list[str]|None): If provided, only pixels matching this phase
@@ -2487,6 +2489,9 @@ def interactive_pixels(
             ``picks`` is a ``pd.DataFrame`` that grows with each click,
             with columns ``x``, ``y``, ``phase``, and one column per oxide.
     """
+    if int(region) % 2 == 0:
+        raise ValueError(f"region must be an odd integer (e.g. 1, 3, 5); got {region}.")
+
     plt.close("all")
     backend = plt.get_backend().lower()
     _non_interactive = {"agg", "cairo", "pdf", "pgf", "ps", "svg", "template",
@@ -2611,12 +2616,27 @@ def interactive_pixels(
             phase_filter = {phase} if isinstance(phase, str) else set(phase)
             if clicked_phase not in phase_filter:
                 return
-        row = {"x": x, "y": y, "phase": clicked_phase}
+        half = int(region) // 2
+        y0c = max(0, y - half)
+        y1c = min(H, y + half + 1)
+        x0c = max(0, x - half)
+        x1c = min(W, x + half + 1)
+
+        # Mask to pixels in the box that share the same phase as the click.
+        phase_patch = mineral_map[y0c:y1c, x0c:x1c]
+        same_phase = phase_patch == clicked_phase
+        n_pixels = int(same_phase.sum())
+
+        row = {"x": x, "y": y, "phase": clicked_phase, "n_pixels": n_pixels}
         for ox in oxides:
-            row[ox] = oxide_maps[ox][y, x]
-        row["Total"] = oxide_maps["Total"][y, x]
+            patch = oxide_maps[ox][y0c:y1c, x0c:x1c].astype(float)
+            vals = patch[same_phase]
+            row[ox] = float(np.nanmean(vals)) if vals.size else np.nan
+        total_patch = oxide_maps["Total"][y0c:y1c, x0c:x1c].astype(float)
+        row["Total"] = float(np.nanmean(total_patch[same_phase])) if same_phase.any() else np.nan
         if "Total_raw" in oxide_maps:
-            row["Total_raw"] = oxide_maps["Total_raw"][y, x]
+            tr_patch = oxide_maps["Total_raw"][y0c:y1c, x0c:x1c].astype(float)
+            row["Total_raw"] = float(np.nanmean(tr_patch[same_phase])) if same_phase.any() else np.nan
         state["rows"].append(row)
 
         pick_num = len(state["rows"])
@@ -2629,7 +2649,8 @@ def interactive_pixels(
         _update_picks()
         fig.canvas.draw_idle()
 
-        print(f"\n#{pick_num}  Pixel ({x}, {y})  —  Phase: {clicked_phase}")
+        region_str = f"{n_pixels} px in {region}×{region}" if region > 1 else "single pixel"
+        print(f"\n#{pick_num}  Pixel ({x}, {y})  —  Phase: {clicked_phase}  [{region_str}]")
         print(f"{'Oxide':<10} {'wt%':>8}")
         print("-" * 20)
         for ox in oxides:
