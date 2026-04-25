@@ -3,6 +3,11 @@ Change Log
 ==========
 
 
+Version 0.0.3.15
+================
+Fixed handling of NaN values in ``plot_component_composite``. 
+
+
 Version 0.0.3.14
 ================
 Updated ``interactive_pixel`` to provide an unnormalized total (``Total_raw``) in addition to the renormalized total, giving users insight into the original analytical totals for each pixel. Add option for nxn surrounding in the interactive pixel tool, allowing users to optionally sample an average composition over a neighborhood of pixels rather than a single pixel (if the surrounding pixels are of the same phase). This allows users to assess the raw data quality and make informed decisions about the reliability of classifications, especially for pixels near the total threshold. Updated documentation and examples to reflect this new output.
