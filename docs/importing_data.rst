@@ -102,7 +102,7 @@ We use the os package in Python to facilitate navigation to various files. To lo
 
     path = os.getcwd() + '/Chemistry.csv'
     df_load = mm.load_df(path)
-    df, _ = mm.prep_df(df_load)
+    df = mm.prep_df(df_load)
 
 ``mm.load_df`` returns `df_load`, an initial dataframe of all of all samples and their chemistry. ``mm.prep_df`` then prepares the loaded dataframe by filling in any nan values, ensuring all required oxide columns are present, optionally converting all Fe to FeO\ :sub:`t` and dropping rows with fewer than n oxides. 
 

@@ -171,6 +171,11 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
     oxides_plus_zr = oxides + ["ZrO2"]
 
     sample_cols = ["SampleID", "Sample", "Sample Name", "Sample ID"]
+
+    # If load_df (index_col=0) placed a sample column in the index, recover it.
+    if df.index.name in sample_cols and df.index.name not in df.columns:
+        df = df.reset_index()
+
     present_sample_cols = [c for c in sample_cols if c in df.columns]
 
     # ensure required columns exist
@@ -233,6 +238,11 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
     other_cols = [c for c in all_cols if c not in lead_cols and c not in oxide_cols]
     new_order = lead_cols + oxide_cols + other_cols
     df = df[new_order]
+
+    # Ensure sample ID columns are strings so purely-numeric values aren't
+    # treated as a continuous axis downstream.
+    for col in present_sample_cols:
+        df[col] = df[col].astype(str)
 
     # Keep all columns, just reset the index
     df = df.reset_index(drop=True)
@@ -1794,9 +1804,9 @@ def predict_class_prob(
     result_df = df[available_cols].copy()
  
     result_df["Predict_Mineral"] = pd.Series(None, index=df.index, dtype="object")
-    result_df["Second_Predict_Mineral"] = pd.Series(None, index=df.index, dtype="object")
     result_df["Prediction_Score"] = pd.Series(np.nan, index=df.index, dtype="float64")
     result_df["Prediction_Score_Sigma"] = pd.Series(np.nan, index=df.index, dtype="float64")
+    result_df["Second_Predict_Mineral"] = pd.Series(None, index=df.index, dtype="object")
     result_df["Second_Prediction_Score"] = pd.Series(np.nan, index=df.index, dtype="float64")
     result_df["Submineral"] = pd.Series(None, index=df.index, dtype="object")
  
@@ -1993,14 +2003,14 @@ def predict_class_prob(
         # Collapse Predict_Mineral to "Oxide"
         result_df.loc[ox_mask, "Predict_Mineral"] = "Oxide"
  
-    cols = list(result_df.columns)
-    for col, after in [
-        ("Prediction_Score_Sigma", "Prediction_Score"),
-        ("Submineral", "Predict_Mineral"),
-    ]:
-        if col in cols and after in cols:
-            cols.remove(col)
-            cols.insert(cols.index(after) + 1, col)
+    sample_cols = ["SampleID", "Sample", "Sample Name", "Sample ID"]
+    present_sample_cols = [c for c in sample_cols if c in result_df.columns]
+    oxide_cols_out = [c for c in oxides_plus_zr if c in result_df.columns]
+    other_cols = [
+        c for c in result_df.columns
+        if c not in present_sample_cols and c not in oxide_cols_out
+    ]
+    cols = present_sample_cols + oxide_cols_out + other_cols
     result_df = result_df[cols]
  
     if return_recon_oxides and recon_df is not None:

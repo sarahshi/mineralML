@@ -3,6 +3,11 @@ Change Log
 ==========
 
 
+Version 0.0.3.16
+================
+Fix prep_df and predict_class_prob to preserve numeric Sample columns as strings. Thanks to William Minarik for pointing this out! 
+
+
 Version 0.0.3.15
 ================
 Fixed handling of NaN values in ``plot_component_composite``. 
@@ -34,7 +39,7 @@ Version 0.0.3.11
 ================
 Adapted all stoichiometry calculators to return the `Predict_Mineral`, `Prediction_Score`, `Prediction_Score_Sigma`, `Second_Predict_Mineral`, and `Second_Prediction_Score` from the `predict_class_prob` function (if present), in addition to the calculated components . This provides users with the predicted mineral class and associated confidence metrics alongside the stoichiometric calculations. 
 
-Removed last pyrolite dependency — thank you Nick Swanson-Hysell for catching one remaining line in setup.py.
+Removed last pyrolite dependency. Thank you to Nick Swanson-Hysell for catching one remaining line in setup.py! 
 
 
 Version 0.0.3.10
