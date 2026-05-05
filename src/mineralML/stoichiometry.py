@@ -2,6 +2,8 @@
 
 __author__ = "Sarah Shi"
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from scipy import interpolate
@@ -478,11 +480,11 @@ class AmphiboleCalculator(BaseMineralCalculator):
         Tsh = sites["A_Sum"] < 0.5
         MgHast = sites["Fe3_calc"] > (cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)))
 
-        sites.loc[lowCa, "Classification"] = "low-Ca"
-        sites.loc[(~lowCa) & LowMgno, "Classification"] = "low-Mg"
+        sites.loc[lowCa, "Classification"] = "Low-Ca"
+        sites.loc[(~lowCa) & LowMgno, "Classification"] = "Low-Mg"
         sites.loc[(~lowCa) & (~LowMgno) & MgHbl, "Classification"] = "Mg-Hornblende"
-        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & Kaer, "Classification"] = "kaersutite"
-        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & (~Kaer) & Tsh, "Classification"] = "Tschermakitic pargasite"
+        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & Kaer, "Classification"] = "Kaersutite"
+        sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & (~Kaer) & Tsh, "Classification"] = "Tschermakitic Pargasite"
         sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & (~Kaer) & (~Tsh) & MgHast, "Classification"] = "Mg-hastingsite"
         sites.loc[(~lowCa) & (~LowMgno) & (~MgHbl) & (~Kaer) & (~Tsh) & (~MgHast), "Classification"] = "Pargasite"
 
@@ -603,17 +605,43 @@ class AmphiboleClassifier(AmphiboleCalculator):
         AmphiboleCalculator.calculate_components().
 
         Returns a DataFrame with `Mineral` and (optionally) `Submineral`.
+
+        Note: only calcic amphiboles (1.5 <= Ca_B <= 2.05) are supported by the Leake
+        ternary classifier. Rows outside that range are flagged but not classified further.
         """
         comps = super().calculate_components()
+
+        ca_b = comps.get("Ca_B_ridolfi", pd.Series(np.nan, index=comps.index)).to_numpy()
+        mask_low_ca  = np.isfinite(ca_b) & (ca_b < 1.5)
+        mask_high_ca = np.isfinite(ca_b) & (ca_b > 2.05)
+
+        if mask_low_ca.any():
+            warnings.warn(
+                f"{mask_low_ca.sum()} row(s) have Ca_B < 1.5 and are not calcic amphiboles. "
+                "The Leake classifier only covers calcic amphiboles; these rows will not be "
+                "sub-classified in the ternary diagram.",
+                UserWarning,
+                stacklevel=2,
+            )
+        if mask_high_ca.any():
+            warnings.warn(
+                f"{mask_high_ca.sum()} row(s) have Ca_B > 2.05 and fall outside the calcic "
+                "amphibole domain. These rows will not be sub-classified in the ternary diagram.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         # Require the calculator to have produced these; graceful fallback to NaN if missing
         si = comps.get("Si_T_leake", np.nan).to_numpy()
         mgno = comps.get("Mgno_leake", np.nan).to_numpy()
 
         if subclass:
-            # Any rows with NaN inputs become "Unlabeled"
-            mask_valid = np.isfinite(si) & np.isfinite(mgno)
+            # Exclude low-Ca and high-Ca rows from the Leake ternary
+            mask_ca_excluded = mask_low_ca | mask_high_ca
+            mask_valid = np.isfinite(si) & np.isfinite(mgno) & ~mask_ca_excluded
             subs = np.full(si.shape, "Unlabeled", dtype=object)
+            subs[mask_low_ca]  = "Low-Ca"
+            subs[mask_high_ca] = "High-Ca"
             if mask_valid.any():
                 subs[mask_valid] = self._classify_subamphibole(si[mask_valid], mgno[mask_valid], eps=eps)
         else:
