@@ -3,6 +3,11 @@ Change Log
 ==========
 
 
+Version 0.0.3.17
+================
+Added warning for low-Ca and high-Ca amphiboles, outside of the Leake classification scheme. These are no longer classified in the calcic amphibole classification scheme, but return low-Ca or high-Ca in the `Submineral` column. Thanks also to William Minarik for pointing this out! 
+
+
 Version 0.0.3.16
 ================
 Fix prep_df and predict_class_prob to preserve numeric Sample columns as strings. Thanks to William Minarik for pointing this out! 
