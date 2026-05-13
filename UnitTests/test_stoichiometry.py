@@ -283,8 +283,8 @@ class TestOxideElementConversions(unittest.TestCase):
 class TestOlivine(unittest.TestCase):
     def test_components_and_xfo_range(self):
         res = mm.OlivineCalculator(_df("Olivine")).calculate_components()
-        _assert_cols(self, res, ["XFo", "M_site", "T_site", "Mg_cat_4ox"])
-        xfo = float(res["XFo"].iloc[0])
+        _assert_cols(self, res, ["Fo", "M_site", "T_site", "Mg_cat_4ox"])
+        xfo = float(res["Fo"].iloc[0])
         self.assertTrue(0.0 <= xfo <= 1.0)
 
 
