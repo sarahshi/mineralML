@@ -368,7 +368,7 @@ class AmphiboleCalculator(BaseMineralCalculator):
         sites["Cation_Sum_Si_Mg"] = Si + Ti + Al + Cr + Fe + Mn + Mg
         sites["Cation_Sum_Si_Ca"] = Si + Ca
         sites["Cation_Sum_Amp"] = Si + Ca + Na + K
-        sites["XMg"] = Mg / (Mg + Fe)
+        sites["Mgno"] = Mg / (Mg + Fe)
     
         cat_norm_13, ridolfi_sites = self.calculate_ridolfi_sites(
             base=base,
@@ -431,6 +431,29 @@ class AmphiboleCalculator(BaseMineralCalculator):
         sites['Fe2O3_calc'] = fe3 * sites["Cation_Sum_Si_Mg"] * 159.691 / self.CATION_BASIS / 2
         sites['FeO_calc'] = fe2 * sites["Cation_Sum_Si_Mg"] * 71.846 / self.CATION_BASIS
 
+        # Si_n = cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)
+        # Al_n = cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0)
+        # Ti_n = cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0)
+
+        # # T-site allocation (Ridolfi convention)
+        # # Al fills T first; if Si+Al < 8, all Al goes to T
+        # Al_IV_T = (8 - Si_n).clip(lower=0)
+        # si_al_lt8 = (Si_n + Al_n) < 8
+        # Al_IV_T = Al_IV_T.where(~si_al_lt8, Al_n)
+
+        # # Ti fills remaining T capacity
+        # Ti_T = (8 - Si_n - Al_IV_T).clip(lower=0)
+        # Ti_T = Ti_T.where((Si_n + Al_IV_T) < 8, 0.0)
+
+        # # Residuals go to C
+        # Ti_C = (Ti_n - Ti_T).clip(lower=0)
+        # Al_VI_C = (Al_n - Al_IV_T).clip(lower=0)
+
+        # sites["Al_IV_T"] = Al_IV_T
+        # sites["Ti_T"] = Ti_T
+        # sites["Ti_C"] = Ti_C
+        # sites["Al_VI_C"] = Al_VI_C
+
         # Recalculated total
         oxide_cols = [col for col in base.columns if col.endswith("_Amp") and not col.endswith(cat_suffix)]
         sites["Sum_input"] = base[oxide_cols].sum(axis=1)
@@ -479,6 +502,8 @@ class AmphiboleCalculator(BaseMineralCalculator):
         Kaer = (cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)))).clip(lower=0) > 0.5
         Tsh = sites["A_Sum"] < 0.5
         MgHast = sites["Fe3_calc"] > (cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)))
+        # Kaer = Ti_C > 0.5
+        # MgHast = sites["Fe3_calc"] > Al_VI_C
 
         sites.loc[lowCa, "Classification"] = "Low-Ca"
         sites.loc[(~lowCa) & LowMgno, "Classification"] = "Low-Mg"
@@ -850,7 +875,7 @@ class ChloriteCalculator(BaseMineralCalculator):
 
         sites["M_site"] = sites["Al_VI"] + Ti + Fe + Mn + Mg # Fe3, octahedral 
         sites["M1_vacancy"] = (sites["Al_VI"] - sites["Al_IV"]) / 2
-        sites["XMg"] = Mg / (Mg + Fe)
+        sites["Mgno"] = Mg / (Mg + Fe)
 
         return pd.concat([base, sites], axis=1)
 
@@ -885,7 +910,7 @@ class ClinopyroxeneCalculator(BaseMineralCalculator):
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
         sites["T_site"] = Si + Al
-        sites["XMg"] = (Mg / (Mg + Fe))
+        sites["Mgno"] = (Mg / (Mg + Fe))
         sites["En"] = Mg / (Mg + Fe + Ca)
         sites["Fs"] = Fe / (Mg + Fe + Ca)
         sites["Wo"] = Ca / (Mg + Fe + Ca)
@@ -1314,7 +1339,7 @@ class GarnetCalculator(BaseMineralCalculator):
         sites["Grs"] = (1 - sites["And"]) * (sites["Ca_corr"] / (Fe + Mn + Mg + sites["Ca_corr"]))
         sites["End_Sum"] = sites["And"] + sites["Alm"] + sites["Prp"] + sites["Sps"] + sites["Grs"]
 
-        sites["XMg"] = Mg / (Mg + Fe2)
+        sites["Mgno"] = Mg / (Mg + Fe2)
 
         sites["Al_AlCr"] = Al / (Al + Cr)
         sites["Cr_AlCr"] = Cr / (Al + Cr)
@@ -1803,7 +1828,7 @@ class OlivineCalculator(BaseMineralCalculator):
         sites["M_site"] = Mg + Fe
         sites["T_site"] = Si
         sites["M_site_expanded"] = Mg + Fe + Ca + Mn
-        sites["XFo"] = (Mg / (Mg + Fe))
+        sites["Fo"] = (Mg / (Mg + Fe))
 
         return pd.concat([base, sites], axis=1)
 
@@ -1836,7 +1861,7 @@ class OrthopyroxeneCalculator(BaseMineralCalculator):
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
         sites["T_site"] = Si + Al
-        sites["XMg"] = (Mg / (Mg + Fe))
+        sites["Mgno"] = (Mg / (Mg + Fe))
         sites["En"] = Mg / (Mg + Fe + Ca)
         sites["Fs"] = Fe / (Mg + Fe + Ca)
         sites["Wo"] = Ca / (Mg + Fe + Ca) # Ca_CaMgFe
@@ -2396,7 +2421,7 @@ class PyroxeneClassifier(BaseMineralCalculator):
         sites["Oxygen_Sum"] = self._o_total_from_4cat()
         sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
         sites["T_site"] = Si + Al
-        sites["XMg"] = (Mg / (Mg + Fe))
+        sites["Mgno"] = (Mg / (Mg + Fe))
         sites["En"] = Mg / (Mg + Fe + Ca)
         sites["Fs"] = Fe / (Mg + Fe + Ca)
         sites["Wo"] = Ca / (Mg + Fe + Ca)
@@ -2939,8 +2964,8 @@ class SerpentineCalculator(BaseMineralCalculator):
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["M_site"] = Mg + Fe + Mn
         sites["T_site"] = Si + Al # tetrahedral
-        sites["XMg"] = Mg / (Mg + Fe)
-        sites["XFe"] = Fe / (Mg + Fe)
+        sites["Mgno"] = Mg / (Mg + Fe)
+        sites["Feno"] = Fe / (Mg + Fe)
 
         return pd.concat([base, sites], axis=1)
 
@@ -3008,7 +3033,7 @@ class SodicPyroxeneCalculator(BaseMineralCalculator):
         sites["Oxygen_Sum"] = self._o_total_from_4cat()
         sites["M_site"] = Mg + Fe + Ca + Na + Ti + Cr
         sites["T_site"] = Si + Al
-        sites["XMg"] = (Mg / (Mg + Fe))
+        sites["Mgno"] = (Mg / (Mg + Fe))
         sites["En"] = Mg / (Mg + Fe + Ca)
         sites["Fs"] = Fe / (Mg + Fe + Ca)
         sites["Wo"] = Ca / (Mg + Fe + Ca)

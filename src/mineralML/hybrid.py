@@ -116,7 +116,7 @@ def convert_fe_to_feot(df):
     return df
 
 
-def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False, 
+def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
             min_oxide_count=2, verbose=True):
     """
     Prepares a DataFrame for analysis by performing data cleaning specific
@@ -134,10 +134,10 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
             (the default), raises a ValueError when these columns are present
             without a corresponding FeOt column.
         drop_empty_rows (bool): If True, drops rows where fewer than
-            ``min_oxide_count`` oxide columns have non-zero values.  Useful
+            ``min_oxide_count`` oxide columns have non-zero values. Useful
             for large datasets with many blank or near-blank analyses.
         min_oxide_count (int): Minimum number of oxide columns that must have
-            non-zero values for a row to be kept.  Only used when
+            non-zero values for a row to be kept. Only used when
             ``drop_empty_rows=True``. Default is 2.
         verbose (bool): If True, prints a summary of the number of rows
             processed and any rows dropped or coerced.
@@ -163,13 +163,11 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
             raise ValueError(
                 f"No 'FeOt' column found. You have {fe_cols}. "
                 "mineralML only recognizes 'FeOt' as a column. "
-                "Set convert_Fe=True to convert automatically, or use "
+                "Set convert_fe=True to convert automatically, or use "
                 "convert_fe_to_feot(df) before calling prep_df()."
             )
 
-    oxides = OXIDES
-    oxides_plus_zr = oxides + ["ZrO2"]
-
+    oxides_plus_zr = OXIDES + ["ZrO2"]
     sample_cols = ["SampleID", "Sample", "Sample Name", "Sample ID"]
 
     # If load_df (index_col=0) placed a sample column in the index, recover it.
@@ -178,29 +176,56 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
 
     present_sample_cols = [c for c in sample_cols if c in df.columns]
 
-    # ensure required columns exist
-    for col in oxides_plus_zr + ["Mineral"] + present_sample_cols:
-        if col not in df.columns:
-            df[col] = np.nan
-            warnings.warn(
-                f"The column '{col}' was missing and has been filled with NaN.",
-                UserWarning,
-                stacklevel=2,
-            )
+    # Track which oxide columns are present *before* adding missing ones.
+    # Used to distinguish real non-numeric values from synthetic NaN fill.
+    present_oxide_cols = [c for c in oxides_plus_zr if c in df.columns]
 
-    # Convert columns to numeric, coercing errors to NaN
-    df[oxides_plus_zr] = df[oxides_plus_zr].apply(pd.to_numeric, errors="coerce")
-    n_coerced = df[oxides_plus_zr].isnull().any(axis=1).sum()
-    if n_coerced > 0:
+    # Add missing columns in one pass, with a single batched warning
+    required_cols = oxides_plus_zr + ["Mineral"] + present_sample_cols
+    missing_cols = [c for c in required_cols if c not in df.columns]
+    if missing_cols:
+        for col in missing_cols:
+            df[col] = np.nan
         warnings.warn(
-            f"Non-numeric values in {n_coerced} row(s) were coerced to NaN.",
+            "The following columns were missing and have been filled with NaN: "
+            + str(missing_cols),
             UserWarning,
             stacklevel=2,
         )
 
-    # Fill remaining NaN values with 0 for oxides only
-    df.loc[:, oxides_plus_zr] = df.loc[:, oxides_plus_zr].fillna(0)
+    # Numeric coercion: only on originally-present oxide columns
+    # This correctly flags genuine non-numeric user values without
+    # triggering false positives on the synthetic NaN columns added above.
+    before_numeric = df[present_oxide_cols].copy()
+    after_numeric = before_numeric.apply(pd.to_numeric, errors="coerce")
+    bad_mask = after_numeric.isna() & before_numeric.notna()
 
+    if bad_mask.any().any():
+        bad_values = []
+        for col in present_oxide_cols:
+            for val in before_numeric.loc[bad_mask[col], col].unique():
+                bad_values.append(f"  {col}: {val!r}")
+        warnings.warn(
+            "Non-numeric oxide value(s) were coerced to NaN and then filled with 0:\n"
+            + "\n".join(bad_values),
+            UserWarning,
+            stacklevel=2,
+        )
+
+    df[present_oxide_cols] = after_numeric
+
+    # Convert only the newly-added (missing) oxide columns — avoids redundantly
+    # re-converting columns already handled above.
+    missing_oxide_cols = [c for c in oxides_plus_zr if c not in present_oxide_cols]
+    if missing_oxide_cols:
+        df[missing_oxide_cols] = df[missing_oxide_cols].apply(
+            pd.to_numeric, errors="coerce"
+        )
+
+    # Fill remaining NaN with 0 across all oxide columns.
+    df[oxides_plus_zr] = df[oxides_plus_zr].fillna(0)
+
+    # Optional renormalization
     n_renormed = 0
     if renormalize:
         totals = df[oxides_plus_zr].sum(axis=1)
@@ -217,7 +242,7 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
                 f" ({(~renorm_mask).sum()} row(s) skipped — zero total)."
             )
 
-    # Optionally drop near-empty rows
+    # Optional empty-row dropping
     n_dropped = 0
     if drop_empty_rows:
         nonzero_counts = (df[oxides_plus_zr] > 0).sum(axis=1)
@@ -232,19 +257,17 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
                 stacklevel=2,
             )
 
+    # Column reordering: sample IDs to oxides to everything else
     all_cols = list(df.columns)
-    lead_cols = present_sample_cols
     oxide_cols = [c for c in oxides_plus_zr if c in all_cols]
-    other_cols = [c for c in all_cols if c not in lead_cols and c not in oxide_cols]
-    new_order = lead_cols + oxide_cols + other_cols
-    df = df[new_order]
+    other_cols = [c for c in all_cols if c not in present_sample_cols and c not in oxide_cols]
+    df = df[present_sample_cols + oxide_cols + other_cols]
 
     # Ensure sample ID columns are strings so purely-numeric values aren't
     # treated as a continuous axis downstream.
     for col in present_sample_cols:
         df[col] = df[col].astype(str)
 
-    # Keep all columns, just reset the index
     df = df.reset_index(drop=True)
 
     if verbose:
