@@ -319,8 +319,8 @@ class TestCalcite(unittest.TestCase):
 class TestChlorite(unittest.TestCase):
     def test_chlorite_sites(self):
         res = mm.ChloriteCalculator(_df("Chlorite")).calculate_components()
-        _assert_cols(self, res, ["T_site", "M_site", "XMg", "Al_IV", "Al_VI"])
-        self.assertTrue(0 <= float(res["XMg"].iloc[0]) <= 1)
+        _assert_cols(self, res, ["T_site", "M_site", "Mgno", "Al_IV", "Al_VI"])
+        self.assertTrue(0 <= float(res["Mgno"].iloc[0]) <= 1)
 
 
 class TestCpx(unittest.TestCase):
@@ -356,9 +356,9 @@ class TestGarnet(unittest.TestCase):
         df = _df("Garnet")
         droop = mm.GarnetCalculator(df).calculate_components(Fe_correction="Droop")
         allfe2 = mm.GarnetCalculator(df).calculate_components(Fe_correction="All_Fe2")
-        _assert_cols(self, droop, ["XMg","Alm","Prp","Grs","Sps","And"])
-        _assert_cols(self, allfe2, ["XMg","Alm","Prp","Grs","Sps","And"])
-        self.assertTrue(0.0 <= float(droop["XMg"].iloc[0]) <= 1.0)
+        _assert_cols(self, droop, ["Mgno","Alm","Prp","Grs","Sps","And"])
+        _assert_cols(self, allfe2, ["Mgno","Alm","Prp","Grs","Sps","And"])
+        self.assertTrue(0.0 <= float(droop["Mgno"].iloc[0]) <= 1.0)
 
 
 class TestGlassCalculator(unittest.TestCase):
@@ -468,8 +468,8 @@ class TestRutile(unittest.TestCase):
 class TestSerpentine(unittest.TestCase):
     def test_serpentine(self):
         res = mm.SerpentineCalculator(_df("Serpentine")).calculate_components()
-        _assert_cols(self, res, ["M_site","T_site","XMg","XFe"])
-        self.assertTrue(0.0 <= float(res["XMg"].iloc[0]) <= 1.0)
+        _assert_cols(self, res, ["M_site","T_site","Mgno","Feno"])
+        self.assertTrue(0.0 <= float(res["Mgno"].iloc[0]) <= 1.0)
 
 
 class TestNaPx(unittest.TestCase):
