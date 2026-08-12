@@ -2480,7 +2480,9 @@ def interactive_pixels(
         cmap_name (str): Matplotlib colormap for the phase map display.
         phase_colors (dict|None): Optional manual color overrides {PhaseName: color}.
         phase (str|list[str]|None): If provided, only pixels matching this phase
-            are shown and clickable. Others are rendered as background.
+            are shown and clickable. Others are rendered as background. Matching
+            is case-insensitive; a phase not present in the map raises a
+            ``UserWarning`` and is ignored.
         oxide_key (str|None): If provided, display this oxide or component as a
             heatmap instead of the phase map (e.g. ``"SiO2"``). The phase map
             legend is replaced by a colorbar.
@@ -2519,8 +2521,20 @@ def interactive_pixels(
 
     # Optionally restrict to a single phase or list of phases.
     if phase is not None:
-        phase_filter = {phase} if isinstance(phase, str) else set(phase)
-        kept_phases = [p for p in kept_phases if p in phase_filter]
+        requested = [phase] if isinstance(phase, str) else list(phase)
+        name_by_lower = {p.lower(): p for p in kept_phases}
+        resolved = set()
+        for p in requested:
+            match = name_by_lower.get(p.lower())
+            if match is None:
+                warnings.warn(
+                    f"Phase {p!r} not found in this map. Available phases: "
+                    f"{sorted(name_by_lower.values())}.",
+                    UserWarning,
+                )
+            else:
+                resolved.add(match)
+        kept_phases = [p for p in kept_phases if p in resolved]
 
     phase_to_id = {p: i + 1 for i, p in enumerate(kept_phases)}
     ids = np.zeros((H, W), dtype=int)

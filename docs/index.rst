@@ -19,7 +19,7 @@ Welcome to mineralML's documentation!
    importing_data
    submitting_data
    FAQs
-   Changelog
+   .. Changelog
 
 
 .. toctree::
@@ -77,6 +77,13 @@ Welcome to mineralML's documentation!
    :caption: Detailed Code Documentation
 
    codedoc
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Changelog
+
+   Changelog
 
 
 .. toctree::
