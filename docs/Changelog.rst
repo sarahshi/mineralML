@@ -3,6 +3,11 @@ Changelog
 =========
 
 
+Version 0.0.3.19
+================
+``interactive_pixels`` now matches the ``phase`` argument case-insensitively (e.g. ``"plagioclase"`` matches ``"Plagioclase"``) and raises a ``UserWarning`` listing the available phases if a requested phase is not present in the map.
+
+
 Version 0.0.3.18
 ================
 Rework prep_df for warning efficiency, rename XMg as Mgno (Mg#) in stoichiometry. XFo to Fo. 
