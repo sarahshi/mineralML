@@ -36,7 +36,7 @@ If you do not have Python installed locally, run mineralML on [Google Colab](htt
 
 
 ## Run and Install Locally
-Obtain a version of Python between 3.8 and 3.12 if you do not already have it installed. mineralML can be installed with one line. Open terminal and type the following:
+Obtain a version of Python between 3.9 and 3.14 if you do not already have it installed. mineralML can be installed with one line. Open terminal and type the following:
 
 ```
 pip install mineralML
