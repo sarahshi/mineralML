@@ -400,15 +400,37 @@ class AmphiboleCalculator(BaseMineralCalculator):
         cat_norm_13 = cation_basis * base[cation_cols].div(sites["Cation_Sum_Si_Mg"], axis=0)
         cat_norm_13.columns = [col.replace(cat_suffix, cat_norm_13_suffix) for col in cat_norm_13.columns]
 
+        # Raw (pre-13-cation-rescale) cation-proportion sum, i.e. Ridolfi's
+        # "cation_sum_Si_Mg" scaling denominator: Si+Ti+Al+Cr+Fe+Mn+Mg cation
+        # proportions computed straight from mole proportions, before any
+        # oxygen-basis renormalization. This is NOT the same quantity as
+        # sites["Cation_Sum_Si_Mg"] (which is on the 23-oxygen cation basis)
+        # and must be used instead when converting 13-cation quantities back
+        # to wt%-oxide-equivalents (H2O_calc, Fe2O3_calc, FeO_calc).
+        ridolfi_elements = ["SiO2", "TiO2", "Al2O3", "Cr2O3", "FeOt", "MnO", "MgO"]
+        cation_sum_si_mg_raw = sum(
+            base.get(f"{oxide}_mols", 0) * self.CATION_NUMBERS[oxide]
+            for oxide in ridolfi_elements
+        )
+
+        # Raw input total; when < 90 the recalculated quantities below are
+        # unreliable and Ridolfi's method zeroes them rather than reporting
+        # a misleading recalc.
+        oxide_cols = [ox for ox in self.oxide_cols if ox in base.columns]
+        sites["Sum_input"] = base[oxide_cols].sum(axis=1)
+        low_sum = sites["Sum_input"] < 90
+
         # H2O and O=F,Cl corrections
         sites['H2O_calc'] = (
-            (2 - base.get("F", 0) - base.get("Cl", 0)) *
-            sites["Cation_Sum_Si_Mg"] * 17 / self.CATION_BASIS / 2
+            (2 - cat_norm_13.get(f"F{cat_norm_13_suffix}", 0) - cat_norm_13.get(f"Cl{cat_norm_13_suffix}", 0)) *
+            cation_sum_si_mg_raw * 17 / self.CATION_BASIS / 2
         )
+        sites.loc[low_sum, 'H2O_calc'] = 0.0
         sites['O=F,Cl'] = -(
             base.get("F", 0) * 0.421070639014633 +
             base.get("Cl", 0) * 0.225636758525372
         )
+        sites.loc[low_sum, 'O=F,Cl'] = 0.0
 
         # Fe3+ and Fe2+ recalculated amounts
         charge = (
@@ -425,41 +447,40 @@ class AmphiboleCalculator(BaseMineralCalculator):
         )
         sites['Charge'] = charge
         fe3 = (46 - charge).clip(lower=0)
-        fe2 = (cat_norm_13.get(f"Fe2t{cat_norm_13_suffix}", 0) - fe3).clip(lower=0)
+        fe2 = cat_norm_13.get(f"Fe2t{cat_norm_13_suffix}", 0) - fe3
         sites['Fe3_calc'] = fe3
         sites['Fe2_calc'] = fe2
-        sites['Fe2O3_calc'] = fe3 * sites["Cation_Sum_Si_Mg"] * 159.691 / self.CATION_BASIS / 2
-        sites['FeO_calc'] = fe2 * sites["Cation_Sum_Si_Mg"] * 71.846 / self.CATION_BASIS
+        sites['Fe2O3_calc'] = fe3 * cation_sum_si_mg_raw * 159.691 / self.CATION_BASIS / 2
+        sites.loc[low_sum, 'Fe2O3_calc'] = 0.0
+        sites['FeO_calc'] = fe2 * cation_sum_si_mg_raw * 71.846 / self.CATION_BASIS
 
-        # Si_n = cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)
-        # Al_n = cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0)
-        # Ti_n = cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0)
+        Si_n = cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)
+        Al_n = cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0)
+        Ti_n = cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0)
 
-        # # T-site allocation (Ridolfi convention)
-        # # Al fills T first; if Si+Al < 8, all Al goes to T
-        # Al_IV_T = (8 - Si_n).clip(lower=0)
-        # si_al_lt8 = (Si_n + Al_n) < 8
-        # Al_IV_T = Al_IV_T.where(~si_al_lt8, Al_n)
+        # T-site allocation (Ridolfi convention)
+        # Al fills T first; if Si+Al < 8, all Al goes to T
+        Al_IV_T = (8 - Si_n).clip(lower=0)
+        si_al_lt8 = (Si_n + Al_n) < 8
+        Al_IV_T = Al_IV_T.where(~si_al_lt8, Al_n)
 
-        # # Ti fills remaining T capacity
-        # Ti_T = (8 - Si_n - Al_IV_T).clip(lower=0)
-        # Ti_T = Ti_T.where((Si_n + Al_IV_T) < 8, 0.0)
+        # Ti fills remaining T capacity
+        Ti_T = (8 - Si_n - Al_IV_T).clip(lower=0)
+        Ti_T = Ti_T.where((Si_n + Al_IV_T) < 8, 0.0)
 
-        # # Residuals go to C
-        # Ti_C = (Ti_n - Ti_T).clip(lower=0)
-        # Al_VI_C = (Al_n - Al_IV_T).clip(lower=0)
+        # Residuals go to C
+        Ti_C = (Ti_n - Ti_T).clip(lower=0)
+        Al_VI_C = (Al_n - Al_IV_T).clip(lower=0)
 
-        # sites["Al_IV_T"] = Al_IV_T
-        # sites["Ti_T"] = Ti_T
-        # sites["Ti_C"] = Ti_C
-        # sites["Al_VI_C"] = Al_VI_C
+        sites["Al_IV_T"] = Al_IV_T
+        sites["Ti_T"] = Ti_T
+        sites["Ti_C"] = Ti_C
+        sites["Al_VI_C"] = Al_VI_C
 
         # Recalculated total
-        oxide_cols = [col for col in base.columns if col.endswith("_Amp") and not col.endswith(cat_suffix)]
-        sites["Sum_input"] = base[oxide_cols].sum(axis=1)
         sites["Total_recalc"] = (
             sites["Sum_input"]
-            - base.get("FeOt_Amp", 0)
+            - base.get("FeOt", 0)
             + sites["H2O_calc"]
             + sites['Fe2O3_calc']
             + sites['FeO_calc']
@@ -499,11 +520,9 @@ class AmphiboleCalculator(BaseMineralCalculator):
         lowCa = sites["Ca_B"] < 1.5
         LowMgno = sites["Mgno_Fe2"] < 0.5
         MgHbl = cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) >= 6.5
-        Kaer = (cat_norm_13.get(f"Ti{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)))).clip(lower=0) > 0.5
+        Kaer = sites["Ti_C"] > 0.5
         Tsh = sites["A_Sum"] < 0.5
-        MgHast = sites["Fe3_calc"] > (cat_norm_13.get(f"Al{cat_norm_13_suffix}", 0) - (8 - cat_norm_13.get(f"Si{cat_norm_13_suffix}", 0)))
-        # Kaer = Ti_C > 0.5
-        # MgHast = sites["Fe3_calc"] > Al_VI_C
+        MgHast = sites["Fe3_calc"] > sites["Al_VI_C"]
 
         sites.loc[lowCa, "Classification"] = "Low-Ca"
         sites.loc[(~lowCa) & LowMgno, "Classification"] = "Low-Mg"
