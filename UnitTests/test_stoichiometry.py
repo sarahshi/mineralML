@@ -309,9 +309,9 @@ class TestBiotite(unittest.TestCase):
         _assert_cols(self, res, ["X_site", "M_site", "T_site"])
 
 
-class TestCalcite(unittest.TestCase):
+class TestCarbonate(unittest.TestCase):
     def test_calcite_co2_injected(self):
-        res = mm.CalciteCalculator(_df("Calcite")).calculate_components()
+        res = mm.CarbonateCalculator(_df("Calcite")).calculate_components()
         _assert_cols(self, res, ["CO2", "C_cat_3ox", "C_site", "M_site"])
         self.assertGreater(float(res["CO2"].iloc[0]), 0)
 
