@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.font_manager as fm
 from matplotlib.colors import ListedColormap, is_color_like, to_hex, to_rgb
+from matplotlib.widgets import RectangleSelector
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 from mineralML.core import *
@@ -576,9 +577,11 @@ def _auto_limits(data, mode="std", percentile=(5, 95)):
     if mode == "percentile":
         return np.percentile(vals, percentile[0]), np.percentile(vals, percentile[1])
     else:
-        # Mean +/- 2SD for contrast amplification
+        # Mean +/- 2SD for contrast amplification, clamped to the observed
+        # range so the stretch never extrapolates past what was measured
         mu, sigma = np.mean(vals), np.std(vals)
-        return mu - 2 * sigma, mu + 2 * sigma
+        vmin, vmax = mu - 2 * sigma, mu + 2 * sigma
+        return max(vmin, vals.min()), min(vmax, vals.max())
 
 
 def _add_scalebar(
@@ -1481,7 +1484,7 @@ def run_map(
 
     default_spec = {
         "Feldspar": {
-            "labels": ["Feldspar", "Plagioclase", "KFeldspar"],
+            "labels": ["Feldspar", "Plagioclase", "Alkali_Feldspar"],
             "calculator": FeldsparClassifier,
             "method": "classify",
             "cols": ["An", "Ab", "Or"],
@@ -1492,7 +1495,7 @@ def run_map(
             "labels": ["Clinopyroxene"],
             "calculator": PyroxeneClassifier,
             "method": "calculate_components",
-            "cols": ["XMg", "En", "Fs", "Wo"],
+            "cols": ["Mgno", "En", "Fs", "Wo"],
             "kwargs": {},
             "transforms": {},
         },
@@ -1500,7 +1503,7 @@ def run_map(
             "labels": ["Orthopyroxene"],
             "calculator": PyroxeneClassifier,
             "method": "calculate_components",
-            "cols": ["XMg", "En", "Fs", "Wo"],
+            "cols": ["Mgno", "En", "Fs", "Wo"],
             "kwargs": {},
             "transforms": {},
         },
@@ -1516,7 +1519,7 @@ def run_map(
             "labels": ["Amphibole"],
             "calculator": AmphiboleCalculator,
             "method": "calculate_components",
-            "cols": ["XMg"],
+            "cols": ["Mgno"],
             "kwargs": {},
             "transforms": {},
         },
@@ -1694,7 +1697,8 @@ def plot_component_composite(
         processed_comp_maps (dict): The smoothed/filled 2D continuous component data.
     """
 
-    plt.close("all")
+    if ax is None:
+        plt.close("all")
 
     if mask_config is None:
         mask_config = {
@@ -1767,15 +1771,22 @@ def plot_component_composite(
             "col": "#009988",
         },
         {
+            "id": "Alkali_Feldspar",
+            "key": "Feldspar.Or",
+            "ramp": "orange",
+            "leg": "Alkali Feldspar\n(Or)",
+            "col": "#FEF7C2",
+        },
+        {
             "id": "Clinopyroxene",
-            "key": "Clinopyroxene.XMg",
+            "key": "Clinopyroxene.Mgno",
             "ramp": "red",
             "leg": "Clinopyroxene\n(Mg#)",
             "col": "#e7b3b1",
         },
         {
             "id": "Orthopyroxene",
-            "key": "Orthopyroxene.XMg",
+            "key": "Orthopyroxene.Mgno",
             "ramp": "maroon",
             "leg": "Orthopyroxene\n(Mg#)",
             "col": "#5A0F0F",
@@ -1789,15 +1800,16 @@ def plot_component_composite(
         },
         {
             "id": "Amphibole",
-            "key": "Amphibole.XMg",
+            "key": "Amphibole.Mgno",
             "ramp": "brown",
             "leg": "Amphibole\n(Mg#)",
-            "col": "#5E2910",
+            "col": "#6f3013",
         },
     ]
 
     _component_labels = {
         "Plagioclase": ("Feldspar", "Plagioclase", "Anorthite", "Albite"),
+        "Alkali_Feldspar": ("Feldspar", "Alkali_Feldspar", "Orthoclase", "Sanidine"),
         "Clinopyroxene": ("Clinopyroxene", "Augite", "Diopside"),
         "Orthopyroxene": ("Orthopyroxene", "Enstatite", "Hypersthene"),
         "Olivine": ("Olivine", "Forsterite", "Fayalite"),
@@ -1811,6 +1823,15 @@ def plot_component_composite(
             raw_data = comp_maps.get(cd["key"], None)
             if raw_data is not None and np.any(np.isfinite(raw_data)):
                 data = raw_data.copy()
+
+                # Restrict to this component's own phase pixels: several
+                # components (e.g. Plagioclase, Alkali_Feldspar) share a
+                # single upstream classifier/map (Feldspar.An, Feldspar.Or),
+                # which assigns values across the whole combined mask.
+                # Without this, each phase's ramp bleeds into the other's
+                # pixels instead of stopping at its own boundary.
+                own_phase_mask = np.isin(mineral_map, present_labels)
+                data[~own_phase_mask] = np.nan
 
                 # ------------------------------------------
                 # Fill islands in continuous data
@@ -1891,10 +1912,11 @@ def plot_component_composite(
 
     ramps = {
         "teal": _make_ramp("#CCEEFF", "#009988"),
-        "red": _make_ramp("#FFE6E6", "#C83C50"),
-        "maroon": _make_ramp("#CB4545", "#5A0000"),
+        "orange": _make_ramp("#DA6830", "#FEF7C2"),
+        "red": _make_ramp("#FAE4E4", "#E15D5D"),
+        "maroon": _make_ramp("#DD0000", "#5A0000"),
         "green": _make_ramp("#EFEEBB", "#666633"),
-        "brown": _make_ramp("#843916", "#473127"),
+        "brown": _make_ramp("#BF9972", "#6F3013"),
     }
 
     # Only include discrete masks/phases in the patch legend
@@ -2449,7 +2471,7 @@ def plot_ctf_phases(
 
 def interactive_pixels(
     result,
-    region=1,
+    region=3,
     cmap_name="tab20",
     phase_colors=None,
     phase=None,
@@ -2474,9 +2496,9 @@ def interactive_pixels(
     Parameters:
         result (dict): Result dictionary returned by ``run_map()``.
         region (int): Odd integer side length of the square region to average
-            around each clicked pixel. Default ``region=1`` records the single
-            clicked pixel. Set to ``3``, ``5``, etc. to average over an n×n
+            around each clicked pixel. Default ``region=3`` records the n×n
             box — only pixels matching the clicked pixel phase are included.
+            Set to 1 to record the single clicked pixel.
         cmap_name (str): Matplotlib colormap for the phase map display.
         phase_colors (dict|None): Optional manual color overrides {PhaseName: color}.
         phase (str|list[str]|None): If provided, only pixels matching this phase
@@ -2658,11 +2680,19 @@ def interactive_pixels(
         state["rows"].append(row)
 
         pick_num = len(state["rows"])
-        marker = ax_map.scatter([x], [y], c="white", s=30, edgecolors="black",
-                                linewidths=0.6, zorder=5)
+        marker = ax_map.scatter([x], [y], c="white", s=20, edgecolors="black",
+                                linewidths=0.75, zorder=5)
         label_artist = ax_map.text(x + 3, y - 3, str(pick_num), fontsize=7,
                                    color="white", zorder=6)
-        state["markers"].append((marker, label_artist))
+        artists = [marker, label_artist]
+        if region > 1:
+            box_artist = mpatches.Rectangle(
+                (x0c - 0.5, y0c - 0.5), x1c - x0c, y1c - y0c,
+                fill=False, ec="white", lw=1.0, ls="--", zorder=4,
+            )
+            ax_map.add_patch(box_artist)
+            artists.append(box_artist)
+        state["markers"].append(tuple(artists))
 
         _update_picks()
         fig.canvas.draw_idle()
@@ -2685,17 +2715,17 @@ def interactive_pixels(
             fig.canvas.draw_idle()
         elif event.key in ("u", "r") and state["rows"]:
             state["rows"].pop()
-            marker, label_artist = state["markers"].pop()
-            marker.remove()
-            label_artist.remove()
+            artists = state["markers"].pop()
+            for artist in artists:
+                artist.remove()
             _update_picks()
             fig.canvas.draw_idle()
             print(f"Undid last pick. {len(state['rows'])} picks remaining.")
         elif event.key == "c":
             state["rows"].clear()
-            for marker, label_artist in state["markers"]:
-                marker.remove()
-                label_artist.remove()
+            for artists in state["markers"]:
+                for artist in artists:
+                    artist.remove()
             state["markers"].clear()
             _update_picks()
             fig.canvas.draw_idle()
@@ -2782,7 +2812,7 @@ def _line_strip_geometry(start, end, width_px):
     Parameters:
         start (array-like): (x, y) start coordinate in pixel space.
         end (array-like): (x, y) end coordinate in pixel space.
-        width_px (float): Total strip width in pixels.
+        width_px (float): Total strip width (2*half_width) in pixels.
 
     Returns:
         geom (dict): Geometry fields for projection and plotting.
@@ -3476,6 +3506,367 @@ def interactive_line_profile(
     return controller
 
 
+def extract_region_stats(data, x0, y0, x1, y1, mineral_map=None):
+    """
+    Extract pixel values within a rectangular pixel-space region.
+
+    Parameters:
+        data (array-like): 2-D map to sample.
+        x0, y0, x1, y1 (float): Box corners in pixel space (any order).
+        mineral_map (array-like|None): Optional (H,W) phase labels, sampled
+            alongside ``data`` and included in the returned samples table.
+
+    Returns:
+        samples_df (pd.DataFrame): One row per pixel inside the box, with
+            columns ``x``, ``y``, ``value`` (and ``phase`` if
+            ``mineral_map`` is given).
+        stats (dict): Summary with ``mean``, ``median``, ``std``, ``min``,
+            ``max``, and ``n_pixels``.
+    """
+    data = np.asarray(data, dtype=float)
+    if data.ndim != 2:
+        raise ValueError("data must be a 2-D array.")
+
+    H, W = data.shape
+    xlo, xhi = sorted((x0, x1))
+    ylo, yhi = sorted((y0, y1))
+
+    xlo_i = max(int(np.floor(xlo)), 0)
+    xhi_i = min(int(np.ceil(xhi)), W - 1)
+    ylo_i = max(int(np.floor(ylo)), 0)
+    yhi_i = min(int(np.ceil(yhi)), H - 1)
+
+    yy, xx = np.mgrid[ylo_i:yhi_i + 1, xlo_i:xhi_i + 1]
+    values = data[ylo_i:yhi_i + 1, xlo_i:xhi_i + 1]
+
+    finite = np.isfinite(values)
+    row = {
+        "x": xx[finite].ravel(),
+        "y": yy[finite].ravel(),
+        "value": values[finite].ravel(),
+    }
+    if mineral_map is not None:
+        mineral_map = np.asarray(mineral_map)
+        phases = mineral_map[ylo_i:yhi_i + 1, xlo_i:xhi_i + 1]
+        row["phase"] = phases[finite].ravel()
+
+    samples_df = pd.DataFrame(row)
+    vals = samples_df["value"].to_numpy(dtype=float)
+    stats = {
+        "mean": float(np.mean(vals)) if vals.size else np.nan,
+        "median": float(np.median(vals)) if vals.size else np.nan,
+        "std": float(np.std(vals)) if vals.size else np.nan,
+        "min": float(np.min(vals)) if vals.size else np.nan,
+        "max": float(np.max(vals)) if vals.size else np.nan,
+        "n_pixels": int(vals.size),
+    }
+    return samples_df, stats
+
+
+def interactive_region(
+    res,
+    key,
+    source="auto",
+    *,
+    phase=None,
+    pixel_size_um=None,
+    cmap="viridis",
+    vmin=None,
+    vmax=None,
+    title=None,
+    cbar_label=None,
+    multi=True,
+    figsize=(7, 7),
+    include_oxides=True,
+):
+    """
+    Clickable Jupyter box-selection tool for oxide or component maps.
+    Intended for notebook use with an interactive Matplotlib backend such as
+    ``%matplotlib widget``. Click and drag to draw a rectangular region;
+    release to extract the pixels inside it.
+
+    Keybindings:
+        r: clear the current (in-progress) box
+        u: undo the last saved region
+        c: clear all saved regions
+        q/Esc: done (disconnects the selector)
+
+    Parameters:
+        res (dict): Result dictionary returned by ``run_map()``.
+        key (str): Oxide or component key, e.g. ``"SiO2"`` or ``"Feldspar.An"``.
+            Used for the displayed map and background/live-selector shading;
+            does not restrict which oxides are recorded (see
+            ``include_oxides``).
+        source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
+        phase (str|list[str]|None): If provided, mask the map so only pixels
+            matching this phase are shown; all others are set to NaN.
+        pixel_size_um (float|None): Micrometers per pixel, used to populate
+            physical-area columns.
+        cmap (str): Colormap for the source map.
+        vmin (float|None): Lower display limit.
+        vmax (float|None): Upper display limit.
+        title (str|None): Title for the map panel.
+        cbar_label (str|None): Colorbar label for the map panel.
+        multi (bool): If True, each drawn box is retained as a new region.
+            If False, a new box replaces the previous one.
+        figsize (tuple): Figure size.
+        include_oxides (bool): If True (default) and ``res`` has
+            ``oxide_maps``, every oxide (plus ``Total``/``Total_raw`` if
+            present) is sampled for each drawn box: ``regions_df`` gains one
+            ``mean_<Oxide>`` column per oxide, and ``samples_df`` gains one
+            raw-value column per oxide alongside ``value`` (the ``key`` map).
+            The same ``phase`` mask applied to the displayed map is applied
+            to every oxide.
+
+    Returns:
+        controller (dict): Dictionary with keys ``fig``, ``regions``
+            (list of per-box summary dicts), ``regions_df`` (all region
+            summaries as one DataFrame), ``samples`` (list of per-box raw
+            pixel DataFrames), ``samples_df`` (all concatenated), and helper
+            accessors ``get_region``, ``get_samples``.
+    """
+    plt.close("all")
+    backend = plt.get_backend().lower()
+    _non_interactive = {"agg", "cairo", "pdf", "pgf", "ps", "svg", "template",
+                        "module://matplotlib_inline.backend_inline"}
+    if backend in _non_interactive or backend.endswith("inline"):
+        warnings.warn(
+            "interactive_region() needs an interactive Matplotlib backend. "
+            f"The current backend is {plt.get_backend()!r}, so the figure will "
+            "render as static and drags will not register. In a notebook, try "
+            "`%matplotlib notebook`, or install `ipympl` and use "
+            "`%matplotlib widget`.",
+            UserWarning,
+        )
+
+    data = get_profile_map(res, key, source=source)
+    mineral_map = res.get("mineral_map") if isinstance(res, dict) else None
+
+    if phase is not None and mineral_map is not None:
+        phase_filter = {phase} if isinstance(phase, str) else set(phase)
+        phase_mask = np.isin(mineral_map, list(phase_filter))
+        data = np.where(phase_mask, data, np.nan)
+
+    oxide_maps = {}
+    if include_oxides and isinstance(res, dict) and res.get("oxide_maps"):
+        for ox_name, ox_arr in res["oxide_maps"].items():
+            ox_arr = np.asarray(ox_arr, dtype=float)
+            if phase is not None and mineral_map is not None:
+                ox_arr = np.where(phase_mask, ox_arr, np.nan)
+            oxide_maps[ox_name] = ox_arr
+
+    valid = data[np.isfinite(data)]
+    if vmin is None:
+        vmin = float(valid.min()) if valid.size else 0.0
+    if vmax is None:
+        vmax = float(valid.max()) if valid.size else 1.0
+    if title is None:
+        title = f"Interactive Region: {key}"
+    if cbar_label is None:
+        cbar_label = key
+
+    fig, ax_map = plt.subplots(figsize=figsize)
+    masked = np.ma.masked_invalid(data)
+    im = ax_map.imshow(
+        masked,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        interpolation="none",
+        origin="upper",
+    )
+    fig.colorbar(im, ax=ax_map, fraction=0.046, pad=0.04, label=cbar_label)
+    ax_map.set_title(title)
+    ax_map.set_xlabel("X (px)")
+    ax_map.set_ylabel("Y (px)")
+
+    fig.suptitle(
+        "Click and drag to draw a box.\n"
+        "'r': reset current | 'u': undo last | 'c': clear all | 'q'/Esc: done",
+        y=0.98,
+        fontsize=11,
+    )
+
+    state = {"saved_artists": [], "regions": [], "samples": [], "colors": []}
+    controller = {
+        "fig": fig,
+        "regions": [],
+        "regions_df": None,
+        "samples": [],
+        "samples_df": None,
+    }
+
+    def _get_region(index=-1):
+        if not controller["regions"]:
+            return None
+        return controller["regions"][index]
+
+    def _get_samples(index=-1):
+        if not controller["samples"]:
+            return None
+        return controller["samples"][index]
+
+    controller["get_region"] = _get_region
+    controller["get_samples"] = _get_samples
+
+    def _color_for_region(index):
+        cmap_obj = plt.get_cmap("tab10")
+        return cmap_obj(index % 10)
+
+    def _clear_artist_list(artists):
+        while artists:
+            artist = artists.pop()
+            artist.remove()
+
+    def _update_controller_tables():
+        controller["regions"] = list(state["regions"])
+        controller["samples"] = list(state["samples"])
+        controller["regions_df"] = (
+            pd.DataFrame(state["regions"]) if state["regions"] else None
+        )
+        controller["samples_df"] = (
+            pd.concat(state["samples"], ignore_index=True) if state["samples"] else None
+        )
+
+    def _clear_all():
+        state["regions"].clear()
+        state["samples"].clear()
+        state["colors"].clear()
+        _clear_artist_list(state["saved_artists"])
+        _update_controller_tables()
+        fig.canvas.draw_idle()
+
+    def _on_select(eclick, erelease):
+        x0, y0 = eclick.xdata, eclick.ydata
+        x1, y1 = erelease.xdata, erelease.ydata
+        if x0 is None or y0 is None or x1 is None or y1 is None:
+            return
+        if x0 == x1 or y0 == y1:
+            return
+
+        if not multi:
+            _clear_all()
+
+        samples_df, stats = extract_region_stats(data, x0, y0, x1, y1, mineral_map=mineral_map)
+
+        region_id = len(state["regions"]) + 1
+        region_color = _color_for_region(region_id - 1)
+
+        xlo, xhi = sorted((x0, x1))
+        ylo, yhi = sorted((y0, y1))
+        width_px = xhi - xlo
+        height_px = yhi - ylo
+
+        record = {
+            "region_id": region_id,
+            "key": key,
+            "source": source,
+            "x0": int(round(xlo)),
+            "y0": int(round(ylo)),
+            "x1": int(round(xhi)),
+            "y1": int(round(yhi)),
+            "width_px": float(width_px),
+            "height_px": float(height_px),
+            "area_px2": float(width_px * height_px),
+            "area_um2": (
+                float(width_px * height_px * pixel_size_um ** 2)
+                if pixel_size_um is not None
+                else np.nan
+            ),
+            "pixel_size_um": pixel_size_um,
+            "color": to_hex(region_color),
+            **stats,
+        }
+
+        samples_df = samples_df.copy()
+        samples_df["region_id"] = region_id
+        samples_df["key"] = key
+        samples_df["source"] = source
+        samples_df["color"] = to_hex(region_color)
+
+        if oxide_maps:
+            xs = samples_df["x"].to_numpy(dtype=int)
+            ys = samples_df["y"].to_numpy(dtype=int)
+            for ox_name, ox_arr in oxide_maps.items():
+                ox_vals = ox_arr[ys, xs]
+                samples_df[ox_name] = ox_vals
+                finite_ox = ox_vals[np.isfinite(ox_vals)]
+                record[f"mean_{ox_name}"] = (
+                    float(np.mean(finite_ox)) if finite_ox.size else np.nan
+                )
+
+        state["regions"].append(record)
+        state["samples"].append(samples_df)
+        state["colors"].append(region_color)
+        _update_controller_tables()
+
+        rect = mpatches.Rectangle(
+            (xlo, ylo), width_px, height_px,
+            fill=False, ec="black", lw=1.6, ls=":", zorder=5,
+        )
+        ax_map.add_patch(rect)
+        label = ax_map.text(
+            xlo, ylo - 2, f"#{region_id}", fontsize=8, color="black",
+            ha="left", va="bottom", zorder=6,
+        )
+        state["saved_artists"].append(rect)
+        state["saved_artists"].append(label)
+
+        fig.canvas.draw_idle()
+
+        print(
+            f"\n#{region_id}  Box ({record['x0']}, {record['y0']}) -> "
+            f"({record['x1']}, {record['y1']})  [{stats['n_pixels']} px]"
+        )
+        print(f"  mean={stats['mean']:.3f}  median={stats['median']:.3f}  "
+              f"std={stats['std']:.3f}  min={stats['min']:.3f}  max={stats['max']:.3f}")
+
+    def _on_key(event):
+        if event.key in ("q", "escape"):
+            selector.set_active(False)
+            fig.canvas.mpl_disconnect(cid_key)
+            fig.suptitle("Inactive (regions saved)", fontsize=11)
+            fig.canvas.draw_idle()
+            return
+        if event.key == "r":
+            selector.clear()
+            fig.canvas.draw_idle()
+        elif event.key == "c":
+            _clear_all()
+        elif event.key == "u" and state["regions"]:
+            state["regions"].pop()
+            state["samples"].pop()
+            state["colors"].pop()
+            for _ in range(2):
+                artist = state["saved_artists"].pop()
+                artist.remove()
+            _update_controller_tables()
+            fig.canvas.draw_idle()
+
+    selector = RectangleSelector(
+        ax_map,
+        _on_select,
+        useblit=True,
+        button=[1],
+        minspanx=1,
+        minspany=1,
+        spancoords="data",
+        interactive=False,
+        props=dict(facecolor="none", edgecolor="black", linestyle=":", lw=1.6, fill=False),
+    )
+    cid_key = fig.canvas.mpl_connect("key_press_event", _on_key)
+
+    def _on_close(_event):
+        selector.set_active(False)
+        fig.canvas.mpl_disconnect(cid_key)
+
+    fig.canvas.mpl_connect("close_event", _on_close)
+
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    plt.show()
+    return controller
+
+
 def batch_extract_line_profiles(
     res,
     transects,
@@ -3704,15 +4095,18 @@ def plot_locations(
     """
     Plot transect lines or pixel pick locations on top of a map or blank canvas.
 
-    Accepts either a transects table (from ``interactive_line_profile`` or
-    ``batch_line_profiles``) with columns ``x0``, ``y0``, ``x1``, ``y1``, or a
-    pixel picks table (from ``extract_pixel_comp``) with columns ``x``, ``y``.
-    The input type is detected automatically.
+    Accepts a transects table (from ``interactive_line_profile`` or
+    ``batch_line_profiles``) with columns ``x0``, ``y0``, ``x1``, ``y1``; a
+    regions table (from ``interactive_region``'s ``regions_df``) with columns
+    ``x0``, ``y0``, ``x1``, ``y1``, ``height_px``; or a pixel picks table
+    (from ``extract_pixel_comp``) with columns ``x``, ``y``. The input type
+    is detected automatically.
 
     Parameters:
         res (dict): Result dictionary returned by ``run_map()``.
-        transects (pd.DataFrame|list[dict]): Transect table with ``x0``, ``y0``,
-            ``x1``, ``y1``, or pixel picks table with ``x``, ``y``.
+        transects (pd.DataFrame|list[dict]): Transect table with ``x0``,
+            ``y0``, ``x1``, ``y1``; regions table with those columns plus
+            ``height_px``; or pixel picks table with ``x``, ``y``.
         map_key (str|None): Background oxide/component key. If None, uses a
             blank pixel-space canvas based on ``res['shape']``.
         source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
@@ -3737,8 +4131,11 @@ def plot_locations(
 
     plt.close("all")
 
-    # Detect mode: pixel picks have x/y but no x0/y0/x1/y1
+    # Detect mode: pixel picks have x/y but no x0/y0/x1/y1; regions have
+    # x0/y0/x1/y1 plus height_px (from interactive_region); everything else
+    # with x0/y0/x1/y1 is treated as transects.
     _is_picks = {"x", "y"}.issubset(cols) and not {"x0", "x1"}.issubset(cols)
+    _is_regions = {"x0", "y0", "x1", "y1", "height_px"}.issubset(cols)
 
     if not _is_picks:
         required = {"x0", "y0", "x1", "y1"}
@@ -3748,11 +4145,13 @@ def plot_locations(
                 f"transects is missing required columns: {', '.join(sorted(missing))}"
             )
 
-    if not _is_picks:
+    if not _is_picks and not _is_regions:
         if "profile_id" not in transects_df.columns:
             transects_df["profile_id"] = np.arange(1, len(transects_df) + 1)
         if "width_px" not in transects_df.columns:
             transects_df["width_px"] = np.nan
+    elif _is_regions and "region_id" not in transects_df.columns:
+        transects_df["region_id"] = np.arange(1, len(transects_df) + 1)
 
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
@@ -3800,6 +4199,23 @@ def plot_locations(
                     color="black", fontsize=9, ha="left", va="bottom",
                     bbox=dict(boxstyle="circle,pad=0.2", fc="white", ec=color, alpha=0.9),
                 )
+    elif _is_regions:
+        for row in transects_df.itertuples(index=False):
+            x0r, y0r = float(row.x0), float(row.y0)
+            width_px = float(row.x1) - x0r
+            height_px = float(row.y1) - y0r
+            rid = int(row.region_id)
+
+            rect = mpatches.Rectangle(
+                (x0r, y0r), width_px, height_px,
+                fill=False, ec="black", lw=1.6, ls=":", zorder=5,
+            )
+            ax.add_patch(rect)
+            if annotate:
+                ax.text(
+                    x0r, y0r - 2, f"#{rid}", fontsize=8, color="black",
+                    ha="left", va="bottom", zorder=6,
+                )
     else:
         for i, row in enumerate(transects_df.itertuples(index=False)):
             raw_color = (
@@ -3842,6 +4258,8 @@ def plot_locations(
     if title is None:
         if _is_picks:
             title = "Pixel Pick Locations" if map_key is None else f"Pixel Pick Locations: {map_key}"
+        elif _is_regions:
+            title = "Region Locations" if map_key is None else f"Region Locations: {map_key}"
         elif map_key is None:
             title = "Profile Locations"
         else:
