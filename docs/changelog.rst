@@ -3,6 +3,17 @@ Changelog
 =========
 
 
+Version 0.0.3.20
+================
+Added ``interactive_region``, a clickable-and-drag box-selection tool for sampling oxide compositions over a rectangular region rather than a single pixel or transect. Click and drag to draw a box. Releasing allows for every pixel inside it. By default (``include_oxides=True``), every oxide (plus ``Total``/``Total_raw`` if present) is sampled per box, so ``regions_df`` includes a ``mean_<Oxide>`` column per oxide and ``samples_df`` includes a raw per-pixel value column per oxide, alongside the primary ``key`` map used for display. 
+
+Added ``extract_region_stats``, the non-interactive helper that extracts per-pixel values and summary stats (mean, median, std, min, max, n_pixels) for a given box.
+
+``plot_locations`` now also accepts a regions table (``reg["regions_df"]`` from ``interactive_region``) in addition to transect and pixel-pick tables, auto-detected by the presence of ``height_px``, and draws each region as a labeled box.
+
+``interactive_pixels`` now draws the sampled n×n box outline around each click when ``region > 1``, in addition to the marker, so it's visually clear how large a neighborhood contributed to each pick.
+
+
 Version 0.0.3.19
 ================
 ``interactive_pixels`` now matches the ``phase`` argument case-insensitively (e.g. ``"plagioclase"`` matches ``"Plagioclase"``) and raises a ``UserWarning`` listing the available phases if a requested phase is not present in the map.
