@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import streamlit as st
 import mineralML as mm
 
-st.set_page_config(page_title="mineralML", page_icon="🌋", initial_sidebar_state=200)  # sidebar width, px (default 300)
+st.set_page_config(page_title="mineralML", page_icon="🌋", initial_sidebar_state=350)  # sidebar width, px (default 300)
 st.set_page_config(initial_sidebar_state="expanded")  # additive: keeps the width, and opens the sidebar on every screen size
 
 OXIDES = mm.OXIDES + ["ZrO2"]
