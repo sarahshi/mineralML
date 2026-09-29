@@ -345,5 +345,44 @@ class test_ExportPredictionsToExcel(unittest.TestCase):
             self.assertLessEqual(len(mineral_sheet), 31)
 
 
+    def test_export_appends_stoichiometry_to_mineral_sheets(self):
+        df = pd.DataFrame({
+            'Sample Name': ['ol1', 'ol2', 'mt1'],
+            'SiO2': [40.2, 38.9, 0.1], 'TiO2': [0.0, 0.0, 12.5], 'Al2O3': [0.0, 0.0, 2.9],
+            'FeOt': [12.1, 20.3, 78.4], 'MnO': [0.2, 0.3, 0.5], 'MgO': [47.5, 40.1, 2.1],
+            'CaO': [0.2, 0.2, 0.0],
+            'Predict_Mineral': ['Olivine', 'Olivine', 'Oxide'],
+            'Submineral': [np.nan, np.nan, 'Spinel_Group'],
+            'Prediction_Score': [0.99, 0.98, 0.97],
+            'Prediction_Score_Sigma': [0.01, 0.02, 0.03],
+        })
+        with TemporaryDirectory() as tmp_dir:
+            filepath = os.path.join(tmp_dir, "test_results.xlsx")
+            mm.export_predictions_to_excel(df, filename=filepath)
+
+            # "All" keeps the input columns only
+            all_df = pd.read_excel(filepath, sheet_name="All")
+            self.assertListEqual(list(all_df.columns), list(df.columns))
+
+            # Mineral sheets keep every prediction column and append calculated ones
+            ol = pd.read_excel(filepath, sheet_name="Olivine")
+            self.assertListEqual(list(ol.columns[:len(df.columns)]), list(df.columns))
+            self.assertIn("Fo", ol.columns)
+            self.assertAlmostEqual(ol.loc[0, "Fo"], (47.5 / 40.3044) / (47.5 / 40.3044 + 12.1 / 71.844), places=3)
+
+            # Oxide rows use their Submineral's calculator; olivine-only columns are dropped
+            ox = pd.read_excel(filepath, sheet_name="Oxide")
+            self.assertEqual(ox.loc[0, "Submineral"], "Spinel_Group")
+            self.assertNotIn("Fo", ox.columns)
+            self.assertTrue(any(c.endswith("_cat_4ox") for c in ox.columns))
+
+    def test_export_without_stoichiometry(self):
+        with TemporaryDirectory() as tmp_dir:
+            filepath = os.path.join(tmp_dir, "test_results.xlsx")
+            mm.export_predictions_to_excel(self.results_df, filename=filepath, stoichiometry=False)
+            ol = pd.read_excel(filepath, sheet_name="Olivine")
+            self.assertListEqual(list(ol.columns), list(self.results_df.columns))
+
+
 if __name__ == '__main__':
     unittest.main()

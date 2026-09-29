@@ -32,6 +32,11 @@ class BaseMineralCalculator:
     # Required subclass definitions
     OXYGEN_BASIS = None  # Oxygen normalization basis
     MINERAL_SUFFIX = None  # Abbreviated mineral suffix
+
+    # Bare-minimum oxides for silicates: SiO2 plus any the calculation cannot
+    # run without. If absent, they raise one warning and are treated as 0.
+    # Empty for oxides, phosphates and carbonates.
+    EXPECTED_OXIDES = ()
     
     def __init__(self, comps):
         """Initialize with mineral compositions."""
@@ -69,12 +74,32 @@ class BaseMineralCalculator:
         if (_FeO != _Fe2O3):
             raise ValueError("If using 'FeO' and 'Fe2O3', both must be provided.")
 
+        self._fill_missing_expected()
+
     def _validate_subclass(self):
         """Check if subclass defined required constants."""
         if self.OXYGEN_BASIS is None:
             raise NotImplementedError("Subclass must define OXYGEN_BASIS")
         if self.MINERAL_SUFFIX is None:
             raise NotImplementedError("Subclass must define MINERAL_SUFFIX")
+
+    def _fill_missing_expected(self):
+        """Warn about missing EXPECTED_OXIDES and treat them as 0."""
+        missing = [
+            ox for ox in self.EXPECTED_OXIDES
+            if ox not in self.comps.columns or self.comps[ox].isna().all()
+        ]
+        if not missing:
+            return
+        warnings.warn(
+            f"{type(self).__name__}: {', '.join(missing)} missing from the data "
+            "and treated as 0. Proceed with caution.",
+            UserWarning,
+            stacklevel=3,
+        )
+        for ox in missing:
+            self.comps[ox] = 0.0
+        self.oxide_cols = [ox for ox in self.OXIDE_MASSES if ox in self.comps.columns]
 
     def _add_suffix(self, oxide_name):
         """Helper method to add mineral suffix to oxide names, if not already present."""
@@ -338,6 +363,7 @@ class AmphiboleCalculator(BaseMineralCalculator):
     OXYGEN_BASIS = 23
     CATION_BASIS = 13
     MINERAL_SUFFIX = "_Amp"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"F": 18.998403, "Cl": 35.453})
     OXYGEN_NUMBERS = dict(BaseMineralCalculator.OXYGEN_NUMBERS, **{"F": 0, "Cl": 0})
@@ -785,6 +811,7 @@ class BiotiteCalculator(BaseMineralCalculator):
     """Biotite-specific calculations. XM^{2+}3[Si3Al]010(OH)2."""
     OXYGEN_BASIS = 11
     MINERAL_SUFFIX = "_Bt"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete biotite composition with site assignments."""
@@ -862,6 +889,7 @@ class ChloriteCalculator(BaseMineralCalculator):
     """Chlorite-specific calculations. (Mg,Fe)10Al2[Al2Si6O20](OH)16"""
     OXYGEN_BASIS   = 14
     MINERAL_SUFFIX = "_Chl"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete chlorite composition with site assignments."""
@@ -900,6 +928,7 @@ class ClinopyroxeneCalculator(BaseMineralCalculator):
     """Clinopyroxene-specific calculations. Ca(Mg,Fe)Si2O6."""
     OXYGEN_BASIS = 6
     MINERAL_SUFFIX = "_Cpx"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete clinopyroxene composition with site assignments and enstatite, ferrosilite, wollastonite, iron assignments."""
@@ -984,6 +1013,7 @@ class EpidoteCalculator(BaseMineralCalculator):
     """Epidote-specific calculations. A2M3Z3(O,OH,F)12."""
     OXYGEN_BASIS = 12.5
     MINERAL_SUFFIX = "_Ep"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete epidote composition with site assignments."""
@@ -1048,6 +1078,7 @@ class FeldsparCalculator(BaseMineralCalculator):
     """Feldspar-specific calculations."""
     OXYGEN_BASIS = 8
     MINERAL_SUFFIX = "_Feld"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "CaO", "Na2O", "K2O")
 
     def calculate_components(self):
         """Return complete feldspar composition with site assignments and anorthite, albite, orthoclase."""
@@ -1277,6 +1308,7 @@ class GarnetCalculator(BaseMineralCalculator):
     OXYGEN_BASIS = 12
     CATION_BASIS = 8
     MINERAL_SUFFIX = "_Grt"
+    EXPECTED_OXIDES = ("SiO2", "FeOt")
 
     def calculate_components(self, Fe_correction="Droop"):
         """Return complete garnet composition with site assignments."""
@@ -1629,6 +1661,7 @@ class KalsiliteCalculator(BaseMineralCalculator):
     """Kalsilite-specific calculations. K[AlSiO4]."""
     OXYGEN_BASIS = 4
     MINERAL_SUFFIX = "_Kls"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "K2O")
 
     def calculate_components(self):
         """Return complete kalsilite composition with site assignments."""
@@ -1658,6 +1691,7 @@ class LeuciteCalculator(BaseMineralCalculator):
     """Leucite-specific calculations. K[AlSi2O6]."""
     OXYGEN_BASIS = 6
     MINERAL_SUFFIX = "_Lct"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3")
 
     def calculate_components(self):
         """Return complete leucite composition with site assignments."""
@@ -1716,6 +1750,7 @@ class MeliliteCalculator(BaseMineralCalculator):
     """Melilite-specific calculations. (Ca,Na)2[(Mg,Fe2+,Al,Si)3O7]."""
     OXYGEN_BASIS = 7
     MINERAL_SUFFIX = "_Mll"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete melilite composition with site assignments."""
@@ -1746,6 +1781,7 @@ class MuscoviteCalculator(BaseMineralCalculator):
     """Muscovite-specific calculations. XM^{3+}2[Si3Al]010(OH)2."""
     OXYGEN_BASIS = 11
     MINERAL_SUFFIX = "_Ms"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete muscovite composition with site assignments."""
@@ -1782,6 +1818,7 @@ class NephelineCalculator(BaseMineralCalculator):
     """Nepheline-specific calculations. Na3(Na,K)[Al4Si4O16]."""
     OXYGEN_BASIS = 32
     MINERAL_SUFFIX = "_Nph"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete nepheline composition with site assignments."""
@@ -1817,6 +1854,7 @@ class OlivineCalculator(BaseMineralCalculator):
     """Olivine-specific calculations. (Mg,Fe)2SiO4."""
     OXYGEN_BASIS = 4
     MINERAL_SUFFIX = "_Ol"
+    EXPECTED_OXIDES = ("SiO2", "FeOt", "MgO")
 
     def calculate_components(self):
         """Return complete olivine composition with site assignments and forsterite."""
@@ -1853,6 +1891,7 @@ class OrthopyroxeneCalculator(BaseMineralCalculator):
     """Orthopyroxene-specific calculations."""
     OXYGEN_BASIS = 6
     MINERAL_SUFFIX = "_Opx"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete orthopyroxene composition with site assignments and enstatite, ferrosilite, wollastonite."""
@@ -2380,6 +2419,7 @@ class PyroxeneClassifier(BaseMineralCalculator):
     """General pyroxene calculations for classification."""
     OXYGEN_BASIS = 6
     MINERAL_SUFFIX = "_Px"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def _o_total_from_4cat(self):
         """
@@ -2420,16 +2460,18 @@ class PyroxeneClassifier(BaseMineralCalculator):
         # Grab just the cation columns from `base`
         cation_cols = [col for col in base.columns if col.endswith(cat_suffix)]
 
+        # Absent minor oxides as zero Series (a scalar 0 breaks .clip() below)
+        zeros = pd.Series(0.0, index=base.index)
         Si = base[f"Si{cat_suffix}"]
-        Ti = base.get(f"Ti{cat_suffix}", 0)
+        Ti = base.get(f"Ti{cat_suffix}", zeros)
         Al = base[f"Al{cat_suffix}"]
         Fe = base[f"Fe2t{cat_suffix}"]
         Mg = base[f"Mg{cat_suffix}"]
-        Mn = base.get(f"Mn{cat_suffix}", 0)
+        Mn = base.get(f"Mn{cat_suffix}", zeros)
         Ca = base[f"Ca{cat_suffix}"]
-        K = base.get(f"K{cat_suffix}", 0)
-        Na = base.get(f"Na{cat_suffix}", 0)
-        Cr = base.get(f"Cr{cat_suffix}", 0)
+        K = base.get(f"K{cat_suffix}", zeros)
+        Na = base.get(f"Na{cat_suffix}", zeros)
+        Cr = base.get(f"Cr{cat_suffix}", zeros)
 
         # Compute site assignments in sites dataframe
         sites = pd.DataFrame(index=base.index)
@@ -2903,6 +2945,7 @@ class QuartzCalculator(BaseMineralCalculator):
     """Quartz-specific calculations. SiO2."""
     OXYGEN_BASIS = 2
     MINERAL_SUFFIX = "_Qz"
+    EXPECTED_OXIDES = ("SiO2",)
 
     def calculate_components(self):
         """Return complete quartz composition with site assignments."""
@@ -2960,6 +3003,7 @@ class SerpentineCalculator(BaseMineralCalculator):
     """Serpentine-specific calculations. Mg3[Si2O5](OH)4."""
     OXYGEN_BASIS = 14
     MINERAL_SUFFIX = "_Srp"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO")
 
     def calculate_components(self):
         """Return complete serpentine composition with site assignments."""
@@ -2990,6 +3034,7 @@ class SodicPyroxeneCalculator(BaseMineralCalculator):
     """Sodic Pyroxene-specific calculations. (Na,Ca)(Mg,Fe3+,Al)Si2O6."""
     OXYGEN_BASIS = 6
     MINERAL_SUFFIX = "_NaPx"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     def _o_total_from_4cat(self):
         """
@@ -3214,6 +3259,7 @@ class TitaniteCalculator(BaseMineralCalculator):
     """Titanite-specific calculations. CaTiSiO5."""
     OXYGEN_BASIS = 5
     MINERAL_SUFFIX = "_Ttn"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "MgO", "CaO")
 
     def calculate_components(self):
         """Return complete titanite composition with site assignments."""
@@ -3251,6 +3297,7 @@ class TourmalineCalculator(BaseMineralCalculator):
     """Tourmaline-specific calculations. XY3Z6[Si6O18](BO3)3(O,OH)3(OH,F,O)."""
     OXYGEN_BASIS = 31
     MINERAL_SUFFIX = "_Tur"
+    EXPECTED_OXIDES = ("SiO2", "Al2O3", "FeOt", "MgO", "CaO")
 
     # Extend the parent's dictionaries by merging them with B2O3 data
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"B2O3": 69.6182})
@@ -3294,6 +3341,7 @@ class ZirconCalculator(BaseMineralCalculator):
     """Zircon-specific calculations. ZrSiO4."""
     OXYGEN_BASIS = 4
     MINERAL_SUFFIX = "_Zrn"
+    EXPECTED_OXIDES = ("SiO2",)
 
     # Extend the parent's dictionaries by merging them with ZrO2 and HfO2 data
     OXIDE_MASSES = dict(BaseMineralCalculator.OXIDE_MASSES, **{"ZrO2": 123.222, "HfO2": 210.484})

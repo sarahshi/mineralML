@@ -1,4 +1,5 @@
 import unittest
+import warnings
 import numpy as np
 import pandas as pd
 
@@ -7,6 +8,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import mineralML as mm
+from mineralML.stoichiometry import BaseMineralCalculator
 
 
 R = {
@@ -721,6 +723,257 @@ class TestPyroxenePlot(unittest.TestCase):
             self.assertIsNotNone(ax.get_legend())
         finally:
             plt.close(fig)
+
+
+class test_append_stoichiometry(unittest.TestCase):
+
+    def setUp(self):
+        self.df = pd.DataFrame({
+            'Sample Name': ['ol1', 'pl1', 'x1', 'none1'],
+            'SiO2': [40.2, 52.8, 45.0, 0.0], 'Al2O3': [0.0, 29.4, 10.0, 0.0],
+            'FeOt': [12.1, 0.6, 10.0, 0.0], 'MgO': [47.5, 0.1, 10.0, 0.0],
+            'CaO': [0.2, 12.3, 10.0, 0.0], 'Na2O': [0.0, 4.4, 1.0, 0.0], 'K2O': [0.0, 0.2, 0.0, 0.0],
+            'Predict_Mineral': ['Olivine', 'Plagioclase', 'Unknown_Mineral', None],
+            'Prediction_Score': [0.99, 0.98, 0.5, np.nan],
+        }, index=[10, 11, 12, 13])
+
+    def test_keeps_rows_index_and_columns(self):
+        out = mm.append_stoichiometry(self.df)
+        self.assertListEqual(list(out.index), list(self.df.index))
+        pd.testing.assert_frame_equal(out[self.df.columns], self.df)
+
+    def test_calculated_columns_per_mineral(self):
+        out = mm.append_stoichiometry(self.df)
+        self.assertTrue(np.isfinite(out.loc[10, "Fo"]))
+        self.assertTrue(np.isnan(out.loc[11, "Fo"]))
+        self.assertTrue(np.isfinite(out.loc[11, "An"]))
+        # No calculator (unknown label) or unclassified: calculated columns stay NaN
+        self.assertTrue(out.loc[[12, 13], ["Fo", "An"]].isna().all().all())
+
+    def test_missing_mineral_column_raises(self):
+        with self.assertRaises(ValueError):
+            mm.append_stoichiometry(self.df.drop(columns="Predict_Mineral"))
+
+
+
+
+# One real analysis (wt%) per field, the one closest to the median of all
+# analyses the classifier puts in that field (training data natural rows,
+# Cpx compilation, Jd_Omph). Oxides not reported by the source are omitted.
+# "Wollastonite" is the classifier's label for Wo >= 0.5 (a Ca-rich cpx here).
+PYROXENES = {
+    # BT-19G_OPX 17-2 (JollesandLange2019)
+    "Enstatite": dict(SiO2=52.01, TiO2=0.1, Al2O3=0.43, FeOt=25.1, MnO=0.89, MgO=20.21,
+        CaO=1.11, Na2O=0.03, K2O=0, Cr2O3=0),
+    # UC1248-2c-opx (Deeringetal2010)
+    "Ferrosilite": dict(SiO2=50.418, TiO2=0.088, Al2O3=0.336, FeOt=31.928, MnO=1.676,
+        MgO=14.879, CaO=0.877, Na2O=0.029),
+    # LEPR entry 32895 (experimental run product; no clean natural pigeonite in the data)
+    "Pigeonite": dict(SiO2=53.4, TiO2=0.2, Al2O3=2.47, FeOt=12.7, MnO=0.33, MgO=24.6,
+        CaO=5.37, Na2O=0.11, Cr2O3=0.22),
+    # Conboy cpx-8 (Hildreth and Fierstein, 1997)
+    "Augite": dict(SiO2=51.399, TiO2=0.69, Al2O3=2.324, FeOt=8.674, MnO=0.242, MgO=15.668,
+        CaO=20.025, Na2O=0.376, Cr2O3=0.039),
+    # 27_C_2_798 (Ubideetal2019)
+    "Diopside": dict(SiO2=49.18, TiO2=1.1237, Al2O3=4.16, FeOt=8.31, MnO=0.1696, MgO=13.62,
+        CaO=21.81, Na2O=0.3806, Cr2O3=0.006),
+    # samp. LFAF09 109A (Fieldetal2013)
+    "Hedenbergite": dict(SiO2=47.5618, TiO2=0.4946, Al2O3=0.4124, FeOt=28.8126, MnO=1.2794,
+        MgO=1.0008, CaO=19.9956, Na2O=0.4354, K2O=0, Cr2O3=0),
+    # Ny21-005_NY21SM005_cpx1_rim-core_1911 (Molendijketal2024)
+    "Wollastonite": dict(SiO2=46.1789, TiO2=3.0666, Al2O3=7.963, FeOt=6.8318, MnO=0.1414,
+        MgO=12.2464, CaO=23.5189, Na2O=0.3882, K2O=0.022),
+    # 2-1-Jd (Jd_Omph)
+    "Jadeite": dict(SiO2=58.25, TiO2=0.04, Al2O3=20.81, FeOt=1.02, MnO=0, MgO=2.75, CaO=3.6,
+        Na2O=13.54, K2O=0, Cr2O3=0.02),
+    # samp. B 48 (Wiedendorderetal2016)
+    "Aegirine": dict(SiO2=53.95, TiO2=0.3746, Al2O3=0.9965, FeOt=28.24, MnO=0.1636,
+        MgO=1.1921, CaO=1.92, Na2O=12.22, K2O=0.0058, Cr2O3=0),
+    # HO2_1b vein_159 (Schornetal2023)
+    "Omphacite": dict(SiO2=54.522, TiO2=0.151, Al2O3=9.898, FeOt=5.265, MnO=0.044, MgO=8.955,
+        CaO=14.943, Na2O=5.875, K2O=0.006),
+    # samp. D885 A1 (Barkeretal2012)
+    "Aegirine-Augite": dict(SiO2=50.8142, TiO2=0.6808, Al2O3=2.3487, FeOt=15.7983,
+        MnO=0.7631, MgO=7.3147, CaO=17.8288, Na2O=3.5312, K2O=0, Cr2O3=0),
+}
+MAIN = {"Enstatite": "Orthopyroxene", "Ferrosilite": "Orthopyroxene",
+        "Jadeite": "Na-Pyroxene", "Aegirine": "Na-Pyroxene", "Omphacite": "Na-Pyroxene",
+        "Aegirine-Augite": "Na-Pyroxene"}
+
+
+def _px_df(names):
+    return pd.DataFrame([PYROXENES[n] for n in names], index=names).fillna(0.0)
+
+
+class TestPyroxeneSubclasses(unittest.TestCase):
+
+    def test_every_subclass(self):
+        names = list(PYROXENES)
+        out = mm.PyroxeneClassifier(_px_df(names)).classify(subclass=True)
+        self.assertEqual(list(out["Submineral"]), names)
+        self.assertEqual(list(out["Mineral"]),
+                         [MAIN.get(n, "Clinopyroxene") for n in names])
+        for col in ["En", "Fs", "Wo", "En_h", "Jd_h", "Aeg_h", "Di_h", "Hd_h"]:
+            self.assertIn(col, out.columns)
+
+    def test_without_subclass(self):
+        out = mm.PyroxeneClassifier(_px_df(["Enstatite", "Jadeite"])).classify(subclass=False)
+        self.assertNotIn("Submineral", out.columns)
+        self.assertEqual(list(out["Mineral"]), ["Orthopyroxene", "Na-Pyroxene"])
+
+    def test_empty_analysis_falls_back_without_subclass(self):
+        df = _px_df(["Augite"])
+        empty = pd.DataFrame([{c: 0.0 for c in df.columns}], index=["blank"])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out = mm.PyroxeneClassifier(pd.concat([df, empty])).classify(subclass=True)
+        self.assertEqual(out["Submineral"].iat[0], "Augite")
+        self.assertIn(out["Mineral"].iat[1], {"Orthopyroxene", "Clinopyroxene"})
+        self.assertTrue(pd.isna(out["Submineral"].iat[1]))
+
+    def test_without_na_k_ti_columns(self):
+        # Regression: with no Na2O, K2O or TiO2 column the classifier used to
+        # crash with "'int' object has no attribute 'clip'".
+        df = (pd.DataFrame([PYROXENES["Pigeonite"], PYROXENES["Hedenbergite"]]).fillna(0.0)
+              .drop(columns=["Na2O", "K2O", "TiO2"], errors="ignore"))
+        out = mm.PyroxeneClassifier(df).classify(subclass=True)
+        self.assertEqual(list(out["Submineral"]), ["Pigeonite", "Hedenbergite"])
+
+
+class TestPyroxenePlotOptions(unittest.TestCase):
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_quadrilateral_only_returns_single_figure(self):
+        clf = mm.PyroxeneClassifier(_px_df(["Enstatite", "Augite", "Diopside"]))
+        fig, tax = clf.plot(labels="long")
+        self.assertIsInstance(fig, plt.Figure)
+        texts = [t.get_text() for t in tax.get_axes().texts]
+        self.assertIn("Diopside", texts)
+
+    def test_full_triangle_on_existing_axis_without_labels(self):
+        clf = mm.PyroxeneClassifier(_px_df(["Pigeonite", "Augite"]))
+        _, ax = plt.subplots()
+        fig, tax = clf.plot(quad_only=False, labels=None, ax=ax)
+        self.assertIs(tax.get_axes(), ax)
+        self.assertNotIn("Au", [t.get_text() for t in ax.texts])   # no field labels
+
+    def test_quadrilateral_on_existing_axis_uncoloured(self):
+        df_class = mm.PyroxeneClassifier(_px_df(["Augite"])).classify(subclass=False)
+        _, ax = plt.subplots()
+        fig, tax = mm.PyroxeneClassifier(_px_df(["Augite"])).plot(df_class=df_class,
+                                                               subclass=False, ax=ax)
+        self.assertIsInstance(fig, plt.Figure)
+
+    def test_full_triangle_new_figure(self):
+        fig, _ = mm.PyroxeneClassifier(_px_df(["Augite"])).plot(quad_only=False)
+        self.assertEqual(tuple(fig.get_size_inches()), (8.0, 8.0))
+
+    def test_sodic_only_figure(self):
+        clf = mm.PyroxeneClassifier(_px_df(["Jadeite", "Aegirine", "Omphacite"]))
+        fig, tax = clf.plot(labels="short")
+        texts = [t.get_text() for t in tax.get_axes().texts]
+        self.assertIn("Omph", texts)
+        fig2, tax2 = clf.plot(subclass=False, labels=None)
+        self.assertNotIn("Omph", [t.get_text() for t in tax2.get_axes().texts])
+
+    def test_mixed_returns_two_figures(self):
+        figs = mm.PyroxeneClassifier(_px_df(["Augite", "Aegirine-Augite"])).plot(labels=True)
+        self.assertEqual(len(figs), 2)
+
+    def test_nothing_to_plot_returns_none(self):
+        df_class = pd.DataFrame({"Mineral": ["Olivine"], "En": [0.5], "Fs": [0.1],
+                                 "Wo": [0.4]})
+        self.assertIsNone(mm.PyroxeneClassifier(_px_df(["Augite"])).plot(df_class=df_class))
+
+
+# Real analyses (wt%): training data natural rows and the Cpx compilation
+# Conboy cpx-8 (Hildreth and Fierstein, 1997)
+AUGITE = dict(SiO2=51.399, TiO2=0.69, Al2O3=2.324, FeOt=8.674, MnO=0.242, MgO=15.668,
+              CaO=20.025, Na2O=0.376, Cr2O3=0.039)
+# 20210320-003_E5-1 (Kahletal2023)
+OLIVINE = dict(SiO2=39.671, TiO2=0.008, Al2O3=0.042, FeOt=13.926, MnO=0.225, MgO=45.983,
+               CaO=0.312, Cr2O3=0.03)
+# HLY0102-D41-4 (Bennettetal2019)
+PLAG = dict(SiO2=50.27, Al2O3=31.06, FeOt=0.38, MgO=0.18, CaO=14.11, Na2O=3.26, K2O=0.05)
+# AC5-2-ox42_Tmt (Brahmetal2018)
+MAGNETITE = dict(SiO2=0.081, TiO2=18.319, Al2O3=2.343, FeOt=73.543, MnO=0.739, MgO=2.575,
+                 CaO=0, Cr2O3=0.023)
+
+
+def _without(comp, *drop):
+    return pd.DataFrame([{k: v for k, v in comp.items() if k not in drop}])
+
+
+def _missing_warnings(fn):
+    """Run fn and return (result, messages of any missing-oxide warnings)."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        out = fn()
+    return out, [str(w.message) for w in caught if "missing from the data" in str(w.message)]
+
+
+class TestMissingOxideWarnings(unittest.TestCase):
+
+    def test_complete_data_is_silent(self):
+        for cls, comp in [(mm.PyroxeneClassifier, AUGITE), (mm.OlivineCalculator, OLIVINE),
+                          (mm.FeldsparCalculator, PLAG)]:
+            _, msgs = _missing_warnings(lambda: cls(pd.DataFrame([comp])).calculate_components())
+            self.assertEqual(msgs, [], cls.__name__)
+
+    def test_missing_minor_oxides_are_silent(self):
+        df = _without(AUGITE, "TiO2", "MnO", "Na2O", "K2O", "Cr2O3")
+        _, msgs = _missing_warnings(lambda: mm.PyroxeneClassifier(df).classify())
+        self.assertEqual(msgs, [])
+
+    def test_missing_sio2_warns_and_proceeds(self):
+        out, msgs = _missing_warnings(
+            lambda: mm.PyroxeneClassifier(_without(AUGITE, "SiO2")).classify())
+        self.assertEqual(msgs, ["PyroxeneClassifier: SiO2 missing from the data and "
+                                "treated as 0. Proceed with caution."])
+        self.assertEqual(len(out), 1)                              # no KeyError any more
+
+    def test_all_missing_oxides_named_in_one_warning(self):
+        _, msgs = _missing_warnings(
+            lambda: mm.OlivineCalculator(_without(OLIVINE, "SiO2", "MgO")).calculate_components())
+        self.assertEqual(len(msgs), 1)
+        self.assertIn("SiO2, MgO missing", msgs[0])
+
+    def test_missing_major_no_longer_crashes_other_silicates(self):
+        for cls, comp, drop in [(mm.FeldsparCalculator, PLAG, "Al2O3"),
+                                (mm.OlivineCalculator, OLIVINE, "FeOt"),
+                                (mm.ClinopyroxeneCalculator, AUGITE, "CaO")]:
+            out, msgs = _missing_warnings(
+                lambda: cls(_without(comp, drop)).calculate_components())
+            self.assertIn(drop, msgs[0], cls.__name__)
+            self.assertEqual(len(out), 1)
+
+    def test_missing_and_empty_columns_are_zero_filled(self):
+        df = _without(AUGITE, "MgO").assign(CaO=np.nan)
+        _, msgs = _missing_warnings(lambda: mm.PyroxeneClassifier(df))
+        self.assertIn("MgO, CaO missing", msgs[0])
+        calc = mm.PyroxeneClassifier(df)
+        self.assertTrue((calc.comps[["MgO", "CaO"]] == 0).all().all())
+
+    def test_oxide_minerals_never_warn(self):
+        _, msgs = _missing_warnings(
+            lambda: mm.SpinelCalculator(pd.DataFrame([MAGNETITE])).calculate_components())
+        self.assertEqual(msgs, [])
+        self.assertEqual(mm.SpinelCalculator.EXPECTED_OXIDES, ())
+        self.assertEqual(mm.RhombohedralOxideCalculator.EXPECTED_OXIDES, ())
+
+    def test_every_silicate_expects_silica(self):
+        silicates = [mm.AmphiboleCalculator, mm.BiotiteCalculator, mm.ChloriteCalculator,
+                     mm.ClinopyroxeneCalculator, mm.EpidoteCalculator, mm.FeldsparCalculator,
+                     mm.GarnetCalculator, mm.KalsiliteCalculator, mm.LeuciteCalculator,
+                     mm.MeliliteCalculator, mm.MuscoviteCalculator, mm.NephelineCalculator,
+                     mm.OlivineCalculator, mm.OrthopyroxeneCalculator, mm.PyroxeneClassifier,
+                     mm.QuartzCalculator, mm.SerpentineCalculator, mm.SodicPyroxeneCalculator,
+                     mm.TitaniteCalculator, mm.TourmalineCalculator, mm.ZirconCalculator]
+        for cls in silicates:
+            self.assertIn("SiO2", cls.EXPECTED_OXIDES, cls.__name__)
+        self.assertEqual(BaseMineralCalculator.EXPECTED_OXIDES, ())
 
 
 if __name__ == "__main__":

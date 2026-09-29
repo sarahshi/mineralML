@@ -305,14 +305,14 @@ def norm_data(df, scaler_path=_DEFAULT_SCALER_FILE):
             raise ValueError(f"Missing mean or std for column: {col}")
 
     df = df.reset_index(drop=False)
-    scaled_df = df[oxides].copy()
 
-    # scaled_df = df[oxides].reset_index(drop=True).copy()
-
-    if df[oxides].isnull().any().any():
+    # Fill blank values and add any absent oxide columns (as 0, with a
+    # warning) before selecting the oxides, which needs every column present.
+    missing = [c for c in oxides if c not in df.columns]
+    if missing or df[oxides].isnull().any().any():
         df = prep_df(df)
-    else:
-        df = df
+
+    scaled_df = df[oxides].copy()
 
     for col in df[oxides].columns:
         scaled_df[col] = (df[col] - mean[col]) / std[col]

@@ -393,6 +393,46 @@ def _clean_labels_1d(arr):
     return s[~s.str.lower().isin({"", "nan", "none", "null"})]
 
 
+def _resolve_phases(mineral_map, phase, candidates=None):
+    """
+    Match requested phase name(s) to the labels in a mineral map. Matching is
+    case-insensitive and ignores surrounding whitespace, so ``"olivine"``
+    selects ``"Olivine"``. Requested names with no match raise a
+    ``UserWarning`` and are dropped.
+
+    Parameters:
+        mineral_map (array-like): (H,W) or (N,) phase labels.
+        phase (str|list[str]|None): Requested phase name(s).
+        candidates (list[str]|None): Names to match against, in the order
+            they should be returned. Defaults to the labels present in
+            ``mineral_map``.
+
+    Returns:
+        resolved (list[str]|None): Matched names as they appear in the map, in
+            ``candidates`` order, or None when ``phase`` is None (no filter).
+    """
+    if phase is None:
+        return None
+    if candidates is None:
+        candidates = list(pd.unique(_clean_labels_1d(mineral_map)))
+
+    requested = [phase] if isinstance(phase, str) else list(phase)
+    by_key = {str(c).strip().lower(): c for c in candidates}
+    matched = set()
+    for p in requested:
+        match = by_key.get(str(p).strip().lower())
+        if match is None:
+            warnings.warn(
+                f"Phase {p!r} not found in this map. Available phases: "
+                f"{sorted(by_key.values())}.",
+                UserWarning,
+                stacklevel=3,
+            )
+        else:
+            matched.add(match)
+    return [c for c in candidates if c in matched]
+
+
 def _make_palette(labels, cmap_name="tab20"):
     """
     Map labels to RGB tuples sampled from a matplotlib colormap.
@@ -2541,22 +2581,11 @@ def interactive_pixels(
     present = {v for v in mineral_map.ravel() if v is not None and v != "nan"}
     kept_phases = [p for p in result["kept_phases"] if p in present]
 
-    # Optionally restrict to a single phase or list of phases.
-    if phase is not None:
-        requested = [phase] if isinstance(phase, str) else list(phase)
-        name_by_lower = {p.lower(): p for p in kept_phases}
-        resolved = set()
-        for p in requested:
-            match = name_by_lower.get(p.lower())
-            if match is None:
-                warnings.warn(
-                    f"Phase {p!r} not found in this map. Available phases: "
-                    f"{sorted(name_by_lower.values())}.",
-                    UserWarning,
-                )
-            else:
-                resolved.add(match)
-        kept_phases = [p for p in kept_phases if p in resolved]
+    # Optionally restrict to a single phase or list of phases. `allowed` holds
+    # the names as they appear in the map, and is reused to filter clicks.
+    allowed = _resolve_phases(mineral_map, phase, candidates=kept_phases)
+    if allowed is not None:
+        kept_phases = allowed
 
     phase_to_id = {p: i + 1 for i, p in enumerate(kept_phases)}
     ids = np.zeros((H, W), dtype=int)
@@ -2652,10 +2681,8 @@ def interactive_pixels(
             return
 
         clicked_phase = mineral_map[y, x]
-        if phase is not None:
-            phase_filter = {phase} if isinstance(phase, str) else set(phase)
-            if clicked_phase not in phase_filter:
-                return
+        if allowed is not None and clicked_phase not in allowed:
+            return
         half = int(region) // 2
         y0c = max(0, y - half)
         y1c = min(H, y + half + 1)
@@ -2830,7 +2857,10 @@ def _line_strip_geometry(start, end, width_px):
 
     direction = vec / length_px
     normal = np.array([-direction[1], direction[0]], dtype=float)
-    half_width = max(float(width_px), 0.0) / 2.0
+    width_px = float(width_px)
+    if not np.isfinite(width_px):
+        raise ValueError(f"width_px must be a finite number; got {width_px}.")
+    half_width = max(width_px, 0.0) / 2.0
     offset = normal * half_width
 
     outline = np.vstack(
@@ -3118,7 +3148,9 @@ def interactive_line_profile(
         method (str): Aggregation method passed to ``extract_line_profile()``.
         source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
         phase (str|list[str]|None): If provided, mask the map so only pixels
-            matching this phase are shown; all others are set to NaN.
+            matching this phase are shown; all others are set to NaN. Matching
+            is case-insensitive; a phase not present in the map raises a
+            ``UserWarning`` and is ignored.
         width_px (float): Transect-strip width in pixels.
         n_bins (int|None): Number of distance bins.
         pixel_size_um (float|None): Micrometers per pixel.
@@ -3159,8 +3191,7 @@ def interactive_line_profile(
     data = get_profile_map(res, key, source=source)
 
     if phase is not None and "mineral_map" in res:
-        phase_filter = {phase} if isinstance(phase, str) else set(phase)
-        phase_mask = np.isin(res["mineral_map"], list(phase_filter))
+        phase_mask = np.isin(res["mineral_map"], _resolve_phases(res["mineral_map"], phase))
         data = np.where(phase_mask, data, np.nan)
 
     valid = data[np.isfinite(data)]
@@ -3599,7 +3630,9 @@ def interactive_region(
             ``include_oxides``).
         source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
         phase (str|list[str]|None): If provided, mask the map so only pixels
-            matching this phase are shown; all others are set to NaN.
+            matching this phase are shown; all others are set to NaN. Matching
+            is case-insensitive; a phase not present in the map raises a
+            ``UserWarning`` and is ignored.
         pixel_size_um (float|None): Micrometers per pixel, used to populate
             physical-area columns.
         cmap (str): Colormap for the source map.
@@ -3643,8 +3676,7 @@ def interactive_region(
     mineral_map = res.get("mineral_map") if isinstance(res, dict) else None
 
     if phase is not None and mineral_map is not None:
-        phase_filter = {phase} if isinstance(phase, str) else set(phase)
-        phase_mask = np.isin(mineral_map, list(phase_filter))
+        phase_mask = np.isin(mineral_map, _resolve_phases(mineral_map, phase))
         data = np.where(phase_mask, data, np.nan)
 
     oxide_maps = {}
@@ -3873,6 +3905,7 @@ def batch_extract_line_profiles(
     keys=None,
     source="auto",
     *,
+    width_px=None,
     pixel_size_um=None,
     method="mean",
     smooth_window=1,
@@ -3889,6 +3922,10 @@ def batch_extract_line_profiles(
         keys (str|list[str]|None): Oxide/component keys to extract. If None,
             defaults to available oxide maps in the canonical ``OXIDES`` order.
         source (str): One of ``"auto"``, ``"oxide"``, or ``"component"``.
+        width_px (float|None): Strip width in pixels, applied to every
+            transect. If None, uses each transect row's ``width_px``, with 1
+            pixel wherever it is missing. A ``UserWarning`` is raised if the
+            transects end up with different widths.
         pixel_size_um (float|None): Override physical pixel size. If None,
             uses the value from each transect row when present.
         method (str): Aggregation method passed to ``extract_line_profile()``.
@@ -3934,8 +3971,26 @@ def batch_extract_line_profiles(
 
     if "profile_id" not in transects_df.columns:
         transects_df["profile_id"] = np.arange(1, len(transects_df) + 1)
-    if "width_px" not in transects_df.columns:
+    # One width for every transect if given; otherwise each row's own, with
+    # 1 px filling any gaps (a partly filled column would otherwise hold NaN,
+    # which selects no pixels and returns an all-NaN profile).
+    if width_px is not None:
+        transects_df["width_px"] = float(width_px)
+    elif "width_px" not in transects_df.columns:
         transects_df["width_px"] = 1.0
+    else:
+        transects_df["width_px"] = (
+            pd.to_numeric(transects_df["width_px"], errors="coerce").fillna(1.0)
+        )
+    widths = sorted(transects_df["width_px"].unique())
+    if len(widths) > 1:
+        warnings.warn(
+            f"Transects use different strip widths ({', '.join(f'{w:g}' for w in widths)} px), "
+            "so their profiles average different numbers of pixels. Pass "
+            "width_px= to use one width for every transect.",
+            UserWarning,
+            stacklevel=2,
+        )
     if "n_bins" not in transects_df.columns:
         transects_df["n_bins"] = np.nan
 

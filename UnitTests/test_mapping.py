@@ -9,6 +9,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.backend_bases import MouseEvent, KeyEvent
 
 import mineralML as mm
 from mineralML.constants import OXIDES
@@ -21,6 +22,11 @@ from mineralML.mapping import (
     _auto_figsize_from_array,
     _add_scalebar,
     _plot_continuous_map,
+    _coerce_profile_color,
+    _profile_table_for_key,
+    _resolve_profile_value_columns,
+    _line_strip_geometry,
+    _resolve_phases,
 )
 
 
@@ -932,6 +938,731 @@ class TestRunMap(unittest.TestCase):
     def test_empty_dict_raises(self):
         with self.assertRaises(ValueError):
             mm.run_map({})
+
+
+# ---------------------------------------------------------------------------
+#  shared fixtures
+# ---------------------------------------------------------------------------
+
+
+def _make_res(H=12, W=16):
+    """
+    Minimal run_map-style result. SiO2 rises by 1 wt% per column and MgO
+    falls by 0.5 wt% per row, so profile and region values can be checked
+    by hand. Columns 0-7 are olivine, 8-15 plagioclase.
+    """
+    yy, xx = np.mgrid[0:H, 0:W].astype(float)
+    sio2 = 40.0 + xx
+    mgo = 20.0 - 0.5 * yy
+    mineral_map = np.where(xx < 8, "Olivine", "Plagioclase").astype(object)
+    return {
+        "mineral_map": mineral_map,
+        "oxide_maps": {"SiO2": sio2, "MgO": mgo, "Total": sio2 + mgo},
+        "component_maps": {"Olivine.XFo": np.where(xx < 8, 0.9, np.nan)},
+        "kept_phases": ["Olivine", "Plagioclase"],
+        "shape": (H, W),
+    }
+
+
+def _draw(ax):
+    ax.figure.canvas.draw()
+
+
+def _click(ax, x, y, button=1):
+    """Send a button press at data coordinates (x, y) on ax."""
+    _draw(ax)
+    px, py = ax.transData.transform((x, y))
+    ev = MouseEvent("button_press_event", ax.figure.canvas, px, py, button=button)
+    ax.figure.canvas.callbacks.process("button_press_event", ev)
+
+
+def _key(fig, key):
+    ev = KeyEvent("key_press_event", fig.canvas, key)
+    fig.canvas.callbacks.process("key_press_event", ev)
+
+
+def _drag(ax, x0, y0, x1, y1):
+    """Press at (x0, y0), move and release at (x1, y1), in data coordinates."""
+    _draw(ax)
+    canvas = ax.figure.canvas
+    p0 = ax.transData.transform((x0, y0))
+    p1 = ax.transData.transform((x1, y1))
+    for name, (px, py) in [("button_press_event", p0),
+                           ("motion_notify_event", p1),
+                           ("button_release_event", p1)]:
+        canvas.callbacks.process(name, MouseEvent(name, canvas, px, py, button=1))
+
+
+# ---------------------------------------------------------------------------
+#  profile helpers
+# ---------------------------------------------------------------------------
+
+
+class TestCoerceProfileColor(unittest.TestCase):
+
+    def test_none_and_nan_return_fallback(self):
+        self.assertEqual(_coerce_profile_color(None, fallback="red"), "red")
+        self.assertEqual(_coerce_profile_color(float("nan"), fallback="red"), "red")
+
+    def test_default_fallback_is_tab10_first(self):
+        self.assertEqual(_coerce_profile_color(None), plt.get_cmap("tab10")(0))
+
+    def test_valid_colors_pass_through(self):
+        self.assertEqual(_coerce_profile_color("#1f77b4"), "#1f77b4")
+        self.assertEqual(_coerce_profile_color("black"), "black")
+        self.assertEqual(_coerce_profile_color((1.0, 0.0, 0.0, 1.0)), (1.0, 0.0, 0.0, 1.0))
+
+    def test_serialised_tuple_string_is_parsed(self):
+        out = _coerce_profile_color("(0.0, 0.5, 1.0, 1.0)", fallback="red")
+        self.assertEqual(out, (0.0, 0.5, 1.0, 1.0))
+
+    def test_unparseable_string_returns_fallback(self):
+        self.assertEqual(_coerce_profile_color("not-a-colour", fallback="red"), "red")
+        self.assertEqual(_coerce_profile_color("[1, 2", fallback="red"), "red")
+
+
+class TestProfileTableForKey(unittest.TestCase):
+
+    def test_renames_drops_and_orders(self):
+        df = pd.DataFrame({
+            "x1": [1.0], "value": [5.0], "bin": [0], "value_smoothed": [5.5],
+            "distance_px": [0.5], "profile_id": [1], "key": ["SiO2"],
+            "n_pixels": [3], "extra": ["e"], "x0": [0.0],
+        })
+        out = _profile_table_for_key(df, "SiO2")
+        self.assertEqual(list(out.columns),
+                         ["profile_id", "distance_px", "SiO2", "SiO2_smoothed",
+                          "extra", "x0", "x1"])
+        self.assertEqual(out["SiO2_smoothed"].iat[0], 5.5)
+
+
+class TestResolveProfileValueColumns(unittest.TestCase):
+
+    def test_generic_columns(self):
+        df = pd.DataFrame(columns=["distance_px", "value", "value_smoothed"])
+        self.assertEqual(_resolve_profile_value_columns(df), ("value", "value_smoothed"))
+
+    def test_key_named_columns(self):
+        df = pd.DataFrame(columns=["profile_id", "distance_px", "MgO", "MgO_smoothed", "x0"])
+        self.assertEqual(_resolve_profile_value_columns(df), ("MgO", "MgO_smoothed"))
+
+    def test_raw_only_uses_raw_for_smoothed(self):
+        df = pd.DataFrame(columns=["distance_px", "CaO"])
+        self.assertEqual(_resolve_profile_value_columns(df), ("CaO", "CaO"))
+
+    def test_value_without_smoothed_falls_back_to_other_smoothed(self):
+        df = pd.DataFrame(columns=["value", "other_smoothed"])
+        self.assertEqual(_resolve_profile_value_columns(df), ("value", "other_smoothed"))
+
+    def test_only_metadata_raises(self):
+        df = pd.DataFrame(columns=["profile_id", "distance_px", "x0", "y0"])
+        with self.assertRaises(KeyError):
+            _resolve_profile_value_columns(df)
+
+
+class TestLineStripGeometry(unittest.TestCase):
+
+    def test_horizontal_line(self):
+        g = _line_strip_geometry((0, 0), (4, 0), 2.0)
+        self.assertEqual(g["length_px"], 4.0)
+        np.testing.assert_allclose(g["direction"], [1, 0])
+        np.testing.assert_allclose(g["normal"], [0, 1])
+        self.assertEqual(g["half_width"], 1.0)
+        self.assertEqual(g["outline"].shape, (5, 2))
+        np.testing.assert_allclose(g["outline"][0], g["outline"][-1])
+
+    def test_nan_width_raises(self):
+        with self.assertRaises(ValueError):
+            _line_strip_geometry((0, 0), (4, 0), float("nan"))
+        with self.assertRaises(ValueError):
+            mm.extract_line_profile(np.ones((5, 5)), (0, 2), (4, 2), width_px=np.nan)
+
+    def test_negative_width_is_clamped(self):
+        self.assertEqual(_line_strip_geometry((0, 0), (1, 1), -3)["half_width"], 0.0)
+
+    def test_bad_inputs_raise(self):
+        with self.assertRaises(ValueError):
+            _line_strip_geometry((0, 0, 0), (1, 1), 1)
+        with self.assertRaises(ValueError):
+            _line_strip_geometry((2, 2), (2, 2), 1)
+
+
+class TestResolvePhases(unittest.TestCase):
+
+    def setUp(self):
+        self.map = np.array([["Olivine", "Plagioclase"],
+                             [None, "nan"],
+                             ["Glass", "Olivine"]], dtype=object)
+
+    def test_none_means_no_filter(self):
+        self.assertIsNone(_resolve_phases(self.map, None))
+
+    def test_case_and_whitespace_insensitive(self):
+        self.assertEqual(_resolve_phases(self.map, "  oLiViNe "), ["Olivine"])
+
+    def test_list_keeps_candidate_order_and_dedupes(self):
+        out = _resolve_phases(self.map, ["glass", "OLIVINE", "Olivine"])
+        self.assertEqual(out, ["Olivine", "Glass"])            # map order
+
+    def test_unknown_names_warn_and_are_dropped(self):
+        with self.assertWarns(UserWarning) as cm:
+            out = _resolve_phases(self.map, ["Olivine", "Quartz"])
+        self.assertEqual(out, ["Olivine"])
+        self.assertIn("'Quartz' not found", str(cm.warning))
+        self.assertNotIn("nan", str(cm.warning))                # empty labels excluded
+
+    def test_explicit_candidates(self):
+        out = _resolve_phases(self.map, "glass", candidates=["Glass", "Olivine"])
+        self.assertEqual(out, ["Glass"])
+        with self.assertWarns(UserWarning):
+            self.assertEqual(_resolve_phases(self.map, "Plagioclase",
+                                             candidates=["Olivine"]), [])
+
+
+# ---------------------------------------------------------------------------
+#  get_profile_map
+# ---------------------------------------------------------------------------
+
+
+class TestGetProfileMap(unittest.TestCase):
+
+    def setUp(self):
+        self.res = _make_res()
+
+    def test_auto_finds_oxide_then_component(self):
+        np.testing.assert_array_equal(mm.get_profile_map(self.res, "SiO2"),
+                                      self.res["oxide_maps"]["SiO2"])
+        out = mm.get_profile_map(self.res, "Olivine.XFo")
+        self.assertEqual(out.dtype, float)
+
+    def test_explicit_sources(self):
+        mm.get_profile_map(self.res, "MgO", source="oxide")
+        mm.get_profile_map(self.res, "Olivine.XFo", source="component")
+        with self.assertRaises(KeyError):
+            mm.get_profile_map(self.res, "Olivine.XFo", source="oxide")
+        with self.assertRaises(KeyError):
+            mm.get_profile_map(self.res, "SiO2", source="component")
+
+    def test_plain_oxide_dict(self):
+        plain = {"SiO2": np.ones((2, 2))}
+        np.testing.assert_array_equal(mm.get_profile_map(plain, "SiO2"), np.ones((2, 2)))
+
+    def test_errors(self):
+        with self.assertRaises(TypeError):
+            mm.get_profile_map([1, 2], "SiO2")
+        with self.assertRaises(ValueError):
+            mm.get_profile_map(self.res, "SiO2", source="bogus")
+        with self.assertRaises(KeyError):
+            mm.get_profile_map(self.res, "FeOt")
+
+
+# ---------------------------------------------------------------------------
+#  extract_line_profile / plot_line_profile
+# ---------------------------------------------------------------------------
+
+
+class TestExtractLineProfile(unittest.TestCase):
+
+    def setUp(self):
+        self.sio2 = _make_res()["oxide_maps"]["SiO2"]    # 40 + column index
+
+    def test_method_none_returns_every_pixel(self):
+        prof, samples = mm.extract_line_profile(self.sio2, (2, 5), (10, 5), width_px=1.0)
+        self.assertIs(prof, samples)
+        np.testing.assert_allclose(prof["value"], np.arange(42, 51))
+        np.testing.assert_allclose(prof["distance_px"], np.arange(0, 9))
+        self.assertTrue(prof["distance_um"].isna().all())
+        self.assertEqual(prof.attrs["length_px"], 8.0)
+        self.assertEqual(prof.attrs["method"], "none")
+
+    def test_method_none_smoothing_and_pixel_size(self):
+        prof, _ = mm.extract_line_profile(self.sio2, (2, 5), (10, 5), pixel_size_um=2.0,
+                                          smooth_window=3)
+        np.testing.assert_allclose(prof["distance_um"], prof["distance_px"] * 2.0)
+        self.assertAlmostEqual(prof["value_smoothed"].iat[0], 42.5)   # edge window of 2
+        self.assertAlmostEqual(prof["value_smoothed"].iat[4], prof["value"].iat[4])
+
+    def test_mean_binning(self):
+        prof, samples = mm.extract_line_profile(self.sio2, (2, 5), (10, 5), n_bins=4,
+                                                method="mean")
+        np.testing.assert_allclose(prof["distance_px"], [1, 3, 5, 7])
+        np.testing.assert_allclose(prof["value"], [42.5, 44.5, 46.5, 49.0])
+        np.testing.assert_array_equal(prof["n_pixels"], [2, 2, 2, 3])
+        self.assertEqual(len(samples), 9)
+        self.assertEqual(samples.attrs["start"], (2.0, 5.0))
+
+    def test_median_differs_from_mean_with_outlier(self):
+        data = self.sio2.copy()
+        data[5, 10] = 100.0
+        mean, _ = mm.extract_line_profile(data, (2, 5), (10, 5), n_bins=4, method="mean")
+        med, _ = mm.extract_line_profile(data, (2, 5), (10, 5), n_bins=4, method="median")
+        self.assertAlmostEqual(mean["value"].iat[-1], (48 + 49 + 100) / 3)
+        self.assertAlmostEqual(med["value"].iat[-1], 49.0)
+
+    def test_default_bins_and_smoothing(self):
+        prof, _ = mm.extract_line_profile(self.sio2, (2, 5), (10, 5), method="mean",
+                                          smooth_window=3, pixel_size_um=0.5)
+        self.assertEqual(len(prof), 8)                     # ceil(length) bins
+        np.testing.assert_allclose(prof["distance_um"], prof["distance_px"] * 0.5)
+        self.assertFalse(prof["value_smoothed"].equals(prof["value"]))
+
+    def test_wide_diagonal_strip(self):
+        _, samples = mm.extract_line_profile(self.sio2, (1, 1), (10, 9), width_px=3.0,
+                                             method="mean")
+        self.assertGreater(len(samples), 20)
+        self.assertTrue((samples["perp_distance_px"].abs() <= 1.5).all())
+
+    def test_nan_strip_gives_empty_bins(self):
+        data = np.full((6, 6), np.nan)
+        prof, samples = mm.extract_line_profile(data, (0, 2), (5, 2), n_bins=5,
+                                                method="mean", pixel_size_um=2.0)
+        self.assertTrue(samples.empty)
+        self.assertTrue(prof["value"].isna().all())
+        self.assertTrue((prof["n_pixels"] == 0).all())
+        np.testing.assert_allclose(prof["distance_um"], prof["distance_px"] * 2.0)
+
+        prof2, _ = mm.extract_line_profile(data, (0, 2), (5, 2), n_bins=5, method="mean")
+        self.assertTrue(prof2["distance_um"].isna().all())
+
+    def test_errors(self):
+        with self.assertRaises(ValueError):
+            mm.extract_line_profile(np.arange(5.0), (0, 0), (1, 0))
+        with self.assertRaises(ValueError):
+            mm.extract_line_profile(self.sio2, (0, 0), (5, 0), method="max")
+        with self.assertRaises(ValueError):
+            mm.extract_line_profile(self.sio2, (0, 0), (5, 0), method="mean", n_bins=0)
+
+
+class TestPlotLineProfile(unittest.TestCase):
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_pixel_distances_and_counts(self):
+        sio2 = _make_res()["oxide_maps"]["SiO2"]
+        prof, _ = mm.extract_line_profile(sio2, (2, 5), (10, 5), n_bins=4, method="mean")
+        ax = mm.plot_line_profile(prof, label="SiO2", show_counts=True)
+        self.assertEqual(ax.get_xlabel(), "Distance (px)")
+        self.assertIsNotNone(ax.get_legend())
+        self.assertEqual(len(ax.figure.axes), 2)                      # twin count axis
+
+    def test_micron_distances_and_existing_axis(self):
+        sio2 = _make_res()["oxide_maps"]["SiO2"]
+        prof, _ = mm.extract_line_profile(sio2, (2, 5), (10, 5), pixel_size_um=1.5)
+        fig, ax = plt.subplots()
+        out = mm.plot_line_profile(_profile_table_for_key(prof, "SiO2"), ax=ax)
+        self.assertIs(out, ax)
+        self.assertEqual(ax.get_xlabel(), "Distance (µm)")
+        self.assertIsNone(ax.get_legend())
+
+
+# ---------------------------------------------------------------------------
+#  extract_region_stats
+# ---------------------------------------------------------------------------
+
+
+class TestExtractRegionStats(unittest.TestCase):
+
+    def setUp(self):
+        self.res = _make_res()
+        self.sio2 = self.res["oxide_maps"]["SiO2"]
+
+    def test_box_stats(self):
+        df, stats = mm.extract_region_stats(self.sio2, 1.2, 1.2, 4.8, 3.8)
+        self.assertEqual(stats["n_pixels"], 20)                       # x 1-5, y 1-4
+        self.assertAlmostEqual(stats["mean"], 43.0)
+        self.assertEqual(stats["min"], 41.0)
+        self.assertEqual(stats["max"], 45.0)
+        self.assertEqual(set(df.columns), {"x", "y", "value"})
+
+    def test_reversed_corners_and_phase_column(self):
+        df, stats = mm.extract_region_stats(self.sio2, 9, 3, 6, 1,
+                                            mineral_map=self.res["mineral_map"])
+        self.assertEqual(stats["n_pixels"], 12)
+        self.assertEqual(set(df["phase"]), {"Olivine", "Plagioclase"})
+
+    def test_clipped_to_map_and_nan_excluded(self):
+        data = self.sio2.copy()
+        data[0, 0] = np.nan
+        _, stats = mm.extract_region_stats(data, -5, -5, 1, 1)
+        self.assertEqual(stats["n_pixels"], 3)
+
+    def test_all_nan_region(self):
+        _, stats = mm.extract_region_stats(np.full((4, 4), np.nan), 0, 0, 2, 2)
+        self.assertEqual(stats["n_pixels"], 0)
+        self.assertTrue(np.isnan(stats["mean"]))
+
+    def test_non_2d_raises(self):
+        with self.assertRaises(ValueError):
+            mm.extract_region_stats(np.arange(4.0), 0, 0, 1, 1)
+
+
+# ---------------------------------------------------------------------------
+#  batch_extract_line_profiles
+# ---------------------------------------------------------------------------
+
+
+class TestBatchExtractLineProfiles(unittest.TestCase):
+
+    def setUp(self):
+        self.res = _make_res()
+        self.transects = [
+            {"x0": 2, "y0": 5, "x1": 10, "y1": 5, "width_px": 1.0},
+            {"x0": 3, "y0": 1, "x1": 3, "y1": 9, "width_px": 1.0, "n_bins": 4,
+             "pixel_size_um": 0.5},
+        ]
+
+    def test_binned_wide_table(self):
+        out = mm.batch_extract_line_profiles(self.res, self.transects)
+        for col in ["SiO2", "SiO2_smoothed", "MgO", "MgO_smoothed"]:
+            self.assertIn(col, out.columns)
+        self.assertEqual(sorted(out["profile_id"].unique()), [1, 2])
+        p1 = out[out["profile_id"] == 1]
+        self.assertEqual(len(p1), 8)
+        self.assertAlmostEqual(p1["SiO2"].iat[0], 42.0)
+        self.assertTrue(np.allclose(p1["MgO"], 17.5))
+        p2 = out[out["profile_id"] == 2]
+        self.assertEqual(len(p2), 4)
+        np.testing.assert_allclose(p2["distance_um"], p2["distance_px"] * 0.5)
+
+    def test_single_key_string_and_return_long(self):
+        wide, long = mm.batch_extract_line_profiles(self.res, self.transects, keys="SiO2",
+                                                    method="median", return_long=True)
+        self.assertNotIn("MgO", wide.columns)
+        self.assertEqual(set(long["key"]), {"SiO2"})
+
+    def test_method_none_keeps_pixels(self):
+        out = mm.batch_extract_line_profiles(self.res, self.transects[:1],
+                                             keys=["SiO2", "MgO"], method="none",
+                                             pixel_size_um=2.0)
+        self.assertEqual(len(out), 9)
+        np.testing.assert_allclose(out["SiO2"], np.arange(42, 51))
+        np.testing.assert_allclose(out["distance_um"], out["distance_px"] * 2.0)
+
+    def test_plain_oxide_dict_and_component_source(self):
+        out = mm.batch_extract_line_profiles(self.res["oxide_maps"], self.transects[:1])
+        self.assertIn("SiO2", out.columns)
+        comp = mm.batch_extract_line_profiles(self.res, self.transects[:1],
+                                              keys="Olivine.XFo", source="component")
+        self.assertIn("Olivine.XFo", comp.columns)
+
+    def test_width_column_absent_defaults_to_one_pixel(self):
+        tr = [{"x0": 2, "y0": 5, "x1": 10, "y1": 5}]
+        out = mm.batch_extract_line_profiles(self.res, tr, keys="SiO2", method="none")
+        self.assertEqual(len(out), 9)
+        self.assertTrue((out["width_px"] == 1.0).all())
+
+    def test_width_missing_on_some_rows_defaults_to_one_pixel(self):
+        # Regression: a partly filled width_px column used to leave NaN widths,
+        # which selected no pixels and returned all-NaN profiles.
+        tr = [{"x0": 2, "y0": 5, "x1": 10, "y1": 5},
+              {"x0": 3, "y0": 1, "x1": 3, "y1": 9, "width_px": 3.0}]
+        with self.assertWarns(UserWarning) as cm:
+            out = mm.batch_extract_line_profiles(self.res, tr, keys="SiO2", method="none")
+        self.assertIn("different strip widths (1, 3 px)", str(cm.warning))
+        p1 = out[out["profile_id"] == 1]
+        self.assertEqual(len(p1), 9)                                # 1 px strip
+        self.assertTrue((p1["width_px"] == 1.0).all())
+        self.assertFalse(p1["SiO2"].isna().any())
+
+    def test_width_override_applies_to_every_transect(self):
+        tr = [{"x0": 2, "y0": 5, "x1": 10, "y1": 5, "width_px": 1.0},
+              {"x0": 3, "y0": 1, "x1": 3, "y1": 9, "width_px": 5.0}]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")                          # no mixed-width warning
+            out = mm.batch_extract_line_profiles(self.res, tr, keys="SiO2",
+                                                 method="none", width_px=3.0)
+        self.assertTrue((out["width_px"] == 3.0).all())
+        self.assertEqual(len(out[out["profile_id"] == 1]), 27)      # 9 columns x 3 rows
+
+    def test_matching_widths_do_not_warn(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            mm.batch_extract_line_profiles(self.res, self.transects, keys="SiO2")
+
+    def test_errors(self):
+        with self.assertRaises(ValueError):
+            mm.batch_extract_line_profiles({"oxide_maps": {"Foo": np.ones((3, 3))}},
+                                           self.transects)
+        with self.assertRaises(ValueError):
+            mm.batch_extract_line_profiles(self.res, self.transects, keys=[])
+        with self.assertRaises(KeyError):
+            mm.batch_extract_line_profiles(self.res, [{"x0": 0, "y0": 0}])
+
+
+# ---------------------------------------------------------------------------
+#  plot_locations
+# ---------------------------------------------------------------------------
+
+
+class TestPlotLocations(unittest.TestCase):
+
+    def setUp(self):
+        self.res = _make_res()
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_transects_on_map(self):
+        tr = pd.DataFrame({"x0": [2, 3], "y0": [5, 1], "x1": [10, 3], "y1": [5, 9],
+                           "width_px": [3.0, np.nan],
+                           "color": ["(1.0, 0.0, 0.0, 1.0)", "not-a-colour"]})
+        fig, ax = mm.plot_locations(self.res, tr, map_key="SiO2")
+        self.assertEqual(ax.get_title(), "Profile Locations: SiO2")
+        self.assertEqual(len(ax.patches), 1)                       # one width strip
+        self.assertEqual(len(fig.axes), 2)                         # map + colorbar
+
+    def test_transects_blank_canvas_no_annotation(self):
+        tr = [{"x0": 1, "y0": 1, "x1": 8, "y1": 8}]
+        fig, ax = mm.plot_locations(self.res, tr, annotate=False, show_width=False,
+                                    title="Mine")
+        self.assertEqual(ax.get_title(), "Mine")
+        self.assertEqual(len(ax.texts), 0)
+
+    def test_pixel_picks(self):
+        picks = pd.DataFrame({"x": [1, 5], "y": [2, 6]})
+        _, ax = mm.plot_locations(self.res, picks)
+        self.assertEqual(ax.get_title(), "Pixel Pick Locations")
+        self.assertEqual(len(ax.texts), 2)
+        _, ax2 = mm.plot_locations(self.res, picks, map_key="MgO", vmin=10, vmax=20)
+        self.assertEqual(ax2.get_title(), "Pixel Pick Locations: MgO")
+
+    def test_regions(self):
+        regions = pd.DataFrame({"x0": [1], "y0": [1], "x1": [5], "y1": [4],
+                                "height_px": [3.0]})
+        _, ax = mm.plot_locations(self.res, regions)
+        self.assertEqual(ax.get_title(), "Region Locations")
+        self.assertEqual(len(ax.patches), 1)
+        _, ax2 = mm.plot_locations(self.res, regions, map_key="SiO2")
+        self.assertEqual(ax2.get_title(), "Region Locations: SiO2")
+
+    def test_existing_axis(self):
+        fig, ax = plt.subplots()
+        fig_out, ax_out = mm.plot_locations(self.res, [{"x0": 0, "y0": 0, "x1": 3, "y1": 3}],
+                                            ax=ax)
+        self.assertIs(fig_out, fig)
+        self.assertIs(ax_out, ax)
+
+    def test_errors(self):
+        with self.assertRaises(KeyError):
+            mm.plot_locations(self.res, [{"x0": 0, "y0": 0}])
+        with self.assertRaises(KeyError):
+            mm.plot_locations({"oxide_maps": {}}, [{"x0": 0, "y0": 0, "x1": 1, "y1": 1}])
+
+
+# ---------------------------------------------------------------------------
+#  interactive tools, driven with synthetic mouse and key events
+# ---------------------------------------------------------------------------
+
+
+def _quiet(fn, *args, **kwargs):
+    """Call an interactive tool, asserting the non-interactive-backend warning."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        out = fn(*args, **kwargs)
+    assert any("interactive Matplotlib backend" in str(w.message) for w in caught)
+    return out
+
+
+class TestInteractiveLineProfile(unittest.TestCase):
+
+    def setUp(self):
+        self.res = _make_res()
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_click_pair_builds_profile_and_keys(self):
+        ctl = _quiet(mm.interactive_line_profile, self.res, "SiO2", pixel_size_um=1.0)
+        ax_map = ctl["fig"].axes[0]
+        self.assertIsNone(ctl["get_profile"]())
+        self.assertIsNone(ctl["get_samples"]())
+
+        _click(ax_map, 1.6, 5.0)
+        _click(ax_map, 10.4, 5.0)
+        self.assertEqual(len(ctl["profiles"]), 1)
+        self.assertEqual(len(ctl["get_samples"]()), 27)             # 9 columns x 3 rows
+        self.assertIn("SiO2", ctl["get_profile"]().columns)
+        coords = ctl["get_coordinates"]()
+        self.assertEqual(coords[["x0", "y0", "x1", "y1"]].iloc[0].tolist(), [2, 5, 10, 5])
+
+        _click(ax_map, 3.2, 1.6)                                    # second profile
+        _click(ax_map, 3.2, 9.4)
+        self.assertEqual(len(ctl["profiles"]), 2)
+        self.assertEqual(len(ctl["profiles_df"]["profile_id"].unique()), 2)
+
+        _key(ctl["fig"], "u")                                       # undo last
+        self.assertEqual(len(ctl["profiles"]), 1)
+        _click(ax_map, 4.0, 4.0)                                    # half a pair ...
+        _key(ctl["fig"], "r")                                       # ... then reset
+        _key(ctl["fig"], "c")                                       # clear all
+        self.assertEqual(ctl["profiles"], [])
+        self.assertIsNone(ctl["profiles_df"])
+
+        _key(ctl["fig"], "q")                                       # disconnect
+        _click(ax_map, 1.6, 5.0)
+        _click(ax_map, 10.4, 5.0)
+        self.assertEqual(ctl["profiles"], [])
+
+    def test_single_mode_replaces_and_third_click_restarts(self):
+        ctl = _quiet(mm.interactive_line_profile, self.res, "MgO", multi=False,
+                     width_px=0.0, method="mean", layout="horizontal")
+        ax_map = ctl["fig"].axes[0]
+        _click(ax_map, 1.6, 2.0)
+        _click(ax_map, 10.4, 2.0)
+        _click(ax_map, 2.0, 1.6)
+        _click(ax_map, 2.0, 9.4)
+        self.assertEqual(len(ctl["profiles"]), 1)
+        self.assertEqual(ctl["get_coordinates"]()["x0"].iat[0], 2)
+        _key(ctl["fig"], "u")                                       # width 0: two artists
+        self.assertEqual(ctl["profiles"], [])
+
+    def test_clicks_outside_map_and_phase_mask(self):
+        ctl = _quiet(mm.interactive_line_profile, self.res, "SiO2", phase="Olivine",
+                     width_px=1.0)
+        ax_map, ax_profile = ctl["fig"].axes[0], ctl["fig"].axes[1]
+        _click(ax_profile, 0.5, 0.5)                                # ignored
+        _click(ax_map, 1.6, 5.0)
+        _click(ax_map, 12.4, 5.0)
+        vals = ctl["get_samples"]()["value"]
+        self.assertTrue((vals < 48).all())                          # plagioclase masked
+
+    def test_phase_is_case_insensitive_and_unknown_warns(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ctl = mm.interactive_line_profile(self.res, "SiO2", phase=["OLIVINE", "Quartz"],
+                                              width_px=1.0)
+        self.assertTrue(any("'Quartz' not found" in str(w.message) for w in caught))
+        ax_map = ctl["fig"].axes[0]
+        _click(ax_map, 1.6, 5.0)
+        _click(ax_map, 12.4, 5.0)
+        vals = ctl["get_samples"]()["value"]
+        self.assertEqual(len(vals), 6)                              # olivine columns 2-7
+        self.assertTrue((vals < 48).all())
+
+    def test_bad_layout_raises(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with self.assertRaises(ValueError):
+                mm.interactive_line_profile(self.res, "SiO2", layout="diagonal")
+
+
+class TestInteractiveRegion(unittest.TestCase):
+
+    def setUp(self):
+        self.res = _make_res()
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_drag_records_region_and_oxides(self):
+        ctl = _quiet(mm.interactive_region, self.res, "SiO2", pixel_size_um=2.0)
+        ax_map = ctl["fig"].axes[0]
+        self.assertIsNone(ctl["get_region"]())
+        self.assertIsNone(ctl["get_samples"]())
+
+        _drag(ax_map, 1.2, 1.2, 4.8, 3.8)
+        self.assertEqual(len(ctl["regions"]), 1)
+        rec = ctl["get_region"]()
+        self.assertEqual(rec["n_pixels"], 20)
+        self.assertAlmostEqual(rec["mean"], 43.0)
+        self.assertIn("mean_MgO", rec)
+        self.assertFalse(np.isnan(rec["area_um2"]))
+        self.assertIn("MgO", ctl["get_samples"]().columns)
+
+        _drag(ax_map, 9.2, 2.2, 12.8, 6.8)
+        self.assertEqual(len(ctl["regions_df"]), 2)
+        _key(ctl["fig"], "u")
+        self.assertEqual(len(ctl["regions"]), 1)
+        _key(ctl["fig"], "r")
+        _key(ctl["fig"], "c")
+        self.assertIsNone(ctl["regions_df"])
+        _key(ctl["fig"], "q")
+
+    def test_single_mode_phase_mask_without_oxides(self):
+        ctl = _quiet(mm.interactive_region, self.res, "MgO", phase=["Plagioclase"],
+                     multi=False, include_oxides=False)
+        ax_map = ctl["fig"].axes[0]
+        _drag(ax_map, 1.2, 1.2, 4.8, 3.8)                           # olivine: all masked
+        self.assertEqual(ctl["get_region"]()["n_pixels"], 0)
+        _drag(ax_map, 9.2, 1.2, 12.8, 3.8)
+        self.assertEqual(len(ctl["regions"]), 1)
+        self.assertEqual(ctl["get_region"]()["n_pixels"], 20)
+        self.assertNotIn("mean_SiO2", ctl["get_region"]())
+
+
+class TestInteractiveRegionPhaseCase(unittest.TestCase):
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_lower_case_phase_matches_exact_name(self):
+        counts = []
+        for phase in ("Plagioclase", "plagioclase"):
+            ctl = _quiet(mm.interactive_region, _make_res(), "SiO2", phase=phase)
+            _drag(ctl["fig"].axes[0], 6.2, 1.2, 10.8, 3.8)            # straddles the contact
+            counts.append(ctl["get_region"]()["n_pixels"])
+        self.assertEqual(counts, [16, 16])                          # plag x 8-11, y 1-4
+
+
+class TestInteractivePixels(unittest.TestCase):
+
+    def setUp(self):
+        self.res = _make_res()
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_clicks_average_same_phase_box(self):
+        ctl = _quiet(mm.interactive_pixels, self.res, region=3,
+                     phase_colors={"Olivine": "green", "Quartz": "grey"})
+        ax_map, fig = ctl["fig"].axes[0], ctl["fig"]
+        _click(ax_map, 3.2, 4.1)                                    # olivine interior
+        picks = ctl["picks"]
+        self.assertEqual(picks["n_pixels"].iat[0], 9)
+        self.assertAlmostEqual(picks["SiO2"].iat[0], 43.0)
+        self.assertEqual(picks["phase"].iat[0], "Olivine")
+
+        _click(ax_map, 7.9, 6.0)                                    # plag edge: 2 of 3 columns
+        self.assertEqual(ctl["picks"]["n_pixels"].iat[1], 6)
+
+        _key(fig, "u")
+        self.assertEqual(len(ctl["picks"]), 1)
+        _key(fig, "c")
+        self.assertTrue(ctl["picks"].empty)
+        _key(fig, "q")
+        _click(ax_map, 3.2, 4.1)
+        self.assertTrue(ctl["picks"].empty)
+
+    def test_single_pixel_phase_filter_and_heatmap(self):
+        res = _make_res()
+        res["oxide_maps"]["Total_raw"] = res["oxide_maps"]["Total"] * 0.99
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ctl = mm.interactive_pixels(res, region=1, phase=["Olivine", "Quartz"],
+                                        oxide_key="SiO2")
+        self.assertTrue(any("'Quartz' not found" in str(w.message) for w in caught))
+        ax_map = ctl["fig"].axes[0]
+        _click(ax_map, 12.0, 4.0)                                   # plagioclase: ignored
+        self.assertTrue(ctl["picks"].empty)
+        _click(ax_map, 2.0, 3.0)
+        self.assertEqual(ctl["picks"]["n_pixels"].iat[0], 1)
+        self.assertIn("Total_raw", ctl["picks"].columns)
+        _click(ctl["fig"].axes[1], 0.5, 0.5)                        # legend axis: ignored
+        self.assertEqual(len(ctl["picks"]), 1)
+
+    def test_phase_filter_is_case_insensitive_for_clicks(self):
+        # Regression: clicks used to be filtered on the raw `phase` argument,
+        # so phase="olivine" silently ignored every olivine click.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ctl = mm.interactive_pixels(self.res, region=1, phase="olivine")
+        _click(ctl["fig"].axes[0], 2.0, 3.0)
+        self.assertEqual(len(ctl["picks"]), 1)
+
+    def test_even_region_raises(self):
+        with self.assertRaises(ValueError):
+            mm.interactive_pixels(self.res, region=4)
 
 
 if __name__ == "__main__":

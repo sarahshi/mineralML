@@ -1,5 +1,9 @@
 import types
 import os
+import io
+import contextlib
+import warnings
+from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -15,6 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import mineralML as mm
+from mineralML.constants import OXIDES
 
 def _get_oxides():
     # Be tolerant to where OXIDES lives
@@ -1258,6 +1263,347 @@ class TestPlotHarker(unittest.TestCase):
             title="My Harker Diagram",
         )
         plt.close("all")
+
+
+def _silent(fn, *args, **kwargs):
+    """Call fn with stdout captured; return (result, printed text)."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        out = fn(*args, **kwargs)
+    return out, buf.getvalue()
+
+
+
+
+# Real analyses (wt%) spanning the network classes and the empirical rules
+# (training data natural rows and the Cpx compilation), plus an empty row
+ANALYSES = pd.DataFrame([
+    # 20210320-003_E5-1 (Kahletal2023)
+    dict(Sample="ol", SiO2=39.671, TiO2=0.008, Al2O3=0.042, FeOt=13.926, MnO=0.225,
+         MgO=45.983, CaO=0.312, Cr2O3=0.03),
+    # HLY0102-D41-4 (Bennettetal2019)
+    dict(Sample="plag", SiO2=50.27, Al2O3=31.06, FeOt=0.38, MgO=0.18, CaO=14.11, Na2O=3.26,
+         K2O=0.05),
+    # Conboy cpx-8 (Hildreth and Fierstein, 1997)
+    dict(Sample="cpx", SiO2=51.399, TiO2=0.69, Al2O3=2.324, FeOt=8.674, MnO=0.242,
+         MgO=15.668, CaO=20.025, Na2O=0.376, Cr2O3=0.039),
+    # Gon05262iph-g (Kleinsasseretal2008)
+    dict(Sample="qz", SiO2=97.25, TiO2=0.01, Al2O3=0, FeOt=0.03, MnO=0, MgO=0, CaO=0.01,
+         Na2O=0, K2O=0),
+    # Z131 (Geisler1999)
+    dict(Sample="zrc", SiO2=31.53, FeOt=0, CaO=0.014, P2O5=0.09, ZrO2=65.77),
+    # CG-2b_67 (Myintetal2022)
+    dict(Sample="cc", SiO2=0, Al2O3=0.0043, FeOt=0.301, MnO=0.497, MgO=0.261, CaO=54.165),
+    dict(Sample="blank"),
+]).reindex(columns=["Sample"] + OXIDES + ["ZrO2"])
+
+
+# ---------------------------------------------------------------------------
+#  prep_df / norm_data branches
+# ---------------------------------------------------------------------------
+
+
+class TestPrepDfBranches(unittest.TestCase):
+
+    def test_fe_variants_raise_or_convert(self):
+        df = pd.DataFrame({"SiO2": [50.0], "FeO": [10.0], "MgO": [30.0]})
+        with self.assertRaises(ValueError):
+            mm.prep_df(df.copy(), verbose=False)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out, printed = _silent(mm.prep_df, df.copy(), convert_fe=True)
+        self.assertIn("Converted iron columns", printed)
+        self.assertAlmostEqual(out["FeOt"].iat[0], 10.0)
+
+    def test_sample_index_is_recovered_as_column(self):
+        df = pd.DataFrame({"SiO2": [50.0, 45.0], "MgO": [30.0, 40.0]},
+                          index=pd.Index(["a", "b"], name="Sample"))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out = mm.prep_df(df, verbose=False)
+        self.assertEqual(list(out["Sample"]), ["a", "b"])
+        self.assertEqual(out.columns[0], "Sample")
+
+    def test_non_numeric_values_warn_and_zero(self):
+        df = pd.DataFrame({"SiO2": ["bdl", 45.0], "MgO": [30.0, 40.0]})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            out = mm.prep_df(df, verbose=False)
+        self.assertTrue(any("Non-numeric" in str(w.message) and "'bdl'" in str(w.message)
+                            for w in caught))
+        self.assertEqual(out["SiO2"].iat[0], 0.0)
+
+    def test_renormalise_and_drop_empty_rows(self):
+        df = pd.DataFrame({"SiO2": [40.0, 0.0, 30.0], "MgO": [40.0, 0.0, 0.0]})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            out, printed = _silent(mm.prep_df, df, renormalize=True, drop_empty_rows=True)
+        self.assertIn("Renormalized 2 row(s)", printed)
+        self.assertIn("2 dropped", printed)
+        self.assertTrue(any("were dropped" in str(w.message) for w in caught))
+        self.assertEqual(len(out), 1)
+        self.assertAlmostEqual(out[OXIDES + ["ZrO2"]].sum(axis=1).iat[0], 100.0)
+
+
+class TestNormDataBranches(unittest.TestCase):
+
+    def test_scaler_must_be_series(self):
+        with mock.patch("mineralML.hybrid.load_scaler",
+                        return_value=(np.zeros(11), np.ones(11))):
+            with self.assertRaises(ValueError):
+                mm.norm_data(pd.DataFrame({c: [1.0] for c in OXIDES}))
+
+    def test_scaler_missing_column(self):
+        mean = pd.Series(0.0, index=OXIDES[:-1])
+        with mock.patch("mineralML.hybrid.load_scaler", return_value=(mean, mean + 1)):
+            with self.assertRaises(ValueError):
+                mm.norm_data(pd.DataFrame({c: [1.0] for c in OXIDES}))
+
+    def test_nan_inputs_are_prepped(self):
+        mean, std = pd.Series(1.0, index=OXIDES), pd.Series(2.0, index=OXIDES)
+        df = pd.DataFrame({c: [3.0] for c in OXIDES})
+        df.loc[0, "MnO"] = np.nan
+        with mock.patch("mineralML.hybrid.load_scaler", return_value=(mean, std)):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                x, _ = _silent(mm.norm_data, df)
+        self.assertEqual(x.shape, (1, len(OXIDES)))
+        self.assertAlmostEqual(x[0, OXIDES.index("SiO2")], 1.0)
+        self.assertAlmostEqual(x[0, OXIDES.index("MnO")], -0.5)   # NaN filled with 0
+
+    def test_absent_columns_are_added_as_zero(self):
+        # Regression: an absent oxide column used to raise KeyError before the
+        # prep_df fallback could run.
+        mean, std = pd.Series(1.0, index=OXIDES), pd.Series(2.0, index=OXIDES)
+        df = pd.DataFrame({c: [3.0] for c in OXIDES if c not in ("MnO", "P2O5")})
+        with mock.patch("mineralML.hybrid.load_scaler", return_value=(mean, std)):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                x, _ = _silent(mm.norm_data, df)
+        self.assertTrue(any("were missing" in str(w.message) for w in caught))
+        self.assertAlmostEqual(x[0, OXIDES.index("MnO")], -0.5)
+        self.assertAlmostEqual(x[0, OXIDES.index("SiO2")], 1.0)
+
+
+# ---------------------------------------------------------------------------
+#  balance, with pyrolite mocked (it is not a runtime dependency)
+# ---------------------------------------------------------------------------
+
+
+def _fake_pyrolite():
+    fake_pyrolite = types.ModuleType("pyrolite")
+    fake_util = types.ModuleType("util")
+    fake_cls = types.ModuleType("classification")
+
+    class FakeTAS:
+        def predict(self, df_):
+            return pd.Series(np.where(df_["SiO2"] > 60, "Dacite", "Andesite"),
+                             index=df_.index)
+
+    fake_cls.TAS = FakeTAS
+    fake_util.classification = fake_cls
+    fake_pyrolite.util = fake_util
+    return {"pyrolite": fake_pyrolite, "pyrolite.util": fake_util,
+            "pyrolite.util.classification": fake_cls}
+
+
+class TestBalanceBranches(unittest.TestCase):
+
+    def _df(self):
+        rng = np.random.default_rng(0)
+        counts = {"Olivine": 12, "Amphibole": 20, "Garnet": 3, "Clinopyroxene": 12,
+                  "Orthopyroxene": 12, "Plagioclase": 12, "Alkali_Feldspar": 12,
+                  "Ilmenite": 6, "Hematite": 2, "Magnetite": 6, "Spinel": 2,
+                  "Glass": 10, "Apatite": 3, "Titanite": 1000}
+        rows = []
+        for mineral, n in counts.items():
+            block = pd.DataFrame(rng.uniform(0, 50, size=(n, len(OXIDES))), columns=OXIDES)
+            block["Mineral"] = mineral
+            rows.append(block)
+        df = pd.concat(rows, ignore_index=True)
+        glass = df["Mineral"] == "Glass"
+        df.loc[glass, "SiO2"] = np.linspace(50, 75, glass.sum())
+        return df
+
+    def test_group_sizes(self):
+        with mock.patch.dict("sys.modules", _fake_pyrolite()):
+            out = mm.balance(self._df(), n=4)
+        counts = out["Mineral"].value_counts()
+        self.assertEqual(counts["Olivine"], 4)            # kmeans, remainder allocated
+        self.assertEqual(counts["Amphibole"], 8)          # 2n
+        self.assertEqual(counts["Garnet"], 3)             # fewer rows than n: all kept
+        self.assertEqual(counts["Pyroxene"], 8)           # 4 cpx + 4 opx
+        self.assertEqual(counts["Feldspar"], 8)
+        self.assertEqual(counts["Rhombohedral_Oxides"], 6)  # 4 ilmenite (capped) + 2 hematite
+        self.assertEqual(counts["Spinel_Group"], 6)
+        self.assertEqual(counts["Glass"], 8)              # TAS-stratified to 2n
+        self.assertEqual(counts["Apatite"], 4)            # oversampled up to n
+        self.assertEqual(counts["Titanite"], 4)           # >= 1000 rows: capped
+        self.assertNotIn("TAS", out.columns)
+
+    def test_missing_pyrolite_raises(self):
+        blocked = {k: None for k in _fake_pyrolite()}
+        with mock.patch.dict("sys.modules", blocked):
+            with self.assertRaises(ImportError):
+                mm.balance(self._df(), n=4)
+
+
+# ---------------------------------------------------------------------------
+#  predict_class_prob: empirical rules, subclassing, reconstruction
+# ---------------------------------------------------------------------------
+
+
+class TestPredictClassProbBranches(unittest.TestCase):
+
+    def test_rules_subclasses_and_reconstruction(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out, printed = _silent(mm.predict_class_prob, ANALYSES.copy(), n_iterations=5,
+                                   return_recon_oxides=True, seed=42)
+        pred = dict(zip(out["Sample"], out["Predict_Mineral"]))
+        self.assertEqual(pred["ol"], "Olivine")
+        self.assertEqual(pred["plag"], "Plagioclase")
+        self.assertEqual(pred["cpx"], "Clinopyroxene")
+        self.assertEqual(pred["qz"], "SiO2_Polymorph")
+        self.assertEqual(pred["zrc"], "Zircon")
+        self.assertEqual(pred["cc"], "Carbonate")
+        self.assertTrue(pd.isna(pred["blank"]))
+        self.assertIn("classified by neural network", printed)
+        for ox in OXIDES:
+            self.assertIn(f"{ox}_recon", out.columns)
+        nn_rows = out["Sample"].isin(["ol", "plag", "cpx"])
+        self.assertTrue(out.loc[nn_rows, "SiO2_recon"].notna().all())
+        self.assertTrue(out.loc[~nn_rows, "SiO2_recon"].isna().all())
+
+    def test_raw_data_with_absent_columns_skips_prep_df(self):
+        raw = pd.DataFrame([
+            dict(SiO2=51.5, TiO2=0.8, Al2O3=3.0, FeOt=9.0, MgO=15.5, CaO=19.0, Na2O=0.4),
+            dict(SiO2=52.0, Al2O3=30.0, FeOt=0.5, CaO=13.0, Na2O=4.0, K2O=0.1),
+        ])                                          # no MnO, Cr2O3 or P2O5 columns
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            out, _ = _silent(mm.predict_class_prob, raw, n_iterations=5, seed=42,
+                             verbose=False)
+        self.assertEqual(list(out["Predict_Mineral"]), ["Clinopyroxene", "Plagioclase"])
+        self.assertTrue(any("were missing" in str(w.message) for w in caught))
+
+    def test_deprecated_wrapper(self):
+        with self.assertWarns(DeprecationWarning):
+            out, _ = _silent(mm.predict_class_prob_nnwr, ANALYSES.iloc[:1].copy(),
+                             n_iterations=2, verbose=False)
+        self.assertEqual(out["Predict_Mineral"].iat[0], "Olivine")
+
+
+# ---------------------------------------------------------------------------
+#  load_hybrid_checkpoint
+# ---------------------------------------------------------------------------
+
+
+class TestLoadHybridCheckpoint(unittest.TestCase):
+
+    def setUp(self):
+        self.model, self.ckpt, self.config = mm.load_hybrid_checkpoint(device="cpu")
+        self.tmp = TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _save(self, ckpt):
+        path = os.path.join(self.tmp.name, "ckpt.pt")
+        torch.save(ckpt, path)
+        return path
+
+    def test_default_load_is_eval(self):
+        self.assertFalse(self.model.training)
+        self.assertIn("model_state_dict", self.ckpt)
+        self.assertTrue(self.config)
+
+    def test_eval_mode_off(self):
+        model, _, _ = mm.load_hybrid_checkpoint(device="cpu", eval_mode=False)
+        self.assertTrue(model.training)
+
+    def test_missing_state_or_config_raises(self):
+        no_state = {k: v for k, v in self.ckpt.items() if k != "model_state_dict"}
+        with self.assertRaises(KeyError):
+            mm.load_hybrid_checkpoint(model_path=self._save(no_state), device="cpu")
+        empty_cfg = dict(self.ckpt, model_config={})
+        with self.assertRaises(KeyError):
+            mm.load_hybrid_checkpoint(model_path=self._save(empty_cfg), device="cpu")
+
+    def test_non_strict_warns_about_missing_keys(self):
+        state = dict(self.ckpt["model_state_dict"])
+        state.pop(next(iter(state)))
+        path = self._save(dict(self.ckpt, model_state_dict=state))
+        with self.assertWarns(UserWarning):
+            mm.load_hybrid_checkpoint(model_path=path, device="cpu", strict=False)
+
+    def test_optimizer_state_restored_from_either_key(self):
+        opt = torch.optim.Adam(self.model.parameters(), lr=0.123)
+        for key in ("optimizer_state_dict", "optimizer"):
+            path = self._save(dict(self.ckpt, **{key: opt.state_dict()}))
+            fresh = mm.build_model_from_config(self.config, device="cpu")
+            fresh_opt = torch.optim.Adam(fresh.parameters(), lr=1.0)
+            mm.load_hybrid_checkpoint(model_path=path, device="cpu", optimizer=fresh_opt)
+            self.assertAlmostEqual(fresh_opt.param_groups[0]["lr"], 0.123)
+
+
+# ---------------------------------------------------------------------------
+#  plot_latent_space (real bundled model and reference latents)
+# ---------------------------------------------------------------------------
+
+
+class TestPlotLatentSpaceBranches(unittest.TestCase):
+
+    def setUp(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.pred, _ = _silent(mm.predict_class_prob, ANALYSES.iloc[:3].copy(),
+                                   n_iterations=2, seed=42)
+
+    def tearDown(self):
+        plt.close("all")
+
+    def test_labels_rollup_oxide_and_unmapped_warning(self):
+        df = pd.concat([self.pred, self.pred.iloc[:2]], ignore_index=True)
+        df.loc[3, "Predict_Mineral"] = "Oxide"
+        df.loc[3, "Submineral"] = "Spinel_Group"
+        df.loc[4, "Predict_Mineral"] = "Zircon"
+        df = pd.concat([df, df.iloc[[0]].assign(Predict_Mineral="Unobtainium")],
+                       ignore_index=True)
+        with TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "z2.png")
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                mm.plot_latent_space(df, filename=path,
+                                     ref_kws={"color": {"Olivine": "red"}},
+                                     new_kws={"color": "black"})
+            self.assertTrue(os.path.exists(path))
+        msgs = " ".join(str(w.message) for w in caught)
+        self.assertIn("Empirical labels", msgs)
+        self.assertIn("Unobtainium", msgs)
+
+    def test_integer_labels_and_colour_overrides(self):
+        df = self.pred.assign(label_id=[0, 1, 2])
+        mm.plot_latent_space(df, label_column="label_id",
+                             ref_kws={"color": "grey"},
+                             new_kws={"color": {"Olivine": "blue"}})
+        self.assertEqual(len(plt.get_fignums()), 1)        # drawn, left open by plt.show()
+
+    def test_missing_label_column_raises(self):
+        with self.assertRaises(KeyError):
+            mm.plot_latent_space(self.pred.drop(columns="Predict_Mineral"))
+
+    def test_deprecated_overlay_wrapper(self):
+        with self.assertWarns(DeprecationWarning):
+            mm.plot_z2_overlay(self.pred)
+
+
+class TestDeprecatedLoaders(unittest.TestCase):
+
+    def test_load_minclass_nn(self):
+        with self.assertWarns(DeprecationWarning):
+            classes = mm.load_minclass_nn()
+        self.assertEqual(list(classes), list(mm.load_mineral_classes()))
 
 
 if __name__ == "__main__":
