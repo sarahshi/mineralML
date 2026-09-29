@@ -1784,7 +1784,7 @@ def train_hybrid_model(
 
 def predict_class_prob(
     df,
-    n_iterations=250,
+    n_iterations=50,
     *,
     model_path=None,
     mc_dropout=True,

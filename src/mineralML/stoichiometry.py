@@ -3324,3 +3324,85 @@ class ZirconCalculator(BaseMineralCalculator):
 
 
 # %%
+
+
+# Predicted mineral label -> stoichiometry calculator. Oxides are keyed by their
+# Submineral (Spinel_Group, Rhombohedral_Oxides), since Predict_Mineral is just "Oxide".
+MINERAL_CALCULATORS = {
+    "Alkali_Feldspar": FeldsparCalculator,
+    "Amphibole": AmphiboleCalculator,
+    "Apatite": ApatiteCalculator,
+    "Biotite": BiotiteCalculator,
+    "Carbonate": CarbonateCalculator,
+    "Chlorite": ChloriteCalculator,
+    "Clinopyroxene": ClinopyroxeneCalculator,
+    "Epidote": EpidoteCalculator,
+    "Garnet": GarnetCalculator,
+    "Glass": GlassCalculator,
+    "Kalsilite": KalsiliteCalculator,
+    "Leucite": LeuciteCalculator,
+    "Melilite": MeliliteCalculator,
+    "Muscovite": MuscoviteCalculator,
+    "Na-Pyroxene": SodicPyroxeneCalculator,
+    "Nepheline": NephelineCalculator,
+    "Olivine": OlivineCalculator,
+    "Orthopyroxene": OrthopyroxeneCalculator,
+    "Plagioclase": FeldsparCalculator,
+    "Rhombohedral_Oxides": RhombohedralOxideCalculator,
+    "Rutile": RutileCalculator,
+    "Serpentine": SerpentineCalculator,
+    "SiO2_Polymorph": QuartzCalculator,
+    "Spinel_Group": SpinelCalculator,
+    "Titanite": TitaniteCalculator,
+    "Tourmaline": TourmalineCalculator,
+    "Zircon": ZirconCalculator,
+}
+
+
+def append_stoichiometry(df, mineral_col="Predict_Mineral", submineral_col="Submineral"):
+    """
+    Appends stoichiometry (moles, oxygens, cations, site assignments, and end-members)
+    to classified analyses, using the calculator for each row's predicted mineral.
+    All original columns (sample IDs, oxides, predictions, prediction scores) are kept;
+    only the newly calculated columns are added. Rows whose mineral has no calculator,
+    or that are unclassified, get NaN in the calculated columns.
+
+    Parameters:
+        df (pd.DataFrame): Classified analyses, e.g. the output of predict_class_prob.
+        mineral_col (str): Column holding the predicted mineral.
+        submineral_col (str): Column holding the oxide subclass (Spinel_Group or
+            Rhombohedral_Oxides), used for rows where mineral_col is "Oxide".
+
+    Returns:
+        pd.DataFrame: df with calculated columns appended. Columns calculated for one
+        mineral are NaN for rows of other minerals.
+    """
+
+    if mineral_col not in df.columns:
+        raise ValueError(f"df must contain a '{mineral_col}' column")
+
+    work = df.reset_index(drop=True)
+    key = work[mineral_col]
+    if submineral_col in work.columns:
+        key = work[submineral_col].where(key == "Oxide", key)
+
+    pieces = []
+    for mineral, group in work.groupby(key):
+        calculator = MINERAL_CALCULATORS.get(mineral)
+        if calculator is None:
+            continue
+        try:
+            out = calculator(group).calculate_components()
+        except Exception as e:
+            warnings.warn(f"Stoichiometry skipped for {mineral}: {e}", UserWarning, stacklevel=2)
+            continue
+        # Calculators echo the oxides, predictions and a renamed 'Sample' column; keep only new columns.
+        pieces.append(out.drop(columns=[c for c in out.columns if c in work.columns or c == "Sample"]))
+
+    if not pieces:
+        return df.copy()
+
+    calculated = pd.concat(pieces).reindex(work.index)
+    result = pd.concat([work, calculated], axis=1)
+    result.index = df.index
+    return result

@@ -3,9 +3,16 @@ Changelog
 =========
 
 
+Version 0.0.3.21
+================
+``export_predictions_to_excel`` now appends stoichiometry (moles, cations, site assignments, end-members such as ``Fo`` or ``An``) to each mineral sheet, alongside the predictions and prediction scores. The ``All`` sheet is unchanged. Set ``stoichiometry=False`` for the previous behavior.
+
+Added ``append_stoichiometry``, which does the same in Python: it runs the matching calculator for each analysis's ``Predict_Mineral`` (or ``Submineral``, for oxides) and returns the classified DataFrame with calculated columns appended.
+
+
 Version 0.0.3.20
 ================
-Added ``interactive_region``, a clickable-and-drag box-selection tool for sampling oxide compositions over a rectangular region rather than a single pixel or transect. Click and drag to draw a box. Releasing allows for every pixel inside it. By default (``include_oxides=True``), every oxide (plus ``Total``/``Total_raw`` if present) is sampled per box, so ``regions_df`` includes a ``mean_<Oxide>`` column per oxide and ``samples_df`` includes a raw per-pixel value column per oxide, alongside the primary ``key`` map used for display. 
+Added ``interactive_region``, a click-and-drag box-selection tool for sampling oxide compositions over a rectangular region rather than a single pixel or transect. By default (``include_oxides=True``), every oxide (plus ``Total``/``Total_raw`` if present) is sampled per box, so ``regions_df`` includes a ``mean_<Oxide>`` column per oxide and ``samples_df`` includes a raw per-pixel value column per oxide, alongside the primary ``key`` map used for display. 
 
 Added ``extract_region_stats``, the non-interactive helper that extracts per-pixel values and summary stats (mean, median, std, min, max, n_pixels) for a given box.
 

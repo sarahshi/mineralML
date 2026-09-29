@@ -195,14 +195,18 @@ def load_model(model, optimizer=None, path=''):
         optimizer.load_state_dict(check_point['optimizer'])
 
 
-def export_predictions_to_excel(results_df, filename="prediction_results.xlsx"):
+def export_predictions_to_excel(results_df, filename="prediction_results.xlsx", stoichiometry=True):
     """
     Export prediction results to an Excel workbook with one sheet called "All"
     containing all rows, and additional sheets for each predicted mineral.
 
     Parameters:
-        results_df (pd.DataFrame): The results DataFrame returned by predict_class_prob_nn.
-        filename (str): The name of the Excel file to write.
+        results_df (pd.DataFrame): The results DataFrame returned by predict_class_prob.
+        filename (str or file-like): The Excel file to write.
+        stoichiometry (bool): If True, each mineral sheet also gets that mineral's
+            stoichiometry (moles, cations, site assignments, end-members) appended
+            to the classified rows, via append_stoichiometry. The "All" sheet is
+            unchanged.
 
     Returns:
         str: Path to the saved Excel file.
@@ -211,14 +215,21 @@ def export_predictions_to_excel(results_df, filename="prediction_results.xlsx"):
     if "Predict_Mineral" not in results_df.columns:
         raise ValueError("results_df must contain a 'Predict_Mineral' column")
 
+    # Imported here, not at module top: loading scipy (via stoichiometry) right after torch
+    # changes OpenMP runtime load order and crashes some macOS conda environments.
+    from .stoichiometry import append_stoichiometry
+
+    per_mineral_df = append_stoichiometry(results_df) if stoichiometry else results_df
+    calculated_cols = per_mineral_df.columns.difference(results_df.columns)
+
     with pd.ExcelWriter(filename, engine="openpyxl") as writer:
         # Write all results
         results_df.to_excel(writer, sheet_name="All", index=False)
 
-        # write separate sheets for each mineral
-        for mineral, group in results_df.groupby("Predict_Mineral"):
+        # write separate sheets for each mineral, dropping other minerals' calculated columns
+        for mineral, group in per_mineral_df.groupby("Predict_Mineral"):
+            empty = [c for c in calculated_cols if group[c].isna().all()]
             sheet_name = str(mineral)[:31].replace("/", "-").replace("\\", "-")
-            group.to_excel(writer, sheet_name=sheet_name, index=False)
+            group.drop(columns=empty).to_excel(writer, sheet_name=sheet_name, index=False)
 
     return filename
- 
