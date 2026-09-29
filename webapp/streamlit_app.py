@@ -256,6 +256,19 @@ with st.expander("How to cite"):
         "EarthArXiv. doi:10.31223/X53J2M",
         language=None, wrap_lines=True,
     )
+    st.markdown("BibTeX:")
+    st.code(
+        "@article{Shietal2026,\n"
+        "  doi     = {10.31223/X53J2M},\n"
+        "  url     = {https://doi.org/10.31223/X53J2M},\n"
+        "  year    = {2026},\n"
+        "  author  = {Shi, Sarah C and Wieser, Penny E and Gordon, Charlotte and Toth, Norbert and "
+        "Antoshechkina, Paula M and Gleeson, Matthew LM and Lehnert, Kerstin},\n"
+        "  title   = {mineralML: Leveraging Machine Learning for Probabilistic Mineral Classification},\n"
+        "  journal = {Earth ArXiv},\n"
+        "}",
+        language="bibtex",
+    )
 
 df_in = None
 if source == "Upload a file":
