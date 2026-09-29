@@ -3,6 +3,7 @@
 [![Build Status](https://github.com/SarahShi/mineralML/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/SarahShi/mineralML/actions/workflows/main.yml)
 [![Documentation Status](https://readthedocs.org/projects/mineralml/badge/?version=latest)](https://mineralml.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/SarahShi/mineralML/branch/main/graph/badge.svg)](https://codecov.io/gh/SarahShi/mineralML/branch/main)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://mineralml.streamlit.app)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SarahShi/mineralML/blob/main/mineralML_colab.ipynb)
 [![Python 3.8](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/release/python-380/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
@@ -32,8 +33,14 @@ Shi, S., Wieser, P., Gordon, C., Toth, N., Antoshechkina, P.M., Gleeson, M., Leh
 ```
 
 ## Run on the Cloud 
-If you do not have Python installed locally, run mineralML on [Google Colab](https://colab.research.google.com/github/SarahShi/mineralML/blob/main/mineralML_colab.ipynb). The Cloud-based version runs rapidly, with test cases of >10,000 microanalyses classified within 4 seconds. 
 
+### Web app (no Python needed)
+Open the mineralML web app at **[mineralml.streamlit.app](https://mineralml.streamlit.app)**. Upload a CSV or Excel file of oxide wt% (or type analyses in manually), get mineral classifications with prediction scores, and download an Excel workbook with one sheet per mineral plus stoichiometry sheets. The app sleeps after 12 hours without visitors; if you see a wake-up button, click it and wait ~30 seconds.
+
+To run the app locally, see [webapp/README.md](webapp/README.md).
+
+### Google Colab
+If you do not have Python installed locally, run mineralML on [Google Colab](https://colab.research.google.com/github/SarahShi/mineralML/blob/main/mineralML_colab.ipynb). The Cloud-based version runs rapidly, with test cases of >10,000 microanalyses classified within 4 seconds. 
 
 ## Run and Install Locally
 Obtain a version of Python between 3.9 and 3.14 if you do not already have it installed. mineralML can be installed with one line. Open terminal and type the following:
