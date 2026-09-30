@@ -22,10 +22,15 @@ project = 'mineralML'
 copyright = '2023, Sarah Shi'
 author = 'Sarah Shi'
 
-# The short X.Y version
-version = ''
+# Read the version from the package so the docs always match the release.
+_version = {}
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       '..', 'src', 'PyIRoGlass', '_version.py')) as f:
+    exec(f.read(), _version)
 # The full version, including alpha/beta/rc tags
-release = 'v.0'
+release = _version['__version__']
+# The short X.Y version
+version = '.'.join(release.split('.')[:2])
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the

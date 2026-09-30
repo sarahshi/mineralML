@@ -15,7 +15,7 @@ We present mineralML (mineral classification using Machine Learning) for probabi
 Read the [documentation](https://mineralml.readthedocs.io/en/latest/?badge=latest) for a run-through of the mineralML code. 
 
 ## Citation
-If you use mineralML in your work, please cite this abstract. This package represents a significant time investment. Proper citation helps support continued development and academic recognition.
+If you use mineralML in your work, please cite this preprint. This package represents a significant time investment. Proper citation helps support continued development and academic recognition.
 
 ```console
 Shi, S., Wieser, P., Gordon, C., Toth, N., Antoshechkina, P.M., Gleeson, M., Lehnert, K., (2026) mineralML: Leveraging Machine Learning for Probabilistic Mineral Classification in Geochemical Databases", Earth ArXiv. doi:10.31223/X53J2M
