@@ -25,7 +25,7 @@ author = 'Sarah Shi'
 # Read the version from the package so the docs always match the release.
 _version = {}
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                       '..', 'src', 'PyIRoGlass', '_version.py')) as f:
+                       '..', 'src', 'mineralML', '_version.py')) as f:
     exec(f.read(), _version)
 # The full version, including alpha/beta/rc tags
 release = _version['__version__']
