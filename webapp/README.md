@@ -1,6 +1,8 @@
 # mineralML web app
 
-Browser front end for mineralML: upload a CSV/Excel file of oxide wt% (or type analyses manually, for those so inclined), get classifications with prediction scores, and download a Excel workbook with one sheet per mineral plus stoichiometry sheets. No Python needed for users :-).
+Browser front end for mineralML: upload a CSV/Excel file of oxide wt% (or type analyses manually, for those so inclined), get classifications with prediction scores, and download a Excel workbook with one sheet per mineral plus stoichiometry sheets. Classification diagrams (TAS, feldspar and pyroxene ternaries, the pyroxene quadrilateral, amphibole, Fe–Ti oxide and spinel), plus custom ternaries and Harker plots, download as PDF, SVG or PNG. No Python needed for users :-).
+
+`streamlit_app.py` is the page; `diagrams.py` builds the composition diagrams (fields from the mineralML classifiers, points redrawn so they can be colored by any column).
 
 ## Run locally
 

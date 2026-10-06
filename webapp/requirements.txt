@@ -4,3 +4,4 @@ torch
 mineralML==0.0.3.21
 streamlit>=1.64
 openpyxl
+python-ternary

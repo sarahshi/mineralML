@@ -2,6 +2,7 @@
 
 import io
 import warnings
+from pathlib import Path
 
 import pandas as pd
 import matplotlib
@@ -11,12 +12,22 @@ matplotlib.use("Agg")
 import streamlit as st
 import mineralML as mm
 
+import diagrams as dg  # webapp/diagrams.py; streamlit puts the script's folder on sys.path
+
 st.set_page_config(page_title="mineralML", page_icon="💎", initial_sidebar_state=350)  # sidebar width, px (default 300)
 st.set_page_config(initial_sidebar_state="expanded")  # additive: keeps the width, and opens the sidebar on every screen size
 
 OXIDES = mm.OXIDES + ["ZrO2"]
 SAMPLE_COLS = ["SampleID", "Sample", "Sample Name", "Sample ID"]
 MAX_ROWS = 200_000
+SOURCES = ["Upload a file", "Use the example dataset", "Type in analyses"]
+MODES = {
+    "Classify and plot": "Predict each analysis's mineral, with prediction scores, then draw composition diagrams.",
+    "Plot only": "Skip classification and draw diagrams from your compositions and your own Mineral labels, "
+                 "e.g. for glass or whole-rock data.",
+}
+# 100 analyses of each of 28 minerals from the training data, also used in the docs notebooks.
+EXAMPLE_FILE = Path(__file__).resolve().parents[1] / "docs" / "examples" / "TabularData" / "training_hundred.csv"
 
 EXAMPLE = pd.DataFrame(
     [
@@ -48,16 +59,25 @@ def read_upload(uploaded):
     return df
 
 
+@st.cache_data(show_spinner=False)
+def load_example():
+    return pd.read_csv(EXAMPLE_FILE, index_col=0)
+
+
+def use_example():
+    st.session_state["source"] = "Use the example dataset"
+
+
 @st.cache_data(show_spinner=False, max_entries=8)
-def classify(df, convert_fe, renormalize, drop_empty_rows):
-    """Runs prep_df + predict_class_prob, returning results and any warnings raised."""
+def classify(df, convert_fe, renormalize, drop_empty_rows, predict=True):
+    """Runs prep_df (+ predict_class_prob if predict), returning results and any warnings raised."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         prepped = mm.prep_df(
             df.copy(), convert_fe=convert_fe, renormalize=renormalize,
             drop_empty_rows=drop_empty_rows, verbose=False,
         )
-        results = mm.predict_class_prob(prepped, verbose=False)
+        results = mm.predict_class_prob(prepped, verbose=False) if predict else prepped
     # predict_class_prob keeps only oxides + known metadata; carry the user's other columns through.
     extra = [c for c in prepped.columns if c not in results.columns]
     results = pd.concat([results, prepped[extra]], axis=1)
@@ -83,6 +103,259 @@ def latent_png(results):
     return buf.getvalue()
 
 
+# Options each diagram is prepared with before the user changes anything.
+DEFAULT_OPTS = {"tas": {"labels": "Volcanic names", "anhydrous": True}}
+PREDICTION_COLS = ["Predict_Mineral", "Submineral", "Prediction_Score", "Prediction_Score_Sigma",
+                   "Second_Predict_Mineral", "Second_Prediction_Score"]
+
+
+# How rows are chosen for a diagram: label shown to the user -> column (None for every row).
+SELECT_BY = {"Predicted mineral": "Predict_Mineral", "Your Mineral column": "Mineral", "All analyses": None}
+OXIDE_WORDS = ("oxide", "spinel", "magnetite", "ilmenite", "hematite")  # names OxideClassifier routes
+
+
+def label_values(df, by):
+    return sorted(df[by].dropna().astype(str).unique()) if by else []
+
+
+# Common names in users' own Mineral columns, beyond mineralML's labels (compared in lowercase).
+ALIASES = {
+    "Glass": ("melt", "matrix glass", "melt inclusion", "whole rock", "whole-rock", "bulk rock", "liquid"),
+    "Plagioclase": ("plag", "pl", "albite", "anorthite", "labradorite", "andesine", "bytownite", "oligoclase"),
+    "Alkali_Feldspar": ("kfeldspar", "k-feldspar", "k feldspar", "kfs", "sanidine", "orthoclase",
+                        "anorthoclase", "microcline", "alkali feldspar", "feldspar"),
+    "Clinopyroxene": ("cpx", "augite", "diopside", "hedenbergite", "pigeonite", "pyroxene"),
+    "Orthopyroxene": ("opx", "enstatite", "hypersthene", "ferrosilite", "bronzite"),
+    "Na-Pyroxene": ("omphacite", "aegirine", "jadeite", "aegirine-augite"),
+    "Amphibole": ("amph", "amp", "hornblende", "hbl", "pargasite", "edenite", "kaersutite", "tremolite",
+                  "actinolite", "tschermakite"),
+}
+
+
+def default_values(d, values):
+    """Labels that belong on diagram d, matched case-insensitively (all labels if none match)."""
+    if not d.minerals:
+        return values
+    wanted = {m.lower() for m in d.minerals}
+    wanted |= {a for m in d.minerals for a in ALIASES.get(m, ())}
+    match = [v for v in values if v.lower() in wanted]
+    if "Oxide" in d.minerals:  # user labels: Magnetite, Ilmenite...
+        match += [v for v in values if v not in match and any(w in v.lower() for w in OXIDE_WORDS)]
+    return match or values
+
+
+def _subset(df, by, values):
+    return df if by is None else df[df[by].astype(str).isin(values)]
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def default_diagrams(results, by):
+    """Every classification diagram at its default options: {key: (data, names, msgs)}."""
+    values = label_values(results, by)
+    return {
+        k: dg.prepare(k, _subset(results, by, default_values(dg.DIAGRAMS[k], values)),
+                      **DEFAULT_OPTS.get(k, {}))
+        for k in dg.CLASSIFICATION
+    }
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def prepare_diagram(key, df, by, values, opts):
+    return dg.prepare(key, _subset(df, by, values), **opts)
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def with_stoichiometry(results):
+    """Results plus stoichiometry columns (Fo, An, Mg#, cations...) for the custom plots."""
+    # Without classification, the user's own labels pick the calculator (names as in mineralML).
+    col = next((c for c in ["Predict_Mineral", "Mineral"] if c in results.columns), None)
+    if col is None:
+        return results
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return mm.append_stoichiometry(results, mineral_col=col)
+
+
+@st.fragment
+def show_diagrams(results, header=True):
+    """Composition diagrams. A fragment, so changing a plot option reruns only this section."""
+    if header:
+        st.header("Composition diagrams")
+    st.markdown(
+        "Classification diagrams for your analyses, with fields drawn by the mineralML classifiers. "
+        "Choose a diagram and adjust it, then download it as PDF, SVG or PNG."
+    )
+    by_opts = [k for k, c in SELECT_BY.items() if c is None or (c in results.columns and results[c].notna().any())]
+    by_name = st.segmented_control(
+        "Select analyses by", by_opts, default=by_opts[0], key=f"dg_by_{'|'.join(by_opts)}", required=True,
+        help="Which rows go on each diagram. Your Mineral column is matched to each diagram by name "
+             "(e.g. Plagioclase, Clinopyroxene, Glass), ignoring case.",
+    )
+    by = SELECT_BY[by_name]
+    with st.spinner("Classifying for diagrams..."):
+        defaults = default_diagrams(results, by)
+    counts = {k: len(v[0]) for k, v in defaults.items()}
+    keys = ([k for k in dg.CLASSIFICATION if counts[k]] + ["ternary", "xy"]
+            + [k for k in dg.CLASSIFICATION if not counts[k]])
+
+    def describe(k):
+        if k not in counts:
+            return dg.DIAGRAMS[k].label
+        return f"{dg.DIAGRAMS[k].label} · " + (f"{counts[k]:,} analyses" if counts[k] else "no analyses")
+
+    key = st.selectbox("Diagram", keys, format_func=describe, key="dg_key")
+    d = dg.DIAGRAMS[key]
+    custom = not d.field_label
+    source = with_stoichiometry(results) if custom else results
+    all_values = label_values(results, by)
+    scored = "Prediction_Score" in results.columns
+
+    left, right = st.columns([1, 2.2], gap="large")
+    with left:
+        default_vals = default_values(d, all_values)
+        values = all_values
+        if by:
+            values = st.multiselect("Include analyses " + ("predicted as" if by == "Predict_Mineral" else "labeled"),
+                                    all_values, default=default_vals, key=f"dg_{key}_{by}_values")
+        min_score = 0.0
+        if scored:
+            min_score = st.slider("Minimum prediction score", 0.0, 1.0, 0.0, 0.05, key=f"dg_{key}_score",
+                                  help="Hide ambiguous analyses.")
+
+        opts, labels = {}, "Short"
+        if d.label_choices:
+            labels = st.selectbox("Field labels", d.label_choices, key=f"dg_{key}_labels")
+        if key == "tas":
+            opts["labels"] = labels
+            opts["anhydrous"] = st.checkbox(
+                "Recalculate to 100% volatile-free", value=True, key="dg_tas_anhydrous",
+                help="IUGS convention (Le Bas et al., 1986), using the oxides in your file with iron as FeOt.",
+            )
+        numeric = [c for c in source.columns if c not in PREDICTION_COLS
+                   and pd.api.types.is_numeric_dtype(source[c]) and source[c].notna().any()]
+        if key == "ternary":
+            st.caption("Each apex sums the columns you choose; the three sums are renormalized to 1.")
+            apices, texts = [], []
+            for apex, dflt in zip(["Top", "Left", "Right"], [["Na2O", "K2O"], ["FeOt"], ["MgO"]]):
+                cols = st.multiselect(f"{apex} apex", numeric, default=[c for c in dflt if c in numeric],
+                                      key=f"dg_tern_{apex}")
+                text = st.text_input(f"{apex} label", value="+".join(cols), key=f"dg_tern_{apex}_{'+'.join(cols)}")
+                apices.append(tuple(cols))
+                texts.append(text)
+            if not all(apices):
+                st.info("Choose at least one column for each apex.")
+                return
+            opts.update(apices=tuple(apices), labels_text=tuple(texts))
+        if key == "xy":
+            x = st.selectbox("x axis", numeric, index=numeric.index("SiO2") if "SiO2" in numeric else 0,
+                             key="dg_xy_x")
+            harker = [c for c in ["Al2O3", "FeOt", "MgO", "CaO", "Na2O", "K2O"] if c in numeric]
+            ys = st.multiselect("y axes (one panel each)", numeric, default=harker, key="dg_xy_ys")
+            if not ys:
+                st.info("Choose at least one column for the y axis.")
+                return
+            opts.update(x=x, ys=tuple(ys))
+
+        hue_opts = {}
+        if not custom:
+            hue_opts["Classification field"] = "Field"
+        if scored:
+            hue_opts["Predicted mineral"] = "Predict_Mineral"
+            if "Submineral" in results.columns and results["Submineral"].notna().any():
+                hue_opts["Submineral"] = "Submineral"
+            hue_opts["Prediction score"] = "Prediction_Score"
+        for c in results.columns:
+            if c not in PREDICTION_COLS and c not in OXIDES + ["FeO", "Fe2O3", "Fe2O3t"]:
+                hue_opts[c] = c
+        hue_opts["Single color"] = None
+        hue_name = st.selectbox("Color by", list(hue_opts), key=f"dg_{key}_hue")
+        hue = hue_opts[hue_name]
+
+        quad_only = True
+        if key == "pyroxene":
+            quad_only = st.checkbox("Zoom to the quadrilateral", value=True, key="dg_px_quad")
+        with st.expander("Size and style"):
+            size = st.slider("Marker size", 4, 120, 30, key=f"dg_{key}_size")
+            alpha = st.slider("Opacity", 0.1, 1.0, 0.85, 0.05, key=f"dg_{key}_alpha")
+            w, h = d.figsize
+            c1, c2 = st.columns(2)
+            width = c1.number_input("Width (in)", 3.0, 20.0, w, 0.5, key=f"dg_{key}_w")
+            height = c2.number_input("Height (in)", 3.0, 20.0, h, 0.5, key=f"dg_{key}_h")
+            if d.ternary:
+                st.caption("Ternaries keep their shape; the plot fits inside this size.")
+            title = st.text_input("Title", key=f"dg_{key}_title")
+            logx = logy = False
+            if key == "xy":
+                logx = st.checkbox("Log x axis", key="dg_xy_logx")
+                logy = st.checkbox("Log y axes", key="dg_xy_logy")
+
+    opts = {**DEFAULT_OPTS.get(key, {}), **opts}
+    if not custom and values == default_vals and opts == DEFAULT_OPTS.get(key, {}):
+        data, names, msgs = defaults[key]
+    else:
+        with st.spinner("Classifying..."):
+            data, names, msgs = prepare_diagram(key, source, by, tuple(values), opts)
+    # Colors follow the category across filters: slots come from the unfiltered column.
+    categories = ()
+    if hue == "Field":
+        categories = dg.category_slots(data["Field"])
+    elif hue and not dg.is_continuous(results[hue]):
+        categories = dg.category_slots(results[hue])
+    n_in = len(_subset(source, by, values))
+    if min_score > 0:
+        data = data[data["Prediction_Score"] >= min_score]
+
+    style = dg.Style(hue=hue, categories=categories, hue_label=d.field_label if hue == "Field" else hue_name,
+                     labels=labels, quad_only=quad_only, size=size, alpha=alpha, width=width, height=height,
+                     title=title, logx=logx, logy=logy)
+
+    with right:
+        for m in msgs:
+            st.warning(m)
+        if data.empty:
+            if key in ("fetioxide", "spinel") and not scored:
+                st.info("The oxide diagrams need to know which analyses are spinels and which are "
+                        "ilmenite–hematite. Add a Mineral column (e.g. Magnetite, Spinel, Ilmenite, Hematite) "
+                        "or choose **Classify and plot** in the menu at left.")
+            else:
+                st.info("No analyses to plot with these settings. Check the analyses included above.")
+            return
+        st.image(dg.render(key, data, names, style, "png", dpi=150), width="stretch")
+        dropped = n_in - len(data)
+        st.caption(
+            f"{len(data):,} of {n_in:,} analyses plotted"
+            + (f" ({dropped:,} hidden: outside the diagram, failed the score filter, or classified "
+               "onto another diagram)." if dropped else ".")
+            + (" Categories beyond the 7 most common are grouped as Other."
+               if hue and not dg.is_continuous(data[hue]) and dg.folds(data[hue]) else "")
+        )
+        b = st.columns(4)
+        stem = f"mineralML_{key}"
+        for col, fmt, mime in zip(b, ["pdf", "svg", "png"], ["application/pdf", "image/svg+xml", "image/png"]):
+            col.download_button(
+                fmt.upper(), lambda fmt=fmt: dg.render(key, data, names, style, fmt),
+                file_name=f"{stem}.{fmt}", mime=mime, on_click="ignore", key=f"dg_dl_{fmt}",
+                icon=":material/download:",
+            )
+        b[3].download_button(
+            "Data CSV", lambda: dg.plotted_table(data, names, style).to_csv(index=False).encode(),
+            file_name=f"{stem}.csv", mime="text/csv", on_click="ignore", key="dg_dl_csv",
+            icon=":material/download:", help="The plotted analyses with their diagram coordinates.",
+        )
+
+    pages = [(k, *defaults[k][:2], dg.Style(hue="Field", categories=dg.category_slots(defaults[k][0]["Field"]),
+                                            hue_label=dg.DIAGRAMS[k].field_label, labels=(dg.DIAGRAMS[k].label_choices or ("Short",))[0],
+                                            width=dg.DIAGRAMS[k].figsize[0], height=dg.DIAGRAMS[k].figsize[1]))
+             for k in dg.CLASSIFICATION if counts[k]]
+    if pages:
+        st.download_button(
+            f"Download all {len(pages)} classification diagrams (one PDF)",
+            lambda: dg.render_pdf_pages(pages), file_name="mineralML_diagrams.pdf", mime="application/pdf",
+            on_click="ignore", key="dg_dl_all", icon=":material/picture_as_pdf:",
+            help="Every diagram that has analyses, with default settings, one per page.",
+        )
+
+
 def show_results(results, msgs, include_stoich, show_latent):
     for m in msgs:
         st.warning(m)
@@ -91,7 +364,20 @@ def show_results(results, msgs, include_stoich, show_latent):
     if "Mineral" in results.columns and results["Mineral"].isna().all():
         results = results.drop(columns="Mineral")
 
-    st.header("Summary")
+    tabs = st.tabs(["Predictions", "Composition diagrams"] + (["Latent space"] if show_latent else []))
+    with tabs[0]:
+        show_predictions(results, include_stoich)
+    with tabs[1]:
+        show_diagrams(results, header=False)
+    if show_latent:
+        with tabs[2]:
+            st.markdown("Your analyses (circles) projected onto the training data (faint crosses).")
+            with st.spinner("Projecting..."):
+                st.image(latent_png(results))
+
+
+def show_predictions(results, include_stoich):
+    st.subheader("Summary")
     n_class = int(results["Predict_Mineral"].notna().sum())
     low = int((results["Prediction_Score"] < 0.8).sum())
     c1, c2, c3 = st.columns(3)
@@ -101,7 +387,7 @@ def show_results(results, msgs, include_stoich, show_latent):
     counts = results["Predict_Mineral"].fillna("Unclassified").value_counts()
     st.bar_chart(counts, horizontal=True, x_label="", y_label="Number of analyses")
 
-    st.header("Predictions")
+    st.subheader("Predictions")
     show_cols = [c for c in SAMPLE_COLS + ["Mineral"] if c in results.columns] + [
         "Predict_Mineral", "Submineral", "Prediction_Score", "Prediction_Score_Sigma",
         "Second_Predict_Mineral", "Second_Prediction_Score",
@@ -128,19 +414,18 @@ def show_results(results, msgs, include_stoich, show_latent):
         file_name="mineralML_predictions.csv", mime="text/csv",
     )
 
-    if show_latent:
-        st.header("Latent space")
-        st.markdown("Your analyses (circles) projected onto the training data (faint crosses).")
-        with st.spinner("Projecting..."):
-            st.image(latent_png(results))
-
 
 # %% ---------------------------------------------------------------- 
 # sidebar
 
 with st.sidebar:
+    st.header("What do you want to do?")
+    mode = st.radio("What do you want to do?", list(MODES), captions=list(MODES.values()), key="mode",
+                    label_visibility="collapsed")
+    classify_on = mode == "Classify and plot"
+
     st.header("Input data")
-    source = st.selectbox("How do you want to enter data?", ["Upload a file", "Type in analyses"])
+    source = st.selectbox("How do you want to enter data?", SOURCES, key="source")
     uploaded = None
     if source == "Upload a file":
         uploaded = st.file_uploader("CSV or Excel file", type=["csv", "xlsx", "xls"])
@@ -153,9 +438,11 @@ with st.sidebar:
     convert_fe = st.checkbox("Convert FeO / Fe2O3 to FeOt", value=True)
     renormalize = st.checkbox("Renormalize to 100 wt%", value=False)
     drop_empty = st.checkbox("Drop rows with fewer than 2 oxides", value=True)
-    include_stoich = st.checkbox("Add stoichiometry to Excel download", value=True,
-                                 help="Appends cations, site assignments and end-members to each mineral sheet.")
-    show_latent = st.checkbox("Show latent space plot", value=True)
+    include_stoich = show_latent = False
+    if classify_on:
+        include_stoich = st.checkbox("Add stoichiometry to Excel download", value=True,
+                                     help="Appends cations, site assignments and end-members to each mineral sheet.")
+        show_latent = st.checkbox("Show latent space plot", value=True)
 
     st.header("About")
     st.markdown(
@@ -178,7 +465,9 @@ st.markdown(
     "Probabilistic classification of common igneous minerals from oxide compositions, "
     "with stoichiometry and crystallographic sites calculated for each classified analysis. "
     "Use it to label new EPMA or quantitative EDS data, or to catch misclassified phases and "
-    "poor-quality analyses in existing compilations."
+    "poor-quality analyses in existing compilations. Composition diagrams (TAS, feldspar and pyroxene "
+    "ternaries, amphibole, oxides, and custom ternaries and Harker plots) can be drawn with or without "
+    "classifying, and downloaded as PDF."
 )
 st.markdown(
     "Working with quantitative EDS maps? This site handles point analyses. For maps, follow the "
@@ -191,9 +480,12 @@ st.markdown(
 st.subheader("How to use")
 st.markdown(
     """
-1. In the menu at left, upload a CSV or Excel file, or choose **Type in analyses**.
-2. Adjust the options if needed. The defaults suit most data.
-3. Predictions, prediction scores, and Excel/CSV downloads appear below.
+1. In the menu at left, choose **Classify and plot**, or **Plot only** to skip classification
+   (e.g. for glass or whole-rock data, or phases you have already identified).
+2. Upload a CSV or Excel file, choose **Use the example dataset**, or **Type in analyses**.
+3. Adjust the options if needed. The defaults suit most data.
+4. Results appear below: predictions with Excel/CSV downloads, composition diagrams to download as
+   PDF, SVG or PNG, and the latent space.
 """
 )
 
@@ -274,12 +566,30 @@ df_in = None
 if source == "Upload a file":
     if uploaded is None:
         st.info("Upload a CSV or Excel file in the menu at left to get started. See **Input format** above.")
+        st.button("Or try the example dataset", on_click=use_example, icon=":material/science:")
     else:
         try:
             df_in = read_upload(uploaded)
         except Exception as e:
             st.error(f"Could not read file: {e}")
             st.stop()
+elif source == "Use the example dataset":
+    try:
+        df_in = load_example()
+    except OSError as e:
+        st.error(f"Could not load the example dataset: {e}")
+        st.stop()
+    st.header("Example dataset")
+    st.markdown(
+        f"{len(df_in):,} analyses: 100 each of {df_in['Mineral'].nunique()} minerals from the mineralML "
+        "training data, with their published labels (`Mineral`) and sources (`Source`). Because these "
+        "analyses were used to train the model, nearly all are classified correctly; your own data will "
+        "show more spread in prediction scores. Download it to see the expected input format."
+    )
+    st.download_button(
+        "Download example CSV", lambda: df_in.to_csv(index=False).encode(),
+        file_name="mineralML_example.csv", mime="text/csv", on_click="ignore", icon=":material/download:",
+    )
 else:
     st.header("Your analyses")
     st.markdown("Edit the table or paste rows from a spreadsheet. Add rows with the + at the bottom.")
@@ -297,9 +607,18 @@ if df_in is not None:
         st.error(f"No oxide columns found. Columns in your file: {list(df_in.columns)}")
         st.stop()
     try:
-        with st.spinner(f"Classifying {len(df_in):,} analyses..."):
-            res, msgs = classify(df_in, convert_fe, renormalize, drop_empty)
+        with st.spinner(f"Classifying {len(df_in):,} analyses..." if classify_on else "Reading analyses..."):
+            res, msgs = classify(df_in, convert_fe, renormalize, drop_empty, predict=classify_on)
     except ValueError as e:
         st.error(str(e))
         st.stop()
-    show_results(res, msgs, include_stoich, show_latent)
+    if classify_on:
+        show_results(res, msgs, include_stoich, show_latent)
+    else:
+        for m in msgs:
+            st.warning(m)
+        if res["Mineral"].isna().all():
+            res = res.drop(columns="Mineral")
+        st.caption(f"{len(res):,} analyses loaded, not classified. For predictions and prediction scores, "
+                   "choose **Classify and plot** in the menu at left.")
+        show_diagrams(res)
