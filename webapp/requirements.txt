@@ -1,7 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
-# Needs releases > 0.0.3.20 (export_predictions_to_excel(..., stoichiometry=)); bump before deploying.
-mineralML==0.0.3.21
+mineralML==0.0.3.22
 streamlit>=1.64
 openpyxl
 python-ternary
