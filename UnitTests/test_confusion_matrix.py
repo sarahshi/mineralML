@@ -79,69 +79,99 @@ class TestConfusionMatrixDf(unittest.TestCase):
  
     # --- Spinel group merging ---
  
-    def test_magnetite_merged_to_oxide(self):
-        # magnetite -> Spinel_Group -> Oxide
+    def test_magnetite_merged_to_spinel_group(self):
         given = ["Magnetite", "Olivine"]
         pred  = ["Olivine",   "Olivine"]
         cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Spinel_Group", cm.index)
         self.assertNotIn("Magnetite", cm.index)
-        self.assertNotIn("Spinel_Group", cm.index)
-        self.assertEqual(cm.loc["Oxide", "Olivine"], 1)
+        self.assertNotIn("Oxide", cm.index)
+        self.assertEqual(cm.loc["Spinel_Group", "Olivine"], 1)
  
-    def test_chromite_merged_to_oxide(self):
+    def test_chromite_merged_to_spinel_group(self):
         given = ["Chromite", "Olivine"]
         pred  = ["Chromite", "Olivine"]
         cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Spinel_Group", cm.index)
         self.assertNotIn("Chromite", cm.index)
-        self.assertEqual(cm.loc["Oxide", "Oxide"], 1)
+        self.assertEqual(cm.loc["Spinel_Group", "Spinel_Group"], 1)
  
-    def test_hercynite_merged_to_oxide(self):
+    def test_hercynite_merged_to_spinel_group(self):
         given = ["Hercynite"]
         pred  = ["Hercynite"]
         cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Spinel_Group", cm.index)
         self.assertNotIn("Hercynite", cm.index)
  
-    def test_ulvospinel_merged_to_oxide(self):
+    def test_ulvospinel_merged_to_spinel_group(self):
         given = ["Ulvospinel"]
         pred  = ["Ulvospinel"]
         cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Spinel_Group", cm.index)
         self.assertNotIn("Ulvospinel", cm.index)
  
-    def test_spinel_substring_merged_to_oxide(self):
+    def test_spinel_substring_merged_to_spinel_group(self):
         # Anything containing "spinel" should match
         given = ["Mg-Spinel"]
         pred  = ["Mg-Spinel"]
         cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Spinel_Group", cm.index)
         self.assertNotIn("Mg-Spinel", cm.index)
  
     # --- Rhombohedral oxide merging ---
  
-    def test_hematite_merged_to_oxide(self):
+    def test_hematite_merged_to_rhombohedral_oxides(self):
         given = ["Hematite", "Olivine"]
         pred  = ["Olivine",  "Olivine"]
         cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Rhombohedral_Oxides", cm.index)
         self.assertNotIn("Hematite", cm.index)
-        self.assertNotIn("Rhombohedral_Oxides", cm.index)
+        self.assertNotIn("Oxide", cm.index)
  
-    def test_ilmenite_merged_to_oxide(self):
+    def test_ilmenite_merged_to_rhombohedral_oxides(self):
         given = ["Ilmenite"]
         pred  = ["Ilmenite"]
         cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Rhombohedral_Oxides", cm.index)
         self.assertNotIn("Ilmenite", cm.index)
+ 
+    def test_rhombohedral_and_spinel_kept_separate(self):
+        given = ["Ilmenite", "Magnetite"]
+        pred  = ["Magnetite", "Magnetite"]
+        cm = mm.confusion_matrix_df(given, pred)
+ 
+        self.assertEqual(cm.loc["Rhombohedral_Oxides", "Spinel_Group"], 1)
+        self.assertEqual(cm.loc["Spinel_Group", "Spinel_Group"], 1)
+ 
+    # --- Oxide predictions resolved with Submineral ---
+ 
+    def test_pred_submineral_resolves_oxide(self):
+        given = ["Hematite", "Magnetite", "Olivine"]
+        pred  = ["Oxide", "Oxide", "Olivine"]
+        sub   = ["Rhombohedral_Oxides", "Spinel_Group", None]
+        cm = mm.confusion_matrix_df(given, pred, pred_submineral=sub)
+ 
+        self.assertNotIn("Oxide", cm.index)
+        self.assertEqual(cm.loc["Rhombohedral_Oxides", "Rhombohedral_Oxides"], 1)
+        self.assertEqual(cm.loc["Spinel_Group", "Spinel_Group"], 1)
+ 
+    def test_oxide_parent_merges_children(self):
+        # Without Submineral, "Oxide" predictions collapse both groups to Oxide
+        given = ["Hematite", "Magnetite"]
+        pred  = ["Oxide", "Oxide"]
+        cm = mm.confusion_matrix_df(given, pred)
+ 
+        self.assertIn("Oxide", cm.index)
+        self.assertNotIn("Rhombohedral_Oxides", cm.index)
+        self.assertNotIn("Spinel_Group", cm.index)
+        self.assertEqual(cm.loc["Oxide", "Oxide"], 2)
  
     # --- Na-pyroxene merging ---
  
@@ -215,28 +245,48 @@ class TestConfusionMatrixDf(unittest.TestCase):
         # In the canonical list Alkali_Feldspar (position 0) comes before Olivine (position 15)
         self.assertLess(feldspar_idx, olivine_idx)
  
+    # --- Alias merging ---
+ 
+    def test_silica_and_carbonate_aliases(self):
+        given = ["Tridymite", "Quartz", "Calcite"]
+        pred  = ["SiO2_Polymorph", "SiO2_Polymorph", "Carbonate"]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            cm = mm.confusion_matrix_df(given, pred)
+            self.assertEqual(len([x for x in w if "Unrecognized" in str(x.message)]), 0)
+ 
+        self.assertEqual(cm.loc["SiO2_Polymorph", "SiO2_Polymorph"], 2)
+        self.assertEqual(cm.loc["Carbonate", "Carbonate"], 1)
+ 
+    def test_pyroxene_and_feldspar_sublabels(self):
+        given = ["Augite", "Enstatite", "Andesine", "Sanidine"]
+        pred  = ["Clinopyroxene", "Orthopyroxene", "Plagioclase", "Alkali_Feldspar"]
+        cm = mm.confusion_matrix_df(given, pred)
+ 
+        self.assertEqual(np.trace(cm.values), 4)
+ 
     # --- Unrecognized label handling ---
  
     def test_unrecognized_label_warns_and_drops(self):
-        given = ["Olivine", "Augite",  "Garnet"]
-        pred  = ["Olivine", "Olivine", "Garnet"]
+        given = ["Olivine", "Unobtainium", "Garnet"]
+        pred  = ["Olivine", "Olivine",     "Garnet"]
         with self.assertWarns(UserWarning) as ctx:
             cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Augite", str(ctx.warning))
-        self.assertNotIn("Augite", cm.index)
-        self.assertNotIn("Augite", cm.columns)
+        self.assertIn("Unobtainium", str(ctx.warning))
+        self.assertNotIn("Unobtainium", cm.index)
+        self.assertNotIn("Unobtainium", cm.columns)
  
         # Only 2 valid rows should contribute
         self.assertEqual(cm.values.sum(), 2)
  
     def test_unrecognized_in_pred_warns_and_drops(self):
         given = ["Olivine", "Olivine"]
-        pred  = ["Olivine", "Diopside"]
+        pred  = ["Olivine", "Kryptonite"]
         with self.assertWarns(UserWarning) as ctx:
             cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Diopside", str(ctx.warning))
+        self.assertIn("Kryptonite", str(ctx.warning))
         self.assertEqual(cm.values.sum(), 1)
  
     def test_all_recognized_no_unrecognized_warning(self):
@@ -251,17 +301,69 @@ class TestConfusionMatrixDf(unittest.TestCase):
     # --- Combined merge + unrecognized ---
  
     def test_mixed_merges_and_unrecognized(self):
-        # Magnetite -> Oxide (valid), "FakeMineral" -> dropped
+        # Magnetite -> Spinel_Group (valid), "FakeMineral" -> dropped
         given = ["Magnetite",    "Olivine", "FakeMineral"]
         pred  = ["Olivine",      "Olivine", "Olivine"]
         with self.assertWarns(UserWarning):
             cm = mm.confusion_matrix_df(given, pred)
  
-        self.assertIn("Oxide", cm.index)
+        self.assertIn("Spinel_Group", cm.index)
         self.assertNotIn("FakeMineral", cm.index)
         self.assertNotIn("Magnetite", cm.index)
-        # 2 valid rows: Oxide->Olivine and Olivine->Olivine
+        # 2 valid rows: Spinel_Group->Olivine and Olivine->Olivine
         self.assertEqual(cm.values.sum(), 2)
+
+
+class TestHarmonizeLabels(unittest.TestCase):
+ 
+    def test_single_array_returns_series(self):
+        out = mm.harmonize_labels(["Hematite", "Magnetite", "Tridymite", "Calcite", "Olivine"])
+        self.assertIsInstance(out, pd.Series)
+        self.assertEqual(list(out), ["Rhombohedral_Oxides", "Spinel_Group", "SiO2_Polymorph", "Carbonate", "Olivine"])
+ 
+    def test_given_and_pred_match_predict_mineral(self):
+        given = ["Ilmenite", "Spinel", "Na-Pyroxene", "Plagioclase"]
+        pred  = ["Oxide", "Oxide", "Clinopyroxene", "Plagioclase"]
+        sub   = ["Rhombohedral_Oxides", "Spinel_Group", "Augite", "Andesine"]
+        g, p = mm.harmonize_labels(given, pred, pred_submineral=sub)
+        self.assertEqual(list(g), ["Rhombohedral_Oxides", "Spinel_Group", "Clinopyroxene", "Plagioclase"])
+        self.assertEqual(list(g), list(p))
+ 
+    def test_case_space_and_hyphen_insensitive(self):
+        out = mm.harmonize_labels(["olivine", "alkali feldspar", "SiO2 polymorph", "na pyroxene", "Cr-Spinel"])
+        self.assertEqual(list(out), ["Olivine", "Alkali_Feldspar", "SiO2_Polymorph", "Clinopyroxene", "Spinel_Group"])
+ 
+    def test_parent_merge_applies_to_both(self):
+        g, p = mm.harmonize_labels(["Feldspar", "Augite"], ["Plagioclase", "Pyroxene"])
+        self.assertEqual(list(g), ["Feldspar", "Pyroxene"])
+        self.assertEqual(list(p), ["Feldspar", "Pyroxene"])
+ 
+    def test_preserves_index_and_nan(self):
+        s = pd.Series(["Hematite", None], index=[10, 11])
+        out = mm.harmonize_labels(s)
+        self.assertEqual(list(out.index), [10, 11])
+        self.assertEqual(out.loc[10], "Rhombohedral_Oxides")
+        self.assertTrue(pd.isna(out.loc[11]))
+ 
+    def test_georoc_mineral_names(self):
+        # GEOROC MINERAL column spellings, matched ignoring case and punctuation
+        names = ["(AL)KALIFELDSPAR", "PHLOGOPITE", "TITANITE (SPHENE)", "TITANO-MAGNETITE",
+                 "MAGNESIO-HORNBLENDE", "FAYALITE", "PYROPE", "FE-CHROMITE", "SERICITE"]
+        out = mm.harmonize_labels(names)
+        self.assertEqual(list(out), ["Alkali_Feldspar", "Biotite", "Titanite", "Spinel_Group",
+                                     "Amphibole", "Olivine", "Garnet", "Spinel_Group", "Muscovite"])
+
+    def test_submineral_names_roll_up(self):
+        # Submineral names from the amphibole and oxide classifiers
+        out = mm.harmonize_labels(["Magnesiohornblende", "Ferrotschermakite", "Actinolite",
+                                   "Pleonaste", "Al-Magnetite", "Magnesioferrite"])
+        self.assertEqual(list(out), ["Amphibole"] * 3 + ["Spinel_Group"] * 3)
+
+    def test_unrecognized_warns_and_is_unchanged(self):
+        with self.assertWarns(UserWarning) as ctx:
+            out = mm.harmonize_labels(["Olivine", "Unobtainium"])
+        self.assertIn("Unobtainium", str(ctx.warning))
+        self.assertEqual(out.iloc[1], "Unobtainium")
 
 
 class TestInsertTotals(unittest.TestCase):

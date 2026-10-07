@@ -310,6 +310,18 @@ class TestBiotite(unittest.TestCase):
         res = mm.BiotiteCalculator(_df("Biotite")).calculate_components()
         _assert_cols(self, res, ["X_site", "M_site", "T_site"])
 
+    def test_biotite_al_split_clipped(self):
+        # Si > 4 apfu, then Si + Al < 4 apfu: Al_IV and Al_VI stay >= 0, and
+        # Al never fills T past 4 apfu (Si alone can, flagging a bad analysis)
+        df = pd.DataFrame({"SiO2": [60.0, 45.0], "TiO2": [1.0, 3.0], "Al2O3": [2.0, 1.0],
+                           "FeOt": [15.0, 18.0], "MgO": [12.0, 12.0], "CaO": [0.0, 0.0],
+                           "K2O": [9.0, 9.5]})
+        res = mm.BiotiteCalculator(df).calculate_components()
+        self.assertTrue((res[["Al_IV", "Al_VI"]] >= 0).all().all())
+        Si = res["Si_cat_11ox"]
+        self.assertTrue((res["T_site"] <= np.maximum(Si, 4) + 1e-9).all())
+        np.testing.assert_allclose(res["Al_IV"] + res["Al_VI"], res["Al_cat_11ox"])
+
 
 class TestCarbonate(unittest.TestCase):
     def test_calcite_co2_injected(self):

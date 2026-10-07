@@ -373,7 +373,7 @@ class TestConvertFeToFeot(unittest.TestCase):
 
     def test_fe2o3_only_converted(self):
         fe2o3_val = 5.0
-        fe_conv = 159.688 / (2 * 71.8464)
+        fe_conv = 159.69 / (2 * 71.844)  # constants.OXIDE_MASSES
         expected = fe2o3_val / fe_conv
         df = pd.DataFrame({"Fe2O3": [fe2o3_val], "SiO2": [50.0]})
         out = mm.convert_fe_to_feot(df)
@@ -381,7 +381,7 @@ class TestConvertFeToFeot(unittest.TestCase):
         self.assertNotIn("Fe2O3", out.columns)
 
     def test_feo_plus_fe2o3_summed(self):
-        fe_conv = 159.688 / (2 * 71.8464)
+        fe_conv = 159.69 / (2 * 71.844)  # constants.OXIDE_MASSES
         df = pd.DataFrame({"FeO": [8.0], "Fe2O3": [2.0], "SiO2": [50.0]})
         out = mm.convert_fe_to_feot(df)
         expected = 8.0 + 2.0 / fe_conv
@@ -397,6 +397,200 @@ class TestConvertFeToFeot(unittest.TestCase):
 # ---------------------------------------------------------------------------
 #  prep_df extended options
 # ---------------------------------------------------------------------------
+
+
+class TestConvertFeMixed(unittest.TestCase):
+
+    COLS = ("FeO", "FeOt", "Fe2O3", "Fe2O3t")
+    F = 2 * 71.844 / 159.69  # wt% FeO per wt% Fe2O3, from constants.OXIDE_MASSES
+
+    def _convert(self, df):
+        """Converts with warnings recorded, returning (out, warning messages)."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            out = mm.convert_fe_to_feot(df)
+        return out, [str(x.message) for x in w]
+
+    def _combos_df(self):
+        import itertools
+        rows = []
+        for r in range(1, 5):
+            for combo in itertools.combinations(self.COLS, r):
+                rows.append({c: (10.0 if c in combo else np.nan) for c in self.COLS})
+        return pd.DataFrame(rows)
+
+    # --- Chemistry ---
+
+    def test_fe_moles_conserved(self):
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({"FeO": rng.uniform(0.1, 30, 200),
+                           "Fe2O3": rng.uniform(0.1, 30, 200)})
+        out, _ = self._convert(df)
+        fe_in = df["FeO"] / 71.844 + 2 * df["Fe2O3"] / 159.69
+        np.testing.assert_allclose(out["FeOt"] / 71.844, fe_in, rtol=1e-12)
+
+    def test_every_fe_combination_gives_feot(self):
+        out, _ = self._convert(self._combos_df())
+        self.assertFalse(out["FeOt"].isna().any())
+
+    def test_previously_handled_combinations_unchanged(self):
+        # The nine combinations handled before the rewrite, with 10 wt% each
+        f = self.F
+        expected = {
+            ("FeO",): 10.0,
+            ("FeOt",): 10.0,
+            ("Fe2O3",): 10.0 * f,
+            ("Fe2O3t",): 10.0 * f,
+            ("FeO", "Fe2O3"): 10.0 + 10.0 * f,
+            ("FeO", "FeOt", "Fe2O3"): 10.0,
+            ("FeO", "Fe2O3", "Fe2O3t"): 10.0 * f,
+            ("FeOt", "Fe2O3"): 10.0,
+            ("Fe2O3", "Fe2O3t"): 10.0 * f,
+        }
+        for combo, value in expected.items():
+            df = pd.DataFrame([{c: (10.0 if c in combo else np.nan) for c in self.COLS}])
+            out, _ = self._convert(df)
+            self.assertAlmostEqual(out["FeOt"].iloc[0], value, places=10, msg=combo)
+
+    def test_preference_order(self):
+        f = self.F
+        df = pd.DataFrame({
+            "FeO":    [5.0,    np.nan, 5.0,    5.0],
+            "FeOt":   [8.0,    8.0,    np.nan, np.nan],
+            "Fe2O3":  [3.0,    np.nan, 3.0,    3.0],
+            "Fe2O3t": [np.nan, 9.0,    9.0,    np.nan],
+        })
+        out, _ = self._convert(df)
+        np.testing.assert_allclose(out["FeOt"], [8.0, 8.0, 9.0 * f, 5.0 + 3.0 * f])
+
+    # --- Zeros and missing values ---
+
+    def test_zero_placeholder_does_not_override_reported_fe(self):
+        f = self.F
+        df = pd.DataFrame({
+            "FeOt":   [0.0, 0.0,    np.nan],
+            "Fe2O3t": [9.0, np.nan, np.nan],
+            "FeO":    [np.nan, 5.0, 5.0],
+            "Fe2O3":  [np.nan, 2.0, 0.0],
+        })
+        out, _ = self._convert(df)
+        np.testing.assert_allclose(out["FeOt"], [9.0 * f, 5.0 + 2.0 * f, 5.0])
+
+    def test_fe_free_rows_stay_zero(self):
+        df = pd.DataFrame({"FeOt": [0.0, 0.0], "Fe2O3t": [np.nan, 0.0]})
+        out, _ = self._convert(df)
+        self.assertEqual(list(out["FeOt"]), [0.0, 0.0])
+
+    def test_no_fe_reported_gives_nan(self):
+        df = pd.DataFrame({"SiO2": [99.0], "FeOt": [np.nan], "Fe2O3t": [np.nan]})
+        out, _ = self._convert(df)
+        self.assertTrue(np.isnan(out["FeOt"].iloc[0]))
+
+    def test_negative_value_alone_is_kept(self):
+        # Small negative values (e.g., EDS) pass through when nothing else is reported
+        df = pd.DataFrame({"FeOt": [-0.02, -0.02], "Fe2O3t": [np.nan, 9.0]})
+        out, _ = self._convert(df)
+        np.testing.assert_allclose(out["FeOt"], [-0.02, 9.0 * self.F])
+
+    # --- Non-numeric values ---
+
+    def test_text_value_treated_as_not_reported(self):
+        df = pd.DataFrame({"FeOt": ["bdl"], "Fe2O3t": [9.0]})
+        out, msgs = self._convert(df)
+        self.assertAlmostEqual(out["FeOt"].iloc[0], 9.0 * self.F)
+        self.assertTrue(any("'bdl'" in m for m in msgs))
+
+    def test_numbers_stored_as_text(self):
+        df = pd.DataFrame({"FeO": ["5", "n.d."], "Fe2O3": ["2", 1.0]})
+        out, msgs = self._convert(df)
+        np.testing.assert_allclose(out["FeOt"], [5.0 + 2.0 * self.F, 1.0 * self.F])
+        self.assertEqual(out["FeOt"].dtype, float)
+        self.assertTrue(any("'n.d.'" in m for m in msgs))
+
+    # --- Warnings ---
+
+    def test_mixed_forms_across_rows_warns(self):
+        df = pd.DataFrame({"FeOt": [8.0, np.nan], "Fe2O3t": [np.nan, 9.0]})
+        out, msgs = self._convert(df)
+        self.assertTrue(any("FeOt (1 row), Fe2O3t (1 row)" in m for m in msgs))
+        self.assertFalse(out["FeOt"].isna().any())
+
+    def test_single_form_no_warning(self):
+        df = pd.DataFrame({"FeO": [8.0, 7.0], "Fe2O3": [1.0, 2.0]})
+        _, msgs = self._convert(df)
+        self.assertEqual(msgs, [])
+
+    def test_agreeing_totals_no_warning(self):
+        # FeOt and Fe2O3t from the same analysis, rounded to 2 decimals
+        df = pd.DataFrame({"FeOt": [10.0, 4.5], "Fe2O3t": [11.11, 5.0]})
+        out, msgs = self._convert(df)
+        self.assertEqual(msgs, [])
+        self.assertEqual(list(out["FeOt"]), [10.0, 4.5])
+
+    def test_disagreeing_totals_warn_with_row_labels(self):
+        df = pd.DataFrame({"FeOt": [10.0, 10.0], "Fe2O3t": [11.11, 20.0]},
+                          index=["ok", "bad"])
+        out, msgs = self._convert(df)
+        self.assertEqual(list(out["FeOt"]), [10.0, 10.0])
+        warning = [m for m in msgs if "differ" in m]
+        self.assertEqual(len(warning), 1)
+        self.assertIn("1 row(s)", warning[0])
+        self.assertIn("'bad'", warning[0])
+
+    # --- Structure ---
+
+    def test_index_and_other_columns_preserved(self):
+        df = pd.DataFrame({"SiO2": [50.0, 40.0], "Mineral": ["Olivine", "Spinel"],
+                           "FeOt": [8.0, np.nan], "Fe2O3t": [np.nan, 9.0]},
+                          index=[7, 7])
+        out, _ = self._convert(df)
+        self.assertEqual(list(out.index), [7, 7])
+        self.assertEqual(list(out["Mineral"]), ["Olivine", "Spinel"])
+        np.testing.assert_allclose(out["FeOt"], [8.0, 9.0 * self.F])
+        for col in ("FeO", "Fe2O3", "Fe2O3t"):
+            self.assertNotIn(col, out.columns)
+
+    def test_empty_dataframe(self):
+        df = pd.DataFrame({"FeOt": pd.Series(dtype=float), "Fe2O3t": pd.Series(dtype=float)})
+        out, msgs = self._convert(df)
+        self.assertEqual(len(out), 0)
+        self.assertIn("FeOt", out.columns)
+        self.assertEqual(msgs, [])
+
+    def test_prep_df_converts_mixed_feot_and_fe2o3t_columns(self):
+        df = pd.DataFrame({"SiO2": [50.0, 50.0], "MgO": [10.0, 10.0],
+                           "FeOt": [8.0, np.nan], "Fe2O3t": [np.nan, 8.9]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out = mm.prep_df(df, convert_fe=True, verbose=False)
+        self.assertGreater(out["FeOt"].iloc[1], 0)
+        self.assertNotIn("Fe2O3t", out.columns)
+
+    def test_prep_df_warns_when_feot_zero_placeholder(self):
+        df = pd.DataFrame({"SiO2": [50.0], "MgO": [10.0],
+                           "FeOt": [0.0], "Fe2O3t": [8.9]})
+        with self.assertWarns(UserWarning) as ctx:
+            mm.prep_df(df, convert_fe=False, verbose=False)
+        self.assertTrue(any("convert_fe=True" in str(x.message) for x in ctx.warnings))
+
+    def test_prep_df_warns_when_fe_only_in_other_columns(self):
+        df = pd.DataFrame({"SiO2": [50.0, 50.0], "MgO": [10.0, 10.0],
+                           "FeOt": [8.0, np.nan], "Fe2O3t": [np.nan, 8.9]})
+        with self.assertWarns(UserWarning) as ctx:
+            mm.prep_df(df, convert_fe=False, verbose=False)
+        self.assertTrue(any("convert_fe=True" in str(x.message) for x in ctx.warnings))
+
+
+class TestLabelMask(unittest.TestCase):
+
+    def test_nullable_string_nulls_are_false(self):
+        from mineralML.hybrid import _label_mask
+        labels = pd.Series(["Pyroxene", None, "Olivine"], dtype="string")
+        mask = _label_mask(labels, ["Pyroxene"])
+        self.assertEqual(mask.dtype, bool)
+        self.assertEqual(list(mask), [True, False, False])
+        # Usable for .loc indexing without raising on <NA>
+        self.assertEqual(list(labels.loc[mask]), ["Pyroxene"])
 
 
 class TestPrepDfOptions(unittest.TestCase):
