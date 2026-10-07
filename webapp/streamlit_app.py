@@ -219,8 +219,20 @@ def show_diagrams(results, header=True):
                                     all_values, default=default_vals, key=f"dg_{key}_{by}_values")
         min_score = 0.0
         if scored:
-            min_score = st.slider("Minimum prediction score", 0.0, 1.0, 0.0, 0.05, key=f"dg_{key}_score",
-                                  help="Hide ambiguous analyses.")
+            # Slider and number box share one value: drag for a rough cut, type for an exact one (e.g. 0.99).
+            slide_k, type_k = f"dg_{key}_score", f"dg_{key}_score_typed"
+            st.session_state.setdefault(slide_k, 0.0)
+            st.session_state.setdefault(type_k, 0.0)
+
+            def copy_score(src, dst):
+                st.session_state[dst] = st.session_state[src]
+
+            st.slider("Minimum prediction score", 0.0, 1.0, step=0.005, format="%.3f", key=slide_k,
+                      on_change=copy_score, args=(slide_k, type_k),
+                      help="Hide ambiguous analyses. Drag, or type an exact value below.")
+            min_score = st.number_input("Minimum prediction score (typed)", 0.0, 1.0, step=0.01, format="%.3f",
+                                        key=type_k, on_change=copy_score, args=(type_k, slide_k),
+                                        label_visibility="collapsed")
 
         opts, labels = {}, "Short"
         if d.label_choices:

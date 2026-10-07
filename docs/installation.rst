@@ -27,6 +27,8 @@ You then need to import ``mineralML`` into the script you are running code in. I
 
 This means any time you want to call a function from ``mineralML``, you use ``mm.function_name``. If you are uncertain about how the function works, you can check the arguments required with ``help(mm.function_name)``.
 
+If you would rather not install Python, you can classify data with the web app at `mineralml.streamlit.app <https://mineralml.streamlit.app>`_.
+
 
 Updating
 ========

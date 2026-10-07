@@ -836,9 +836,13 @@ class BiotiteCalculator(BaseMineralCalculator):
         sites = pd.DataFrame(index=base.index)
         sites["Cation_Sum"] = base[cation_cols].sum(axis=1)
         sites["X_site"] = K + Na + Ca # Ba, Rb, Cs
+        # Al fills T up to 4 apfu after Si; the rest goes to M. Clipped so that
+        # Si > 4 or Si + Al < 4 never gives negative Al_IV or Al_VI.
+        sites["Al_IV"] = np.minimum((4 - Si).clip(lower=0), Al)
+        sites["Al_VI"] = Al - sites["Al_IV"]
         sites["M_site"] = Mg + Fe # M2+, octahedral
-        sites["M_site_expanded"] = Mg + Fe + Mn + Ti # Fe3+, Li, octahedral
-        sites["T_site"] = Si + Al # tetrahedral
+        sites["M_site_expanded"] = sites["Al_VI"] + Mg + Fe + Mn + Cr + Ti # Fe3+, Li, octahedral
+        sites["T_site"] = Si + sites["Al_IV"] # tetrahedral
 
         return pd.concat([base, sites], axis=1)
 

@@ -2,7 +2,9 @@
 Introduction and Citation
 =========================
 
-Welcome to ``mineralML``: An Open-Source Machine Learning Package for Probabilistically Classifying Minerals.˘
+Welcome to ``mineralML``: An Open-Source Machine Learning Package for Probabilistically Classifying Minerals.
+
+``mineralML`` is a Python package (see :doc:`installation`). You can also use it without installing Python, through the web app at `mineralml.streamlit.app <https://mineralml.streamlit.app>`_. Upload a CSV or Excel file of oxide wt% (or type in analyses), get classifications with prediction scores, plot composition diagrams, and download the results with stoichiometry as an Excel file.
 
 The development of this tool is continually in progress. The manuscript is in review at Geochemistry, Geophysics, and Geosystems with the preprint shortly posted on Earth ArXiv. Please make sure you cite this tool if you use it. Software development takes time and and academia does not always recognize the effort taken, but it does recognize citations. 
 
@@ -46,12 +48,11 @@ These folks have been fundamental to the development of ``mineralML``:
 Minerals
 ========
 
-``mineralML`` is trained on a curated dataset of 128k analyses of 23 mineral groups/glass. The machine learning models classify these minerals:
+``mineralML`` is trained on a curated dataset of 128k analyses of 23 mineral groups/glass. The neural network classifies these minerals:
 
 - Amphibole
 - Apatite
 - Biotite
-- Calcite
 - Chlorite
 - Epidote
 - Feldspar (Alkali_Feldspar and Plagioclase)
@@ -65,12 +66,18 @@ Minerals
 - Olivine
 - Oxide (Rhombohedral_Oxides with Hematite-Ilmenite, and Spinel_Group with Magnetite-Spinel)
 - Pyroxene (Clinopyroxene, Orthopyroxene, Na-Pyroxene)
-- SiO2-Polymorphs (Quartz, Coesite, Stishovite, Tridymite, Cristobalite)
 - Rutile
 - Serpentine
 - Titanite
 - Tourmaline
-- Zircon
+
+Three more groups are classified by empirical composition rules before the neural network is applied:
+
+- Zircon (ZrO₂ > 50 wt%)
+- SiO2_Polymorph, including Quartz, Tridymite, Cristobalite, Coesite, and Stishovite (SiO₂ > 90 wt%)
+- Carbonate, including Calcite (SiO₂ < 5 wt% and oxide total < 70 wt%)
+
+Predictions are returned at two levels, ``Predict_Mineral`` and a finer ``Submineral``. See :doc:`mineral_labels` for the labels at each level, and for comparing them with your own labels.
 
 
 =========

@@ -2,6 +2,7 @@
 
 __author__ = "Sarah Shi"
 
+import re
 import numpy as np
 import pandas as pd
 import warnings
@@ -13,72 +14,271 @@ from matplotlib import pyplot as plt
 
 # %%
 
+# Labels that given and predicted minerals are compared at in classification
+# reports and confusion matrices. These are the Predict_Mineral labels, with
+# oxides split into their Submineral group (Rhombohedral_Oxides, Spinel_Group).
+MINERAL_LABELS = [
+    "Alkali_Feldspar",
+    "Amphibole",
+    "Apatite",
+    "Biotite",
+    "Carbonate",
+    "Chlorite",
+    "Clinopyroxene",
+    "Epidote",
+    "Garnet",
+    "Glass",
+    "Kalsilite",
+    "Leucite",
+    "Melilite",
+    "Muscovite",
+    "Nepheline",
+    "Olivine",
+    "Orthopyroxene",
+    "Plagioclase",
+    "Rhombohedral_Oxides",
+    "Rutile",
+    "Serpentine",
+    "SiO2_Polymorph",
+    "Spinel_Group",
+    "Titanite",
+    "Tourmaline",
+    "Zircon",
+]
 
-def confusion_matrix_df(given_min, pred_min):
+# Parent groups: when either array uses the parent label, its children are
+# merged into the parent so both arrays are compared at the same level.
+PARENT_LABELS = {
+    "Feldspar": ("Alkali_Feldspar", "Plagioclase"),
+    "Pyroxene": ("Clinopyroxene", "Orthopyroxene"),
+    "Oxide": ("Rhombohedral_Oxides", "Spinel_Group"),
+}
+
+# Other names that map onto each label in MINERAL_LABELS (or a parent label),
+# in alphabetical order. Each list starts with the names mineralML's own
+# classifiers return (Submineral, AmphiboleClassifier, OxideClassifier), so
+# they roll up to their Predict_Mineral, then species, varieties, and
+# synonyms, including the MINERAL names used in GEOROC. Matching ignores case
+# and punctuation (see _label_key), so "Magnesio-Hornblende" matches
+# "Magnesiohornblende" and "(Al)kalifeldspar" matches "Alkali_Feldspar".
+# Any label containing "spinel" also maps to Spinel_Group.
+LABEL_ALIASES = {
+    "Alkali_Feldspar": [
+        "Sanidine", "Anorthoclase",                          # Submineral
+        "K-Feldspar", "Orthoclase", "Microcline", "Adularia", "Perthite",
+    ],
+    "Amphibole": [
+        "Tremolite", "Actinolite", "Ferroactinolite",        # AmphiboleClassifier
+        "Magnesiohornblende", "Ferrohornblende", "Tschermakite",
+        "Ferrotschermakite",
+        "Hornblende", "Pargasite", "Edenite", "Hastingsite",  # calcic
+        "Magnesiohastingsite", "Kaersutite",
+        "Richterite", "Ferrorichterite", "Katophorite",      # sodic-calcic
+        "Arfvedsonite", "Riebeckite", "Glaucophane",         # sodic
+        "Cummingtonite", "Anthophyllite",                    # Mg-Fe
+    ],
+    "Apatite": ["Fluorapatite", "Chlorapatite", "Hydroxylapatite"],
+    "Biotite": ["Phlogopite", "Annite", "Siderophyllite", "Eastonite"],
+    "Carbonate": [
+        "Calcite", "Aragonite", "Dolomite", "Ankerite", "Magnesite", "Siderite",
+        "Rhodochrosite", "Strontianite", "Witherite",
+    ],
+    "Clinopyroxene": [
+        "Augite", "Diopside", "Hedenbergite", "Pigeonite",   # Submineral
+        "Wollastonite", "Na-Pyroxene", "Jadeite", "Aegirine", "Aegirine-Augite",
+        "Omphacite", "Ca-Mg-Fe Pyroxene",
+        "Salite", "Cr-Diopside", "Titanaugite", "Ferroaugite",
+        "Ferrohedenbergite",
+    ],
+    "Garnet": [                                              # end-members
+        "Almandine", "Pyrope", "Spessartine", "Grossular", "Andradite",
+    ],
+    "Muscovite": ["Phengite", "Sericite"],
+    "Olivine": ["Forsterite", "Fayalite"],
+    "Orthopyroxene": [
+        "Enstatite", "Ferrosilite",                          # Submineral
+        "Hypersthene", "Ferrohypersthene",
+    ],
+    "Oxide": ["Oxides", "Fe-Ti Oxide", "Fe-Ti Oxides"],
+    "Plagioclase": [                                         # Submineral
+        "Albite", "Oligoclase", "Andesine", "Labradorite", "Bytownite",
+        "Anorthite",
+    ],
+    "Rhombohedral_Oxides": [
+        "Rhombohedral_Oxide", "Hematite", "Ilmenite",        # Submineral
+        "Titanohematite", "Hemoilmenite", "Ilmenite-Hematite",
+    ],
+    "SiO2_Polymorph": [
+        "SiO2", "Quartz", "Tridymite", "Cristobalite", "Coesite", "Stishovite",
+        "Chalcedony", "Agate",
+    ],
+    "Spinel_Group": [
+        "Magnetite", "Al-Magnetite", "Hercynite", "Pleonaste",  # OxideClassifier
+        "Ferrian-Pleonaste", "Ferrian-Picotite", "Magnesioferrite",
+        "Titanomagnetite", "Ti-Magnetite", "Ulvospinel", "Chromite",
+        "Fe-Chromite", "Picotite",
+    ],
+    "Titanite": ["Sphene", "Titanite (Sphene)"],
+}
+
+
+def _label_key(label):
+    """Normalizes a label for lookup: lowercase, with punctuation and spaces removed."""
+    return re.sub(r"[^a-z0-9]+", "", str(label).strip().lower())
+
+
+_LABEL_LOOKUP = {_label_key(m): m for m in MINERAL_LABELS + list(PARENT_LABELS)}
+for _canonical, _aliases in LABEL_ALIASES.items():
+    for _alias in _aliases:
+        _LABEL_LOOKUP[_label_key(_alias)] = _canonical
+
+
+def _map_label(x):
+    if pd.isna(x):
+        return x
+    key = _label_key(x)
+    if key in _LABEL_LOOKUP:
+        return _LABEL_LOOKUP[key]
+    if "spinel" in key:
+        return "Spinel_Group"
+    return x
+
+
+def _resolve_oxide(pred, pred_submineral):
+    """Replaces 'Oxide' predictions with their oxide group from Submineral."""
+    if pred_submineral is None:
+        return pred
+    sub = pd.Series(np.asarray(pred_submineral, dtype=object), index=pred.index)
+    is_oxide = pred.map(lambda x: not pd.isna(x) and _label_key(x) == "oxide")
+    return pred.where(~is_oxide | sub.isna(), sub)
+
+
+def _harmonize(given, pred):
+    """Maps labels and applies parent merges. Unrecognized labels are kept as is."""
+    given = given.map(_map_label)
+    pred = pred.map(_map_label)
+
+    all_labels = set(given) | set(pred)
+    for parent, children in PARENT_LABELS.items():
+        if parent in all_labels:
+            def _merge_parent(x, _p=parent, _c=children):
+                if pd.isna(x):
+                    return x
+                return _p if x in _c else x
+            given = given.map(_merge_parent)
+            pred = pred.map(_merge_parent)
+
+    return given, pred
+
+
+def harmonize_labels(given_min, pred_min=None, pred_submineral=None):
     """
- 
+
+    Maps mineral labels onto the names mineralML returns in 'Predict_Mineral',
+    so that published and predicted labels can be compared directly (e.g., with
+    sklearn's classification_report). Matching ignores case, spaces, and
+    punctuation, so GEOROC names such as "TITANO-MAGNETITE" and
+    "(AL)KALIFELDSPAR" match. For example, Hematite and Ilmenite map to
+    "Rhombohedral_Oxides"; Magnetite and Spinel map to "Spinel_Group"; Quartz
+    and Tridymite map to "SiO2_Polymorph"; Calcite maps to "Carbonate";
+    Augite maps to "Clinopyroxene"; Hornblende maps to "Amphibole"; and
+    Phlogopite maps to "Biotite". See LABEL_ALIASES for the full list.
+
+    predict_class_prob returns oxides as "Oxide" in 'Predict_Mineral', with the
+    oxide group in 'Submineral'. Pass the 'Submineral' column as
+    pred_submineral to compare oxides by group.
+
+    When "Feldspar", "Pyroxene", or "Oxide" is present in either array, child
+    labels (e.g., "Alkali_Feldspar", "Plagioclase") are merged into the parent
+    label in both arrays.
+
+    Labels that do not match MINERAL_LABELS after mapping are returned
+    unchanged and trigger a UserWarning. NaN values are kept.
+
+    Parameters:
+        given_min (array-like): The given (e.g., published) mineral labels.
+        pred_min (array-like, optional): The predicted mineral labels, such as
+            the 'Predict_Mineral' column returned by predict_class_prob.
+        pred_submineral (array-like, optional): The predicted 'Submineral'
+            column. Where pred_min is "Oxide", the oxide group in
+            pred_submineral is used instead.
+
+    Returns:
+        published_harmonized (pd.Series): given_min mapped onto the
+            'Predict_Mineral' names. If pred_min is provided, returns a tuple
+            (published_harmonized, predict_mineral_harmonized), where
+            predict_mineral_harmonized is pred_min mapped the same way, with
+            "Oxide" replaced by its pred_submineral group where given.
+
+    Example:
+        published_harmonized, predict_mineral_harmonized = mm.harmonize_labels(
+            df_pred['Mineral'], df_pred['Predict_Mineral'],
+            pred_submineral=df_pred['Submineral'])
+
+    """
+
+    given = pd.Series(given_min)
+    pred = pd.Series(pred_min) if pred_min is not None else pd.Series(dtype=object)
+    pred = _resolve_oxide(pred, pred_submineral)
+
+    given, pred = _harmonize(given, pred)
+
+    known = set(MINERAL_LABELS) | set(PARENT_LABELS)
+    labels = pd.concat([given, pred]).dropna()
+    unrecognized = sorted(set(labels) - known, key=str)
+    if unrecognized:
+        warnings.warn(
+            f"Unrecognized label(s) not in the canonical mineral list: "
+            f"{unrecognized}. These labels are returned unchanged.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    if pred_min is None:
+        return given
+    return given, pred
+
+
+def confusion_matrix_df(given_min, pred_min, pred_submineral=None):
+    """
+
     Constructs a confusion matrix as a pandas DataFrame for easy visualization and
-    analysis. The function first finds the unique classes and maps them to their
-    corresponding mineral names. Then, it uses these mappings to construct the
-    confusion matrix, which compares the given and predicted classes.
- 
-    When parent labels such as "Feldspar" or "Pyroxene" are present in either
+    analysis. Labels are first mapped onto the names mineralML returns in
+    'Predict_Mineral' (see harmonize_labels), so that, e.g., Hematite is
+    counted as "Rhombohedral_Oxides", Magnetite as "Spinel_Group", and
+    Tridymite as "SiO2_Polymorph". Then,
+    it uses these mappings to construct the confusion matrix, which compares
+    the given and predicted classes.
+
+    When parent labels such as "Feldspar", "Pyroxene", or "Oxide" are present in either
     the given or predicted arrays, child labels (e.g., "Alkali_Feldspar",
     "Plagioclase") are automatically merged into the parent label so the
     confusion matrix dimensions remain consistent.
- 
+
     Labels that do not match any entry in the canonical mineral list after
     all merges are applied will trigger a UserWarning and the corresponding
     rows will be excluded from the confusion matrix.
- 
+
     Parameters:
         given_min (array-like): The true class labels.
         pred_min (array-like): The predicted class labels.
- 
+        pred_submineral (array-like, optional): The predicted 'Submineral'
+            column. Where pred_min is "Oxide", the oxide group in
+            pred_submineral is used instead.
+
     Returns:
         cm_df (DataFrame): A DataFrame representing the confusion matrix, with rows
                            and columns labeled by the unique mineral names found in
                            the given and predicted class arrays.
- 
+
     """
- 
-    minerals = [
-        "Alkali_Feldspar",
-        "Amphibole",
-        "Apatite",
-        "Biotite",
-        "Carbonate",
-        "Chlorite",
-        "Clinopyroxene",
-        "Epidote",
-        "Garnet",
-        "Glass",
-        "Kalsilite",
-        "Leucite",
-        "Melilite",
-        "Muscovite",
-        "Nepheline",
-        "Olivine",
-        "Orthopyroxene",
-        "Oxide",
-        "Plagioclase",
-        "Rutile",
-        "Serpentine",
-        "SiO2_Polymorph",
-        "Titanite",
-        "Tourmaline",
-        "Zircon",
-    ]
- 
-    # Parent-group mapping: parent label -> set of child labels
-    parent_map = {
-        "Feldspar": {"Alkali_Feldspar", "Plagioclase"},
-        "Pyroxene": {"Clinopyroxene", "Orthopyroxene"},
-    }
- 
+
+    minerals = MINERAL_LABELS
+    parent_map = PARENT_LABELS
+
     given = pd.Series(given_min)
-    pred = pd.Series(pred_min)
- 
+    pred = _resolve_oxide(pd.Series(pred_min), pred_submineral)
+
     given_nans = given.isna().sum()
     pred_nans = pred.isna().sum()
     if given_nans > 0 or pred_nans > 0:
@@ -92,60 +292,11 @@ def confusion_matrix_df(given_min, pred_min):
         mask = given.notna() & pred.notna()
         given = given[mask]
         pred = pred[mask]
- 
-    # --- Case-insensitive group merges ---
-    def _merge_to_spinel_group(x):
-        if pd.isna(x):
-            return x
-        s = str(x).strip().lower()
-        if "spinel" in s or s in {"magnetite", "chromite", "hercynite", "ulvospinel"}:
-            return "Spinel_Group"
-        return x
- 
-    def _merge_to_rhomb_oxide(x):
-        if pd.isna(x):
-            return x
-        s = str(x).strip().lower()
-        if s in {"hematite", "ilmenite"}:
-            return "Rhombohedral_Oxides"
-        return x
- 
-    def _merge_to_oxide(x):
-        if pd.isna(x):
-            return x
-        if x in {"Rhombohedral_Oxides", "Spinel_Group"}:
-            return "Oxide"
-        return x
- 
-    def _merge_to_clinopyroxene(x):
-        if pd.isna(x):
-            return x
-        s = str(x).strip().lower()
-        if s in {"na-pyroxene"}:
-            return "Clinopyroxene"
-        return x
- 
-    given = given.map(_merge_to_spinel_group)
-    given = given.map(_merge_to_rhomb_oxide)
-    given = given.map(_merge_to_oxide)
-    given = given.map(_merge_to_clinopyroxene)
-    pred = pred.map(_merge_to_spinel_group)
-    pred = pred.map(_merge_to_rhomb_oxide)
-    pred = pred.map(_merge_to_oxide)
-    pred = pred.map(_merge_to_clinopyroxene)
- 
-    # --- Dynamic parent-group merges ---
+
+    # --- Map aliases and merge children into parent labels ---
+    given, pred = _harmonize(given, pred)
     all_labels = set(given) | set(pred)
- 
-    for parent, children in parent_map.items():
-        if parent in all_labels:
-            def _merge_parent(x, _p=parent, _c=children):
-                if pd.isna(x):
-                    return x
-                return _p if x in _c else x
-            given = given.map(_merge_parent)
-            pred = pred.map(_merge_parent)
- 
+
     # Build label list, swapping children for parent where needed
     active_minerals = []
     for m in minerals:

@@ -23,7 +23,7 @@ import torch.nn.functional as F
 from .core import *
 from .core import same_seeds
 from .stoichiometry import *
-from .constants import OXIDES
+from .constants import OXIDES, OXIDE_MASSES
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -67,51 +67,118 @@ def load_mineral_classes(minclass_path=_DEFAULT_CLASSES_FILE):
     return min_cat, mapping
 
 
+# wt% FeO per wt% Fe2O3, for the same amount of Fe (2 FeO per Fe2O3)
+_FE2O3_TO_FEO = 2 * OXIDE_MASSES["FeO"] / OXIDE_MASSES["Fe2O3"]
+
+# Fe columns in order of preference, as (name, FeOt estimate) pairs. Totals
+# come first, then FeO + Fe2O3, then FeO or Fe2O3 alone.
+_FE_ESTIMATES = [
+    ("FeOt", lambda fe: fe["FeOt"]),
+    ("Fe2O3t", lambda fe: fe["Fe2O3t"] * _FE2O3_TO_FEO),
+    ("FeO + Fe2O3", lambda fe: fe["FeO"] + fe["Fe2O3"] * _FE2O3_TO_FEO),
+    ("FeO", lambda fe: fe["FeO"]),
+    ("Fe2O3", lambda fe: fe["Fe2O3"] * _FE2O3_TO_FEO),
+]
+_FE_TOTALS = ["FeOt", "Fe2O3t", "FeO + Fe2O3"]
+
+# Reported totals that differ by more than this from the one used are flagged
+_FE_RTOL, _FE_ATOL = 0.02, 0.05
+
+
 def convert_fe_to_feot(df):
     """
     Handle inconsistent Fe speciation in databases by converting all to FeOt.
+    Each row is converted from its own Fe columns, so tables that mix Fe forms
+    across rows (e.g., FeOt in some rows and Fe2O3t in others) are handled.
+
+    Where a row reports more than one Fe column, the first with Fe > 0 is used,
+    in this order: FeOt, Fe2O3t, FeO + Fe2O3, FeO, Fe2O3. Zeros are skipped so
+    that a 0 left as a placeholder for an unreported form does not override a
+    reported one; rows with no Fe > 0 keep their reported value (e.g., 0).
+    Non-numeric values (e.g., "bdl" or "n.d.") are treated as not reported.
+
+    Warns when non-numeric values are found, when rows report Fe in different
+    forms, and when a row reports totals (FeOt, Fe2O3t, or FeO + Fe2O3) that
+    differ by more than 2% from the one used.
 
     Parameters:
         df (pd.DataFrame): Array of oxide compositions.
 
     Returns:
-        df (pd.DataFrame): Array of oxide compositions with converted Fe.
+        df (pd.DataFrame): Array of oxide compositions with Fe as FeOt. The
+            FeO, Fe2O3, and Fe2O3t columns are removed.
     """
     df = df.copy()
 
-    # Ensure all four iron columns exist for the conditional logic
-    for col in ("FeO", "FeOt", "Fe2O3", "Fe2O3t"):
+    fe_cols = ["FeO", "FeOt", "Fe2O3", "Fe2O3t"]
+    for col in fe_cols:
         if col not in df.columns:
             df[col] = np.nan
 
-    fe_conv = 159.688 / (2 * 71.8464)
+    # Coerce text (e.g., "bdl") to NaN, so it is treated as not reported
+    raw = df[fe_cols]
+    fe = raw.apply(pd.to_numeric, errors="coerce")
+    non_numeric = fe.isna() & raw.notna()
+    if non_numeric.any().any():
+        bad_values = [
+            f"{col}: {val!r}"
+            for col in fe_cols
+            for val in raw.loc[non_numeric[col], col].unique()
+        ]
+        warnings.warn(
+            "Non-numeric Fe value(s) were treated as not reported: "
+            + ", ".join(bad_values),
+            UserWarning,
+            stacklevel=2,
+        )
 
-    conditions = [
-        df['FeO'].notna() & df['FeOt'].isna() & df['Fe2O3'].isna() & df['Fe2O3t'].isna(),    # 0
-        df['FeOt'].notna() & df['FeO'].isna() & df['Fe2O3'].isna() & df['Fe2O3t'].isna(),    # 1
-        df['Fe2O3'].notna() & df['Fe2O3t'].isna() & df['FeO'].isna() & df['FeOt'].isna(),    # 2
-        df['Fe2O3t'].notna() & df['Fe2O3'].isna() & df['FeO'].isna() & df['FeOt'].isna(),    # 3
-        df['FeO'].notna() & df['Fe2O3'].notna() & df['FeOt'].isna() & df['Fe2O3t'].isna(),   # 4
-        df['FeO'].notna() & df['FeOt'].notna() & df['Fe2O3'].notna() & df['Fe2O3t'].isna(),  # 5
-        df['FeO'].notna() & df['Fe2O3'].notna() & df['Fe2O3t'].notna() & df['FeOt'].isna(),  # 6
-        df['FeOt'].notna() & df['Fe2O3'].notna() & df['Fe2O3t'].isna() & df['FeO'].isna(),   # 7
-        df['Fe2O3'].notna() & df['Fe2O3t'].notna() & df['FeO'].isna() & df['FeOt'].isna(),   # 8
-    ]
+    names = np.array([name for name, _ in _FE_ESTIMATES])
+    estimates = np.column_stack(
+        [np.asarray(func(fe), dtype=float) for _, func in _FE_ESTIMATES]
+    )
 
-    choices = [
-        df['FeO'],                                 # 0
-        df['FeOt'],                                # 1
-        df['Fe2O3'] / fe_conv,                     # 2
-        df['Fe2O3t'] / fe_conv,                    # 3
-        df['FeO'] + (df['Fe2O3'] / fe_conv),       # 4
-        df['FeOt'],                                # 5
-        df['Fe2O3t'] / fe_conv,                    # 6
-        df['FeOt'],                                # 7
-        df['Fe2O3t'] / fe_conv,                    # 8
-    ]
+    # Use the first estimate with Fe > 0. Rows with none use the first
+    # reported estimate instead (e.g., 0 for Fe-free minerals).
+    usable = estimates > 0
+    no_positive = ~usable.any(axis=1)
+    usable[no_positive] = ~np.isnan(estimates[no_positive])
 
-    df['FeOt'] = np.select(conditions, choices, default=np.nan)
-    df.drop(columns=["FeO", "Fe2O3", "Fe2O3t"], errors="ignore", inplace=True)
+    has_fe = usable.any(axis=1)
+    first = usable.argmax(axis=1)
+    rows = np.arange(len(df))
+    feot = np.where(has_fe, estimates[rows, first], np.nan)
+    source = pd.Series(np.where(has_fe, names[first], None), index=df.index)
+
+    counts = source.value_counts()
+    if len(counts) > 1:
+        summary = ", ".join(
+            f"{src} ({n} row{'s' if n != 1 else ''})" for src, n in counts.items()
+        )
+        warnings.warn(
+            f"Fe is reported in different forms across rows: {summary}. "
+            "Each row is converted to FeOt from its own Fe columns, preferring "
+            "FeOt, then Fe2O3t, then FeO + Fe2O3, then FeO or Fe2O3 alone.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    totals = estimates[:, [list(names).index(t) for t in _FE_TOTALS]]
+    differs = (totals > 0) & ~np.isclose(
+        totals, feot[:, None], rtol=_FE_RTOL, atol=_FE_ATOL
+    )
+    disagree = differs.any(axis=1)
+    if disagree.any():
+        examples = list(df.index[disagree][:5])
+        warnings.warn(
+            f"{int(disagree.sum())} row(s) report Fe totals (FeOt, Fe2O3t, or "
+            f"FeO + Fe2O3) that differ by more than {_FE_RTOL:.0%}, e.g., rows "
+            f"{examples}. The first of FeOt, Fe2O3t, and FeO + Fe2O3 was used.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    df["FeOt"] = feot
+    df.drop(columns=["FeO", "Fe2O3", "Fe2O3t"], inplace=True)
 
     return df
 
@@ -130,9 +197,10 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
             'Sample Name', 'Sample ID') are preserved in the output when present.
         renormalize (bool): If True, renormalizes the oxide columns to 100 wt%.
         convert_fe (bool): If True, automatically converts FeO, Fe2O3, and
-            Fe2O3t columns to FeOt using ``Fe_Conversion()``. If False
-            (the default), raises a ValueError when these columns are present
-            without a corresponding FeOt column.
+            Fe2O3t columns to FeOt row by row using ``convert_fe_to_feot()``.
+            If False (the default), raises a ValueError when these columns are
+            present without a corresponding FeOt column, and warns when rows
+            have Fe only in these columns.
         drop_empty_rows (bool): If True, drops rows where fewer than
             ``min_oxide_count`` oxide columns have non-zero values. Useful
             for large datasets with many blank or near-blank analyses.
@@ -148,18 +216,27 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
     n_input = len(df)
 
     # --- Iron column handling ---
-    has_fe_variants = (
-        ("FeO" in df.columns or "Fe2O3" in df.columns or "Fe2O3t" in df.columns)
-        and "FeOt" not in df.columns
-    )
+    fe_cols = [c for c in ("FeO", "Fe2O3", "Fe2O3t") if c in df.columns]
 
-    if has_fe_variants:
+    if fe_cols:
         if convert_fe:
             df = convert_fe_to_feot(df)
             if verbose:
                 print("prep_df: Converted iron columns to FeOt.")
+        elif "FeOt" in df.columns:
+            # Only FeOt is used, so rows with Fe only in other columns lose it
+            feot = pd.to_numeric(df["FeOt"], errors="coerce")
+            other = df[fe_cols].apply(pd.to_numeric, errors="coerce")
+            fe_only_other = ~(feot > 0) & (other > 0).any(axis=1)
+            if fe_only_other.any():
+                warnings.warn(
+                    f"{int(fe_only_other.sum())} row(s) have no FeOt > 0 but report "
+                    f"Fe in {fe_cols}. Only FeOt is used, so these rows will "
+                    "have FeOt = 0. Set convert_fe=True to convert them.",
+                    UserWarning,
+                    stacklevel=2,
+                )
         else:
-            fe_cols = [c for c in ("FeO", "Fe2O3", "Fe2O3t") if c in df.columns]
             raise ValueError(
                 f"No 'FeOt' column found. You have {fe_cols}. "
                 "mineralML only recognizes 'FeOt' as a column. "
@@ -1782,6 +1859,14 @@ def train_hybrid_model(
 
 
 
+def _label_mask(labels, values):
+    """
+    Boolean mask of labels in values. Null labels give False rather than <NA>,
+    which nullable string dtypes (e.g., under cudf.pandas) would otherwise return.
+    """
+    return labels.isin(values).fillna(False).astype(bool)
+
+
 def predict_class_prob(
     df,
     n_iterations=50,
@@ -2008,18 +2093,18 @@ def predict_class_prob(
             result_df.loc[mask, "Submineral"] = out["Submineral"].values
  
     # Pyroxene classification
-    px_mask = result_df["Predict_Mineral"] == "Pyroxene"
+    px_mask = _label_mask(result_df["Predict_Mineral"], ["Pyroxene"])
     _merge_subclass(px_mask, PyroxeneClassifier, want_sub=True)
  
     # Feldspar classification
-    fspar_mask = result_df["Predict_Mineral"] == "Feldspar"
+    fspar_mask = _label_mask(result_df["Predict_Mineral"], ["Feldspar"])
     _merge_subclass(fspar_mask, FeldsparClassifier, want_sub=True)
  
     # Oxide classification
     # ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinel_Group", "Oxide"])
     # # ox_mask = result_df["Predict_Mineral"].isin(["Oxide"])
     # _merge_subclass(ox_mask, OxideClassifier, want_sub=True)
-    ox_mask = result_df["Predict_Mineral"].isin(["Rhombohedral_Oxides", "Spinel_Group", "Oxide"])
+    ox_mask = _label_mask(result_df["Predict_Mineral"], ["Rhombohedral_Oxides", "Spinel_Group", "Oxide"])
     if ox_mask.any():
         # Preserve the original NN label as the Submineral
         result_df.loc[ox_mask, "Submineral"] = result_df.loc[ox_mask, "Predict_Mineral"].values

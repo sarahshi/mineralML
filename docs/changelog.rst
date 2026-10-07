@@ -3,6 +3,18 @@ Changelog
 =========
 
 
+Version 0.0.3.22
+================
+Added ``harmonize_labels``, which maps published mineral labels onto the names mineralML returns in ``Predict_Mineral``. It returns ``published_harmonized`` (your labels, e.g., the ``Mineral`` column) and, when predictions are passed, ``predict_mineral_harmonized`` (``Predict_Mineral`` mapped the same way). ``confusion_matrix_df`` now uses the same mapping and takes ``pred_submineral``, so silica, carbonate, feldspar, and pyroxene mineral names are no longer dropped as unrecognized, and oxides are split into ``Rhombohedral_Oxides`` and ``Spinel_Group`` rather than merged into ``Oxide``. Labels at each level are documented on the new Mineral Labels page. Matching ignores case, spaces, and punctuation, and the names cover the mineral names used in GEOROC. 
+
+``convert_fe_to_feot`` now converts every combination of FeO, FeOt, Fe2O3, and Fe2O3t columns, using the first with Fe > 0 in this order: FeOt, Fe2O3t, FeO + Fe2O3, FeO, Fe2O3. Previously, rows with combinations such as FeOt and Fe2O3t, or FeO and FeOt, returned FeOt = NaN. Zeros left as placeholders (e.g., FeOt = 0 next to a reported Fe2O3t) no longer override reported Fe, and non-numeric values such as "bdl" are treated as not reported rather than raising an error. It now warns when rows report Fe in different forms (common in PetDB and Astromat downloads), and when a row reports totals that disagree by more than 2%. The Fe2O3 to FeO factor now uses the molar masses in ``constants.py``, which changes converted values by less than 0.005% relative. 
+
+``prep_df(convert_fe=True)`` now converts when FeO, Fe2O3, or Fe2O3t columns are present alongside FeOt; previously, rows with Fe only in those columns were set to FeOt = 0. With ``convert_fe=False``, ``prep_df`` warns about these rows.
+
+``predict_class_prob`` no longer fails at the pyroxene, feldspar, and oxide classification steps when ``Predict_Mineral`` has null values in a nullable string dtype (e.g., when using ``cudf.pandas``).
+
+Thanks to Paula Antoshechkina who suggested these developments for ease of use and for catching minor bugs! 
+
 Version 0.0.3.21
 ================
 ``export_predictions_to_excel`` now appends stoichiometry (moles, cations, site assignments, end-members such as ``Fo`` or ``An``) to each mineral sheet, alongside the predictions and prediction scores. The ``All`` sheet is unchanged. Set ``stoichiometry=False`` for the previous behavior.

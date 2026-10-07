@@ -15,6 +15,7 @@ Welcome to mineralML's documentation!
    :caption: Contents
 
    introduction
+   mineral_labels
    installation
    importing_data
    submitting_data
