@@ -418,12 +418,22 @@ def show_predictions(results, include_stoich):
         "Download Excel",
         lambda: to_excel(results, include_stoich),  # built on click; large files take a while
         file_name="mineralML_predictions.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary",
         help="One sheet with all rows, plus one sheet per predicted mineral (with stoichiometry appended, if selected).",
     )
     d2.download_button(
         "Download CSV", results.to_csv(index=False).encode(),
         file_name="mineralML_predictions.csv", mime="text/csv",
+        help="The predictions table above only. No per-mineral sheets and no stoichiometry.",
+    )
+    # A CSV holds a single table, so the per-mineral sheets can only come in the Excel file.
+    extra = "a sheet for each mineral with its stoichiometry" if include_stoich else "a sheet for each mineral"
+    st.info(
+        f"**Want the stoichiometry? Download the Excel file.** It has an \"All\" sheet plus {extra} "
+        "(moles, cations, site assignments, end-members such as Fo or An). "
+        "A CSV can only hold one table, so **the CSV contains just the predictions table above**, "
+        "and opening it in Excel will not show the other sheets.",
+        icon=":material/info:",
     )
 
 
@@ -453,7 +463,8 @@ with st.sidebar:
     include_stoich = show_latent = False
     if classify_on:
         include_stoich = st.checkbox("Add stoichiometry to Excel download", value=True,
-                                     help="Appends cations, site assignments and end-members to each mineral sheet.")
+                                     help="Appends cations, site assignments and end-members to each mineral "
+                                          "sheet. Excel only: the CSV download never includes stoichiometry.")
         show_latent = st.checkbox("Show latent space plot", value=True)
 
     st.header("About")
@@ -497,7 +508,7 @@ st.markdown(
 2. Upload a CSV or Excel file, choose **Use the example dataset**, or **Type in analyses**.
 3. Adjust the options if needed. The defaults suit most data.
 4. Results appear below: predictions with Excel/CSV downloads, composition diagrams to download as
-   PDF, SVG or PNG, and the latent space.
+   PDF, SVG or PNG, and the latent space. Stoichiometry is in the **Excel** download only, not the CSV.
 """
 )
 
@@ -547,6 +558,8 @@ with st.expander("Reading the results"):
   A low score, or a close second, flags ambiguous compositions, mixed analyses or poor-quality data.
 * **Excel download**: an "All" sheet, plus one sheet per mineral with stoichiometry appended
   (moles, cations, site assignments, end-members such as Fo or An).
+* **CSV download**: the predictions table only. A CSV file holds a single table, so it has no
+  per-mineral sheets and **no stoichiometry**. Download the Excel file if you need either.
 * **Latent space**: your analyses projected onto the training data. Points far from any cluster
   are unusual for their assigned mineral.
 """
