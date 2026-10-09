@@ -1,6 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
-mineralML==0.0.3.22
+mineralML==0.0.3.23
 streamlit>=1.64
 openpyxl
 python-ternary
