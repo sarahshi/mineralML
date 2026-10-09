@@ -19,11 +19,19 @@ from matplotlib.colors import ListedColormap, is_color_like, to_hex, to_rgb
 from matplotlib.widgets import RectangleSelector
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
-from mineralML.core import *
-from mineralML.hybrid import *
-from mineralML.stoichiometry import *
-from mineralML.constants import *
+from .hybrid import predict_class_prob
+from .stoichiometry import (AmphiboleCalculator, FeldsparClassifier, OlivineCalculator, PyroxeneClassifier,
+                            element_to_oxide, element_to_oxide_identity)
 from .constants import OXIDES
+
+__all__ = ["maps_to_df", "df_to_maps", "renormalize_maps", "load_element_maps",
+           "load_maps_from_dir", "pick_common_phases", "remove_islands", "fill_phase_holes",
+           "plot_phase_map", "plot_phase_counts", "plot_phase_proportions",
+           "plot_pred_score_histograms", "run_map", "plot_component_composite", "plot_score_map",
+           "plot_oxide_map", "parse_ctf_header", "plot_ctf_phases", "interactive_pixels",
+           "get_profile_map", "extract_line_profile", "plot_line_profile",
+           "interactive_line_profile", "extract_region_stats", "interactive_region",
+           "batch_extract_line_profiles", "plot_locations"]
 
 # %%
 

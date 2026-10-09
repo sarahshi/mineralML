@@ -30,6 +30,13 @@ Stoichiometric Functions
    :members:
 
 
+Plotting Functions
+==================
+
+.. automodule:: mineralML.plotting
+   :members: scatter_points, scatter_ternary, add_legend, category_slots, is_continuous, symbol_spec, plot_columns
+
+
 Synthetic Mineral Generator
 ===========================
 

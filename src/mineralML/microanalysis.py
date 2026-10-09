@@ -6,6 +6,9 @@ import pandas as pd
 
 from .constants import OXIDES
 
+__all__ = ["get_oxide_from_elem", "extract_cameca", "extract_probe4epma", "extract_aztec",
+           "format_for_thermobar"]
+
 # %% 
 
 def get_oxide_from_elem(elem, found_oxides):

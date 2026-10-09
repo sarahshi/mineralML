@@ -231,12 +231,11 @@ class test_variational_layer(unittest.TestCase):
 
 
 class TestPredictClassProbNN(unittest.TestCase):
-    @patch("mineralML.hybrid.load_model", side_effect=lambda model, opt, path: None)  # no file I/O
     @patch("mineralML.hybrid.norm_data")
     @patch("mineralML.hybrid.load_mineral_classes")
     @patch("mineralML.hybrid.class2mineral",
            side_effect=lambda idx: np.array([f"C{int(i)}" for i in idx]))
-    def test_predict_class_prob_nn_contract(self, p_c2m, p_classes, p_norm, _p_load_model):
+    def test_predict_class_prob_nn_contract(self, p_c2m, p_classes, p_norm):
         K = 6
         fake_classes = [f"C{i}" for i in range(K)]
         fake_map = dict(enumerate(fake_classes))

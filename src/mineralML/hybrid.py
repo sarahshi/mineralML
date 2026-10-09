@@ -20,15 +20,23 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 import torch.nn.functional as F
 
-from .core import *
-from .core import same_seeds
-from .stoichiometry import *
-from .constants import OXIDES, OXIDE_MASSES
-
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.cm as mcm
 from sklearn.decomposition import PCA
+
+from .core import LabelDataset, load_scaler, same_seeds, weights_init
+from .stoichiometry import FeldsparClassifier, PyroxeneClassifier
+from .constants import OXIDES, OXIDE_MASSES
+
+__all__ = ["load_mineral_classes", "convert_fe_to_feot", "prep_df", "norm_data", "balance",
+           "VariationalLayer", "unique_mapping", "class2mineral", "format_oxide_label",
+           "FeatureExtractor", "LatentProjector", "ReconstructionDecoder", "ReconstructionWrapper",
+           "train_nn_hybrid_bottleneck", "plot_loss_curves", "kl_divergence_sum",
+           "train_nn_hybrid_classifier", "plot_latent_space_training", "train_hybrid_model",
+           "predict_class_prob", "enable_mc_sampling", "build_model_from_config",
+           "load_hybrid_checkpoint", "compute_z2_from_df", "plot_latent_space", "plot_harker",
+           "load_minclass_nn", "predict_class_prob_nnwr", "plot_z2_overlay"]
 
 _DEFAULT_CLASSES_FILE = "mineral_classes_nn_v0030.npz"
 _DEFAULT_SCALER_FILE = "scaler_nn_v0030.npz"

@@ -3,6 +3,21 @@ Changelog
 =========
 
 
+Version 0.0.3.23
+================
+Every classification plot (``GlassClassifier.plot`` for TAS, ``FeldsparClassifier.plot``, ``PyroxeneClassifier.plot``, ``AmphiboleClassifier.plot``, ``OxideClassifier.plot`` and ``OxideClassifier.plot_spinel``) now takes the same point options: ``color`` (any column, from the classified output or your input DataFrame; numeric columns such as ``TiO2`` get a colorbar), ``symbol`` (a second column for marker shapes), ``colors`` and ``symbols`` (your choices per category), ``size``, ``alpha``, ``scatter_kw`` and ``legend``. With no arguments, each plot colors by the same column as before. Up to 24 categories are told apart: past the 8 colorblind-safe colors, categories reuse the colors with open and then extra symbols. The shared code is in the new ``mineralML.plotting`` module, which the web app also uses. For example:
+
+.. code-block:: python
+
+    fig, ax = mm.GlassClassifier(df).plot(color="TiO2", symbol="Volcano")
+    fig, tax = mm.FeldsparClassifier(df).plot(color="Volcano", colors={"Mt. Rainier": "black"},
+                                              symbols={"Mt. Rainier": "star"})
+
+Points now use the colorblind-safe palette from the web app rather than matplotlib's ``tab10``. ``FeldsparClassifier.plot`` no longer ignores its keyword arguments; they style the points, as in ``GlassClassifier.plot`` (e.g. ``s=40``). ``PyroxeneClassifier.plot(subclass=False)`` now colors by ``Mineral``, as documented, instead of drawing one color. ``AmphiboleClassifier.plot`` and ``plot_spinel`` still accept ``hue`` as another name for ``color``.
+
+Fixed ``OxideClassifier.plot`` drawing every analysis as Unclassified on the Fe-Ti oxide ternary: it read a ``Submineral`` column that ``classify()`` does not produce. It now colors by ``Suboxide``.
+
+
 Version 0.0.3.22
 ================
 Added ``harmonize_labels``, which maps published mineral labels onto the names mineralML returns in ``Predict_Mineral``. It returns ``published_harmonized`` (your labels, e.g., the ``Mineral`` column) and, when predictions are passed, ``predict_mineral_harmonized`` (``Predict_Mineral`` mapped the same way). ``confusion_matrix_df`` now uses the same mapping and takes ``pred_submineral``, so silica, carbonate, feldspar, and pyroxene mineral names are no longer dropped as unrecognized, and oxides are split into ``Rhombohedral_Oxides`` and ``Spinel_Group`` rather than merged into ``Oxide``. Labels at each level are documented on the new Mineral Labels page. Matching ignores case, spaces, and punctuation, and the names cover the mineral names used in GEOROC. 

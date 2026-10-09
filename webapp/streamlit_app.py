@@ -14,7 +14,8 @@ import mineralML as mm
 
 import diagrams as dg  # webapp/diagrams.py; streamlit puts the script's folder on sys.path
 
-st.set_page_config(page_title="mineralML", page_icon="💎", initial_sidebar_state=350)  # sidebar width, px (default 300)
+st.set_page_config(page_title="mineralML", page_icon="💎", initial_sidebar_state=350,  # sidebar width, px (default 300)
+                   layout="wide")  # full browser width, so diagrams and tables render large
 st.set_page_config(initial_sidebar_state="expanded")  # additive: keeps the width, and opens the sidebar on every screen size
 
 OXIDES = mm.OXIDES + ["ZrO2"]
@@ -132,8 +133,8 @@ ALIASES = {
 }
 
 
-def default_values(d, values):
-    """Labels that belong on diagram d, matched case-insensitively (all labels if none match)."""
+def matching_values(d, values):
+    """Labels that belong on diagram d, matched case-insensitively."""
     if not d.minerals:
         return values
     wanted = {m.lower() for m in d.minerals}
@@ -141,7 +142,26 @@ def default_values(d, values):
     match = [v for v in values if v.lower() in wanted]
     if "Oxide" in d.minerals:  # user labels: Magnetite, Ilmenite...
         match += [v for v in values if v not in match and any(w in v.lower() for w in OXIDE_WORDS)]
-    return match or values
+    return match
+
+
+def default_values(d, values, by):
+    """Labels selected for diagram d by default. Only users' own labels, which can be any name,
+    fall back to every label when none match; predicted labels always use mineralML's names."""
+    match = matching_values(d, values)
+    return match or (values if by == "Mineral" else [])
+
+
+def off_diagram_warning(d, labels):
+    """Warning text when labels outside diagram d's mineral groups are plotted on it, else None."""
+    stray = [v for v in labels if v not in matching_values(d, labels)]
+    if not d.minerals or not stray:
+        return None
+    meant = " and ".join(dg.pretty(m) for m in d.minerals) if len(d.minerals) < 3 else (
+        ", ".join(dg.pretty(m) for m in d.minerals[:-1]) + f" and {dg.pretty(d.minerals[-1])}")
+    shown = ", ".join(dg.pretty(v) for v in stray[:5]) + (f" and {len(stray) - 5} more" if len(stray) > 5 else "")
+    return (f"The {d.label} diagram should only be used for **{meant}** analyses. "
+            f"Also included: {shown}. Their positions and fields on this diagram are not meaningful.")
 
 
 def _subset(df, by, values):
@@ -153,7 +173,7 @@ def default_diagrams(results, by):
     """Every classification diagram at its default options: {key: (data, names, msgs)}."""
     values = label_values(results, by)
     return {
-        k: dg.prepare(k, _subset(results, by, default_values(dg.DIAGRAMS[k], values)),
+        k: dg.prepare(k, _subset(results, by, default_values(dg.DIAGRAMS[k], values, by)),
                       **DEFAULT_OPTS.get(k, {}))
         for k in dg.CLASSIFICATION
     }
@@ -195,8 +215,11 @@ def show_diagrams(results, header=True):
     with st.spinner("Classifying for diagrams..."):
         defaults = default_diagrams(results, by)
     counts = {k: len(v[0]) for k, v in defaults.items()}
-    keys = ([k for k in dg.CLASSIFICATION if counts[k]] + ["ternary", "xy"]
-            + [k for k in dg.CLASSIFICATION if not counts[k]])
+    # Empty diagrams sort below the custom plots, except that the two pyroxene diagrams stay together.
+    pyx = counts["pyroxene"] or counts["napyroxene"]
+    listed = {k: counts[k] or (k in ("pyroxene", "napyroxene") and pyx) for k in dg.CLASSIFICATION}
+    keys = ([k for k in dg.CLASSIFICATION if listed[k]] + ["ternary", "xy"]
+            + [k for k in dg.CLASSIFICATION if not listed[k]])
 
     def describe(k):
         if k not in counts:
@@ -210,13 +233,18 @@ def show_diagrams(results, header=True):
     all_values = label_values(results, by)
     scored = "Prediction_Score" in results.columns
 
-    left, right = st.columns([1, 2.2], gap="large")
+    left, right = st.columns([1, 2.8], gap="large")
     with left:
-        default_vals = default_values(d, all_values)
+        default_vals = default_values(d, all_values, by)
         values = all_values
         if by:
             values = st.multiselect("Include analyses " + ("predicted as" if by == "Predict_Mineral" else "labeled"),
-                                    all_values, default=default_vals, key=f"dg_{key}_{by}_values")
+                                    all_values, default=default_vals, key=f"dg_{key}_{by}_values",
+                                    help=None if custom else "Starts with the mineral groups this diagram is for.")
+        # With "All analyses", judge the rows by whichever label column the data has.
+        label_col = by or next((c for c in ["Predict_Mineral", "Mineral"]
+                                if c in results.columns and results[c].notna().any()), None)
+        off_warning = off_diagram_warning(d, list(values) if by else label_values(results, label_col))
         min_score = 0.0
         if scored:
             # Slider and number box share one value: drag for a rough cut, type for an exact one (e.g. 0.99).
@@ -268,20 +296,50 @@ def show_diagrams(results, header=True):
                 return
             opts.update(x=x, ys=tuple(ys))
 
+        # Color by: only columns worth coloring by for the analyses on this diagram.
+        included = _subset(results, by, values)
+
+        def worth_listing(col):
+            vals = included[col].dropna()
+            if vals.nunique() <= 1:
+                return False
+            # Text with a different value on nearly every row (e.g. sample names) makes no useful legend.
+            return dg.is_continuous(vals) or not (vals.nunique() > dg.MAX_CATEGORIES
+                                                  and vals.nunique() > 0.5 * len(vals))
+
         hue_opts = {}
         if not custom:
-            hue_opts["Classification field"] = "Field"
+            hue_opts["Field on this diagram"] = "Field"
         if scored:
-            hue_opts["Predicted mineral"] = "Predict_Mineral"
-            if "Submineral" in results.columns and results["Submineral"].notna().any():
-                hue_opts["Submineral"] = "Submineral"
+            if worth_listing("Predict_Mineral"):
+                hue_opts["Predicted mineral"] = "Predict_Mineral"
             hue_opts["Prediction score"] = "Prediction_Score"
-        for c in results.columns:
-            if c not in PREDICTION_COLS and c not in OXIDES + ["FeO", "Fe2O3", "Fe2O3t"]:
-                hue_opts[c] = c
+        # Oxides share one entry, with the oxide chosen below; all-zero ones were not analyzed.
+        oxides = [c for c in OXIDES if c in included.columns
+                  and pd.to_numeric(included[c], errors="coerce").fillna(0).ne(0).any()]
+        if oxides:
+            hue_opts["Oxide (wt%)"] = "__oxide__"
+        # The user's own columns (e.g. Volcano, Arc segment) share one entry, with the column chosen below.
+        user_cols = [c for c in results.columns
+                     if c not in PREDICTION_COLS and c not in OXIDES + ["FeO", "Fe2O3", "Fe2O3t"] and worth_listing(c)]
+        if user_cols:
+            hue_opts["Column from your file"] = "__column__"
         hue_opts["Single color"] = None
-        hue_name = st.selectbox("Color by", list(hue_opts), key=f"dg_{key}_hue")
+        hue_name = st.selectbox("Color by", list(hue_opts), key=f"dg_{key}_hue",
+                                help="Pick a column to color the points by. Point shapes, and the colors and "
+                                     "shapes of each category, are under **Colors and shapes** below.")
         hue = hue_opts[hue_name]
+        if hue == "__column__":
+            hue = st.selectbox("Column", user_cols, key=f"dg_{key}_column",
+                               help="Text columns get a color per category; numeric columns get a colorbar.")
+            hue_name = hue
+        if hue == "__oxide__":
+            hue = st.selectbox("Oxide", oxides, index=oxides.index("TiO2") if "TiO2" in oxides else 0,
+                               key=f"dg_{key}_oxide")
+            hue_name = f"{hue} (wt%)"
+
+        def categorical(col):
+            return col == "Field" or (col is not None and not dg.is_continuous(results[col]))
 
         quad_only = True
         if key == "pyroxene":
@@ -291,7 +349,9 @@ def show_diagrams(results, header=True):
             alpha = st.slider("Opacity", 0.1, 1.0, 0.85, 0.05, key=f"dg_{key}_alpha")
             w, h = d.figsize
             c1, c2 = st.columns(2)
-            width = c1.number_input("Width (in)", 3.0, 20.0, w, 0.5, key=f"dg_{key}_w")
+            width = c1.number_input("Width (in)", 3.0, 20.0, w, 0.5, key=f"dg_{key}_w",
+                                    help="Width of the plot. The legend or colorbar gets its own column to the "
+                                         "right, so the plot stays this size whatever it is colored by.")
             height = c2.number_input("Height (in)", 3.0, 20.0, h, 0.5, key=f"dg_{key}_h")
             if d.ternary:
                 st.caption("Ternaries keep their shape; the plot fits inside this size.")
@@ -307,21 +367,77 @@ def show_diagrams(results, header=True):
     else:
         with st.spinner("Classifying..."):
             data, names, msgs = prepare_diagram(key, source, by, tuple(values), opts)
-    # Colors follow the category across filters: slots come from the unfiltered column.
-    categories = ()
-    if hue == "Field":
-        categories = dg.category_slots(data["Field"])
-    elif hue and not dg.is_continuous(results[hue]):
-        categories = dg.category_slots(results[hue])
+    # Slots come from this diagram's analyses before the score filter, so moving the slider never
+    # repaints the survivors, and the editor lists only categories that are on the diagram.
+    def full_column(col):
+        return data[col]
+
+    hue_label = d.field_label if hue == "Field" else hue_name
+    colors, symbols = {}, {}
+    with left:
+        with st.expander("Colors and shapes"):
+            # Shapes follow the colors, or come from a second column (e.g. color by volcano, shape by mineral).
+            shape_opts = {"Match colors": dg.SAME} if categorical(hue) else {}
+            shape_opts["All circles"] = None
+            def shapeable(col):
+                return col not in (hue, None) and categorical(col) and 1 < full_column(col).nunique() <= dg.MAX_CATEGORIES
+
+            shape_opts.update({name: col for name, col in hue_opts.items()
+                               if col not in ("__column__", "__oxide__") and shapeable(col)})
+            shape_cols = [c for c in user_cols if shapeable(c)]
+            if shape_cols:
+                shape_opts["Column from your file"] = "__column__"
+            shape_name = st.selectbox(
+                "Shape by", list(shape_opts), key=f"dg_{key}_shape_{hue}",
+                help="**Match colors**: each color group also gets its own shape. Or pick a second column, "
+                     "e.g. color by volcano and shape by predicted mineral.",
+            )
+            symbol = shape_opts[shape_name]
+            if symbol == "__column__":
+                symbol = st.selectbox("Shape column", shape_cols, key=f"dg_{key}_shape_column_{hue}")
+                shape_name = symbol
+            symbol_label = d.field_label if symbol == "Field" else shape_name
+
+            color_limit = dg.MAX_CATEGORIES if symbol == dg.SAME else len(dg.PALETTE)
+            categories = dg.category_slots(full_column(hue), color_limit) if categorical(hue) else ()
+            symbol_categories = (dg.category_slots(full_column(symbol), dg.MAX_CATEGORIES)
+                                 if symbol not in (dg.SAME, None) else ())
+
+            if categories or symbol_categories:
+                prefix = f"dg_{key}_cs_{hue}_{symbol}_"
+                if st.button("Reset to defaults", key=f"dg_{key}_cs_reset", icon=":material/restart_alt:"):
+                    for k in [k for k in st.session_state if str(k).startswith(prefix)]:
+                        del st.session_state[k]
+                if categories:
+                    st.markdown(f"**{dg.pretty(hue_label)}**")
+                for i, cat in enumerate(categories):
+                    swatch, rest = st.columns([1, 5], vertical_alignment="bottom")
+                    colors[cat] = swatch.color_picker(f"{dg.pretty(cat)} color", dg.slot_color(i),
+                                                      key=f"{prefix}c_{cat}", label_visibility="collapsed")
+                    if symbol == dg.SAME:
+                        symbols[cat] = rest.selectbox(dg.pretty(cat), dg.SYMBOL_ORDER, index=i, key=f"{prefix}s_{cat}")
+                    else:
+                        rest.markdown(dg.pretty(cat))
+                if symbol_categories:
+                    st.markdown(f"**{dg.pretty(symbol_label)}**")
+                for i, cat in enumerate(symbol_categories):
+                    symbols[cat] = st.selectbox(dg.pretty(cat), dg.SYMBOL_ORDER, index=i, key=f"{prefix}s_{cat}")
+                if len(categories) == color_limit or len(symbol_categories) == dg.MAX_CATEGORIES:
+                    st.caption("Less common categories are grouped as Other (grey).")
+
     n_in = len(_subset(source, by, values))
     if min_score > 0:
         data = data[data["Prediction_Score"] >= min_score]
 
-    style = dg.Style(hue=hue, categories=categories, hue_label=d.field_label if hue == "Field" else hue_name,
+    style = dg.Style(hue=hue, categories=categories, hue_label=hue_label, symbol=symbol,
+                     symbol_categories=symbol_categories, symbol_label=symbol_label,
+                     colors=tuple(colors.items()), symbols=tuple(symbols.items()),
                      labels=labels, quad_only=quad_only, size=size, alpha=alpha, width=width, height=height,
                      title=title, logx=logx, logy=logy)
 
     with right:
+        if off_warning:
+            st.warning(off_warning, icon=":material/warning:")
         for m in msgs:
             st.warning(m)
         if data.empty:
@@ -329,17 +445,25 @@ def show_diagrams(results, header=True):
                 st.info("The oxide diagrams need to know which analyses are spinels and which are "
                         "ilmenite–hematite. Add a Mineral column (e.g. Magnetite, Spinel, Ilmenite, Hematite) "
                         "or choose **Classify and plot** in the menu at left.")
+            elif by and not custom and not matching_values(d, all_values):
+                meant = ", ".join(dg.pretty(m) for m in d.minerals)
+                st.info(f"None of your analyses are {'predicted as' if by == 'Predict_Mineral' else 'labeled'} "
+                        f"{meant}, so this diagram is empty. You can still add other minerals above.")
             else:
                 st.info("No analyses to plot with these settings. Check the analyses included above.")
             return
-        st.image(dg.render(key, data, names, style, "png", dpi=150), width="stretch")
+        st.image(dg.render(key, data, names, style, "png", dpi=200), width="stretch")
         dropped = n_in - len(data)
         st.caption(
             f"{len(data):,} of {n_in:,} analyses plotted"
             + (f" ({dropped:,} hidden: outside the diagram, failed the score filter, or classified "
                "onto another diagram)." if dropped else ".")
-            + (" Categories beyond the 7 most common are grouped as Other."
-               if hue and not dg.is_continuous(data[hue]) and dg.folds(data[hue]) else "")
+            + (f" Colors beyond the {color_limit - 1} most common categories are grouped as Other."
+               if categories and dg.folds(full_column(hue), color_limit) else "")
+            + (f" Symbols beyond the {dg.MAX_CATEGORIES - 1} most common categories are grouped as Other."
+               if symbol_categories and dg.folds(full_column(symbol), dg.MAX_CATEGORIES) else "")
+            + (" To tell more than 8 categories apart by color, set **Shape by** to *Match colors* (under Colors and shapes)."
+               if categories and symbol != dg.SAME and dg.folds(full_column(hue), color_limit) else "")
         )
         b = st.columns(4)
         stem = f"mineralML_{key}"
@@ -355,7 +479,7 @@ def show_diagrams(results, header=True):
             icon=":material/download:", help="The plotted analyses with their diagram coordinates.",
         )
 
-    pages = [(k, *defaults[k][:2], dg.Style(hue="Field", categories=dg.category_slots(defaults[k][0]["Field"]),
+    pages = [(k, *defaults[k][:2], dg.Style(hue="Field", categories=dg.category_slots(defaults[k][0]["Field"], dg.MAX_CATEGORIES),
                                             hue_label=dg.DIAGRAMS[k].field_label, labels=(dg.DIAGRAMS[k].label_choices or ("Short",))[0],
                                             width=dg.DIAGRAMS[k].figsize[0], height=dg.DIAGRAMS[k].figsize[1]))
              for k in dg.CLASSIFICATION if counts[k]]
@@ -483,8 +607,9 @@ with st.sidebar:
 # %% ----------------------------------------------------------------
 # main
 
-st.title("mineralML")
-st.markdown(
+intro = st.container(width=900)  # intro and help text keep a readable line length on the wide page
+intro.title("mineralML")
+intro.markdown(
     "Probabilistic classification of common igneous minerals from oxide compositions, "
     "with stoichiometry and crystallographic sites calculated for each classified analysis. "
     "Use it to label new EPMA or quantitative EDS data, or to catch misclassified phases and "
@@ -492,7 +617,7 @@ st.markdown(
     "ternaries, amphibole, oxides, and custom ternaries and Harker plots) can be drawn with or without "
     "classifying, and downloaded as PDF."
 )
-st.markdown(
+intro.markdown(
     "Working with quantitative EDS maps? This site handles point analyses. For maps, follow the "
     "[mapping notebook example](https://mineralml.readthedocs.io/en/latest/examples/mineralML_mapping.html), "
     "which runs the full workflow with `mm.run_map` (phase maps, proportions, prediction score maps, "
@@ -500,8 +625,8 @@ st.markdown(
     "[example maps](https://github.com/sarahshi/mineralML/tree/main/docs/examples/Maps)."
 )
 
-st.subheader("How to use")
-st.markdown(
+intro.subheader("How to use")
+intro.markdown(
     """
 1. In the menu at left, choose **Classify and plot**, or **Plot only** to skip classification
    (e.g. for glass or whole-rock data, or phases you have already identified).
@@ -512,7 +637,7 @@ st.markdown(
 """
 )
 
-with st.expander("Input format"):
+with intro.expander("Input format"):
     st.markdown(
         "One analysis per row, with oxides in wt%: "
         "SiO₂, TiO₂, Al₂O₃, FeOₜ, MnO, MgO, CaO, Na₂O, K₂O, Cr₂O₃, P₂O₅ (and ZrO₂ for zircon).\n\n"
@@ -529,7 +654,7 @@ with st.expander("Input format"):
         file_name="mineralML_template.csv", mime="text/csv", key="template_main",
     )
 
-with st.expander("Minerals classified"):
+with intro.expander("Minerals classified"):
     st.markdown(
         "The neural network is trained on a curated dataset of 128k analyses of 23 mineral groups and glass:"
     )
@@ -547,7 +672,7 @@ with st.expander("Minerals classified"):
         "* SiO₂ polymorphs\n* Titanite\n* Tourmaline\n* Zircon"
     )
 
-with st.expander("Reading the results"):
+with intro.expander("Reading the results"):
     st.markdown(
         """
 * **Predict_Mineral**: the most likely mineral. **Submineral** refines pyroxenes (e.g. Augite),
@@ -565,7 +690,7 @@ with st.expander("Reading the results"):
 """
     )
 
-with st.expander("How to cite"):
+with intro.expander("How to cite"):
     st.markdown("If you use mineralML in your work, please cite:")
     st.code(
         "Shi, S., Wieser, P., Gordon, C., Toth, N., Antoshechkina, P., Gleeson, M., & Lehnert, K. (2026). "

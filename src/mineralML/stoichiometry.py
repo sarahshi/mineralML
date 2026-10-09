@@ -12,7 +12,20 @@ import matplotlib.pyplot as plt
 import matplotlib.path as mpath
 import matplotlib.patches as mpatches
 
-from .constants import OXIDES, OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP, TAS_CONFIG
+from .constants import OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP, TAS_CONFIG
+from .plotting import SAME, plot_columns, style_points, ternary_xy, finish_ternary
+
+__all__ = ["BaseMineralCalculator", "oxide_to_element", "element_to_oxide",
+           "element_to_oxide_identity", "AmphiboleCalculator", "AmphiboleClassifier",
+           "ApatiteCalculator", "BiotiteCalculator", "CarbonateCalculator", "ChloriteCalculator",
+           "ClinopyroxeneCalculator", "EpidoteCalculator", "FeldsparCalculator",
+           "FeldsparClassifier", "GarnetCalculator", "TASClassifier", "GlassCalculator",
+           "GlassClassifier", "KalsiliteCalculator", "LeuciteCalculator", "MeliliteCalculator",
+           "MuscoviteCalculator", "NephelineCalculator", "OlivineCalculator",
+           "OrthopyroxeneCalculator", "RhombohedralOxideCalculator", "OxideClassifier",
+           "PyroxeneClassifier", "QuartzCalculator", "RutileCalculator", "SerpentineCalculator",
+           "SodicPyroxeneCalculator", "SpinelCalculator", "TitaniteCalculator",
+           "TourmalineCalculator", "ZirconCalculator", "MINERAL_CALCULATORS", "append_stoichiometry"]
 
 # %%
 
@@ -721,16 +734,39 @@ class AmphiboleClassifier(AmphiboleCalculator):
 
         return df_class
 
-    def plot(self, df_class=None, subclass=True, figsize=(10, 6), hue=None):
+    def plot(self, df_class=None, subclass=True, figsize=(10, 6), hue=None, color=None, symbol=SAME,
+             colors=None, symbols=None, size=None, alpha=None, scatter_kw=None, legend=True):
+        """
+        Plot amphiboles on the calcic amphibole diagram (Si vs Mg#).
+
+        Parameters:
+            df_class (pd.DataFrame|None): Output of classify(). Runs it if None.
+            subclass (bool): Passed to classify() when df_class is None.
+            figsize (tuple): Figure size.
+            hue (str|None): Older name for `color`, kept for existing code.
+            color (str|bool|None): Column to color points by, from the classified output or the
+                input DataFrame (e.g. "TiO2", "Volcano"). Numeric columns get a colorbar.
+                Defaults to "Submineral"; False draws one color.
+            symbol (str|None): Column to shape points by; "same" (default) follows the colors,
+                None draws circles.
+            colors (dict|str|None): {category: color} choices, or one color for all points.
+            symbols (dict|str|None): {category: symbol} choices ("o", "^", "open circle", "star"),
+                or one symbol for all points.
+            size (float|None): Marker size. alpha (float|None): Marker opacity.
+            scatter_kw (dict|None): Extra keyword arguments for the points' ax.scatter.
+            legend (bool): Draw the legend, or the colorbar for a numeric color.
+
+        Returns:
+            fig (matplotlib.figure.Figure), ax (matplotlib.axes.Axes)
+        """
 
         import matplotlib.pyplot as plt
 
         if df_class is None:
             df_class = self.classify(subclass=subclass)
         x, y = df_class["Si_T_leake"], df_class["Mgno_leake"]
-        # Default hue is Submineral
-        if hue is None:
-            hue = "Submineral"
+        if color is None and hue is not None:
+            color = hue
 
         # Ratios for plotting
         fig, ax = plt.subplots(figsize=figsize)
@@ -750,20 +786,9 @@ class AmphiboleClassifier(AmphiboleCalculator):
         ax.text(6.00, 0.75, "Tschermakite", fontsize=fs, ha="center", va="center", zorder=30)
         ax.text(6.00, 0.25, "Ferrotschermakite", fontsize=fs, ha="center", va="center", zorder=30)
 
-        # Color by hue using tab10; keep in sorted order
-        cmap = plt.get_cmap("tab10")
-        if hue in df_class.columns:
-            groups = sorted(df_class[hue].astype(str).unique())
-            for i, g in enumerate(groups):
-                m = (df_class[hue].astype(str) == g).to_numpy()
-                ax.scatter(x[m], y[m], label=g, s=30, alpha=0.6,
-                           edgecolors="k", linewidth=0.5, color=cmap(i % 10), zorder=20)
-            # Put legend OUTSIDE 
-            fig.subplots_adjust(right=0.9)  # make room on the right
-            ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=True, fontsize=9)
-        else:
-            ax.scatter(x, y, s=30, alpha=0.6, edgecolors="k", linewidth=0.5,
-                       color=cmap(0), zorder=20)
+        data = plot_columns(df_class, self.metadata, self.comps)
+        style_points(ax, x, y, data, "Submineral", color=color, symbol=symbol, colors=colors,
+                     symbols=symbols, size=size, alpha=alpha, scatter_kw=scatter_kw, legend=legend)
 
         ax.set_xlim(5.48, 8.02)
         ax.set_ylim(-0.02, 1.02)
@@ -1176,11 +1201,36 @@ class FeldsparClassifier(FeldsparCalculator):
             df["Submineral"] = labels[:,1]
         return df
 
-    def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 8), 
-             ticks=True, ax=None, **kwargs):
+    def plot(self, df_class=None, subclass=True, labels="short", figsize=(8, 8),
+             ticks=True, ax=None, color=None, symbol=SAME, colors=None, symbols=None,
+             size=None, alpha=None, scatter_kw=None, legend=True, **kwargs):
+        """
+        Plot feldspars on the An-Ab-Or ternary.
+
+        Parameters:
+            df_class (pd.DataFrame|None): Output of classify(). Runs it if None.
+            subclass (bool): Passed to classify() when df_class is None.
+            labels (str|bool|None): Field labels: "short", "long", or None for none.
+            figsize (tuple): Figure size. ticks (bool): Draw axis ticks.
+            ax (matplotlib.axes.Axes|None): Existing axis to draw the ternary on.
+            color (str|bool|None): Column to color points by, from the classified output or the
+                input DataFrame (e.g. "TiO2", "Volcano"). Numeric columns get a colorbar.
+                Defaults to "Submineral"; False draws one color.
+            symbol (str|None): Column to shape points by; "same" (default) follows the colors,
+                None draws circles.
+            colors (dict|str|None): {category: color} choices, or one color for all points.
+            symbols (dict|str|None): {category: symbol} choices ("o", "^", "open circle", "star"),
+                or one symbol for all points.
+            size (float|None): Marker size. alpha (float|None): Marker opacity.
+            scatter_kw (dict|None): Extra keyword arguments for the points' ax.scatter.
+            legend (bool): Draw the legend, or the colorbar for a numeric color.
+            **kwargs: Also passed to the points (e.g. s=40, alpha=0.9), as scatter_kw.
+
+        Returns:
+            fig (matplotlib.figure.Figure), tax (ternary.TernaryAxesSubplot)
+        """
 
         import ternary
-        import matplotlib.pyplot as plt
 
         if df_class is None:
             df_class = self.classify(subclass=subclass)
@@ -1284,25 +1334,15 @@ class FeldsparClassifier(FeldsparCalculator):
             ax.text(0.8, 0.02, label_set["Bytownite"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
             ax.text(0.95, 0.02, label_set["Anorthite"], fontsize=fs, ha='center', zorder=lab_z, bbox=bbox_style)
 
+        # Points: miscibility-gap analyses draw as grey crosses (see mineralML.plotting)
         pts = list(zip(df_class["An"], df_class["Or"], df_class["Ab"]))
-        cmap = plt.get_cmap("tab10")
-        for i, g in enumerate(df_class["Submineral"].unique()):
-            if g == "Feldspar_Miscibility_Gap":
-                continue
-            mask = df_class["Submineral"] == g
-            pts_sub = [pts[j] for j in np.where(mask)[0]]
-            tax.scatter(pts_sub, marker='o', label=g, color=cmap(i),
-                        edgecolor='k', s=20, alpha=0.8, vmin=None, vmax=None)
-        # legend for the classified fields
-        tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(0.98, 1))
-
-        # Plot “Unclassified” as hollow xs:
-        mask_unc = df_class["Submineral"] == "Feldspar_Miscibility_Gap"
-        if mask_unc.any():
-            pts_unc = [pts[j] for j in np.where(mask_unc)[0]]
-            tax.scatter(pts_unc, marker='x', label="Feldspar_Miscibility_Gap", color='0.35',
-                        s=15, alpha=0.9, zorder=30)
-            tax.legend(loc='upper left', fontsize=10, bbox_to_anchor=(1.02, 1))
+        xs, ys = ternary_xy(tax, pts)
+        data = plot_columns(df_class, self.metadata, self.comps)
+        style_points(tax.get_axes(), xs, ys, data, "Submineral", color=color, symbol=symbol,
+                     colors=colors, symbols=symbols, size=size, alpha=alpha,
+                     scatter_kw={**kwargs, **(scatter_kw or {})}, legend=legend, fig=fig,
+                     default_size=20, default_alpha=0.8)
+        finish_ternary(tax)
 
         return fig, tax
 
@@ -1593,21 +1633,34 @@ class GlassClassifier(GlassCalculator):
         return comps
 
     def plot(self, df_class=None, subclass=True, which_name="volcanic",
-             figsize=(8, 6), ax=None, **scatter_kwargs):
+             figsize=(8, 6), ax=None, color=None, symbol=SAME, colors=None, symbols=None,
+             size=None, alpha=None, scatter_kw=None, legend=True, **scatter_kwargs):
         """
         Plot glasses on a TAS diagram.
 
         Parameters:
             df_class (pd.DataFrame|None): Pre-computed output of
                 calculate_components(). Runs it automatically if None.
-            subclass (bool): If True, colour-codes points by TAS rock type.
+            subclass (bool): If True, colour-codes points by TAS rock type
+                (the default `color`); if False, draws one color.
             which_name (str): 'volcanic' or 'intrusive' label variant for both
                 field labels and the legend.
             figsize (tuple): Figure size passed to plt.subplots if creating a
                 new figure.
             ax (matplotlib.axes.Axes|None): Existing axis to plot onto. If None,
                 a new figure and axis are created.
-            **scatter_kwargs: Passed to ax.scatter (e.g. s=40, alpha=0.9).
+            color (str|bool|None): Column to color points by, from the classified output or the
+                input DataFrame (e.g. "TiO2", "Volcano"). Numeric columns get a colorbar.
+                Defaults to the TAS rock type; False draws one color.
+            symbol (str|None): Column to shape points by; "same" (default) follows the colors,
+                None draws circles.
+            colors (dict|str|None): {category: color} choices, or one color for all points.
+            symbols (dict|str|None): {category: symbol} choices ("o", "^", "open circle", "star"),
+                or one symbol for all points.
+            size (float|None): Marker size. alpha (float|None): Marker opacity.
+            scatter_kw (dict|None): Extra keyword arguments for the points' ax.scatter.
+            legend (bool): Draw the legend, or the colorbar for a numeric color.
+            **scatter_kwargs: Also passed to the points (e.g. s=40, alpha=0.9).
 
         Returns:
             fig (matplotlib.figure.Figure): The figure object.
@@ -1630,31 +1683,11 @@ class GlassClassifier(GlassCalculator):
         k2o  = df_class.get("K2O",  pd.Series(0.0, index=df_class.index)).fillna(0)
         total_alkali = na2o + k2o
 
-        sc_defaults = dict(marker="o", edgecolors="k", linewidths=0.25, s=30, alpha=0.8, zorder=10)
-        sc_defaults.update(scatter_kwargs)
-
-        if subclass and "TAS" in df_class.columns:
-            cmap = plt.get_cmap("tab10")
-            unique_rocks = df_class["TAS"].unique()
-
-            for i, rock in enumerate(unique_rocks):
-                mask = df_class["TAS"] == rock
-                ax.scatter(
-                    sio2[mask], total_alkali[mask],
-                    color=cmap(i % 10),
-                    label=rock,
-                    **sc_defaults,
-                )
-            ax.legend(
-                loc="upper left",
-                bbox_to_anchor=(1.02, 1),
-                title="Rock Type",
-                fontsize=9,
-                frameon=True,
-            )
-        else:
-            ax.scatter(sio2, total_alkali, c="tab:blue", label="Glass", **sc_defaults)
-            ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
+        data = plot_columns(df_class, self.metadata, self.comps)
+        style_points(ax, sio2, total_alkali, data, "TAS" if subclass else None, color=color,
+                     symbol=symbol, colors=colors, symbols=symbols, size=size, alpha=alpha,
+                     scatter_kw={**scatter_kwargs, **(scatter_kw or {})}, legend=legend,
+                     color_label="Rock Type", default_alpha=0.8)
 
         ax.set_title("TAS Classification")
         fig.tight_layout()
@@ -2282,24 +2315,43 @@ class OxideClassifier:
 
         return df_class
 
-    def plot(self, figsize=(8, 8), ticks=True, include_unclassified=True, **kw):
+    def plot(self, figsize=(8, 8), ticks=True, include_unclassified=True, color=None, symbol=SAME,
+             colors=None, symbols=None, size=None, alpha=None, scatter_kw=None, legend=True, **kw):
         """
-        Ternary plot of FeO-Fe2O3-TiO2; colors by the existing 'Mineral' labels.
+        Ternary plot of FeO-Fe2O3-TiO2, plus the spinel plot (plot_spinel) when spinels are present.
+
+        Parameters:
+            figsize (tuple): Figure size. ticks (bool): Draw axis ticks.
+            include_unclassified (bool): Also plot analyses with no oxide subclass.
+            color (str|bool|None): Column to color points by, from the classified output or the
+                input DataFrame (e.g. "TiO2", "Volcano"). Numeric columns get a colorbar.
+                Defaults to "Suboxide" (and "Subspinel" on the spinel plot); False draws one color.
+            symbol (str|None): Column to shape points by; "same" (default) follows the colors,
+                None draws circles.
+            colors (dict|str|None): {category: color} choices, or one color for all points.
+            symbols (dict|str|None): {category: symbol} choices ("o", "^", "open circle", "star"),
+                or one symbol for all points.
+            size (float|None): Marker size. alpha (float|None): Marker opacity.
+            scatter_kw (dict|None): Extra keyword arguments for the points' ax.scatter.
+            legend (bool): Draw the legend, or the colorbar for a numeric color.
+            **kw: Passed to the field-boundary tax.line calls (e.g. ls=":", lw=0.5).
+
+        Returns:
+            dict: {"ternary": (fig, tax), "spinel": (fig, ax) or (None, None)}.
         """
         import ternary
-        import matplotlib.pyplot as plt
 
         df = self.classify()
         valid = (df[["XR2", "XR3", "XTi"]].sum(axis=1) > 0)
         df = df[valid].copy()
 
-        if "Submineral" not in df.columns:
-            df["Submineral"] = "Unclassified"
+        # classify() names the Fe-Ti oxide class "Suboxide"; older inputs may carry "Submineral"
+        field = "Suboxide" if "Suboxide" in df.columns else "Submineral"
+        if field not in df.columns:
+            df[field] = "Unclassified"
+        df[field] = df[field].fillna("Unclassified")
         if not include_unclassified:
-            df = df[df["Submineral"] != "Unclassified"]
-
-        groups = df["Submineral"].astype(str).fillna("(unknown)").unique()
-        cmap = plt.get_cmap("tab10")
+            df = df[df[field] != "Unclassified"]
 
         fig, tax = ternary.figure()
         fs = 14
@@ -2326,35 +2378,42 @@ class OxideClassifier:
         # FeO 2TiO2-pseudobrookite
         tax.line((0, 2/3, 1/3), (1/2, 1/2, 0), color="k", **kw)
 
-        for i, phase in enumerate([g for g in groups if g != "Unclassified"]):
-            pts = df[df["Submineral"] == phase][["XR3","XTi","XR2"]].values.tolist()
-            if not pts:
-                continue
-            tax.scatter(pts, marker='o', label=phase, color=cmap(i % 10), edgecolor='k',
-                        s=30, alpha=0.85, zorder=50)
-
-        # unclassified last 
-        if "Unclassified" in groups:
-            pts = df[df["Submineral"] == "Unclassified"][["XR3","XTi","XR2"]].values.tolist()
-            if pts:
-                tax.scatter(pts, marker='x', label="Unclassified", color='0.35',
-                            s=30, alpha=0.9, zorder=30)
+        # Points: unclassified analyses draw as grey crosses (see mineralML.plotting)
+        style = dict(color=color, symbol=symbol, colors=colors, symbols=symbols, size=size,
+                     alpha=alpha, scatter_kw=scatter_kw, legend=legend)
+        xs, ys = ternary_xy(tax, df[["XR3", "XTi", "XR2"]].to_numpy(float))
+        style_points(tax.get_axes(), xs, ys, df, field, fig=fig, **style)
 
         if ticks:
             tax.ticks(axis="lbr", linewidth=0.5, multiple=0.2, offset=0.01, tick_formats="%.1f")
 
-        tax.legend(bbox_to_anchor=(0.98, 1)) # fontsize=10,
+        finish_ternary(tax)
         tax.get_axes().axis("off")
 
         sp_mask = df[self.mineral_col].astype(str).str.contains("spinel", case=False, na=False)
         fig_spinel, ax_spinel = None, None
         if sp_mask.any():
-            fig_spinel, ax_spinel = self.plot_spinel(df=df, figsize=(9, 6), hue="Subspinel")
+            fig_spinel, ax_spinel = self.plot_spinel(df=df, figsize=(9, 6), **style)
 
         return {"ternary": (fig, tax), "spinel": (fig_spinel, ax_spinel)}
 
 
-    def plot_spinel(self, df=None, figsize=(9, 6), hue=None):
+    def plot_spinel(self, df=None, figsize=(9, 6), hue=None, color=None, symbol=SAME, colors=None,
+                    symbols=None, size=None, alpha=None, scatter_kw=None, legend=True):
+        """
+        Plot spinels on Fe2+/(Fe2+ + Mg) vs Fe3+/(Fe3+ + Al).
+
+        Parameters:
+            df (pd.DataFrame|None): Output of classify(). Runs it if None.
+            figsize (tuple): Figure size.
+            hue (str|None): Older name for `color`, kept for existing code.
+            color (str|bool|None): Column to color points by (e.g. "TiO2", "Volcano"). Numeric
+                columns get a colorbar. Defaults to "Subspinel"; False draws one color.
+            symbol, colors, symbols, size, alpha, scatter_kw, legend: as in plot().
+
+        Returns:
+            fig (matplotlib.figure.Figure), ax (matplotlib.axes.Axes), or (None, None) without spinels.
+        """
 
         import matplotlib.pyplot as plt
 
@@ -2366,9 +2425,8 @@ class OxideClassifier:
         if sp.empty:
             return (None, None)
 
-        # Default hue is Subspinel
-        if hue is None:
-            hue = "Subspinel"
+        if color is None and hue is not None:
+            color = hue
 
         # Ratios for plotting
         x, y = self._spinel_axes(sp)
@@ -2393,20 +2451,8 @@ class OxideClassifier:
         ax.text(0.500, 0.130, "Pleonaste", ha="center", va="center", zorder=30)
         ax.text(0.875, 0.130, "Hercynite", ha="center", va="center", zorder=30)
 
-        # Color by hue using tab10; keep in sorted order
-        cmap = plt.get_cmap("tab10")
-        if hue in sp.columns:
-            groups = sorted(sp[hue].astype(str).unique())
-            for i, g in enumerate(groups):
-                m = (sp[hue].astype(str) == g).to_numpy()
-                ax.scatter(x[m], y[m], label=g, s=30, alpha=0.6,
-                        edgecolors="k", linewidth=0.5, color=cmap(i % 10), zorder=20)
-            # Put legend OUTSIDE 
-            fig.subplots_adjust(right=0.9)  # make room on the right
-            ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=True) # fontsize=9
-        else:
-            ax.scatter(x, y, s=30, alpha=0.6, edgecolors="k", linewidth=0.5,
-                    color=cmap(0), zorder=20)
+        style_points(ax, x, y, sp, "Subspinel", color=color, symbol=symbol, colors=colors,
+                     symbols=symbols, size=size, alpha=alpha, scatter_kw=scatter_kw, legend=legend)
 
         ax.set_xlim(-0.02, 1.02)
         ax.set_ylim(-0.02, 1.02)
@@ -2700,26 +2746,37 @@ class PyroxeneClassifier(BaseMineralCalculator):
 
         return df_class
 
-    def plot(self, df_class=None, subclass=True, labels="short", 
+    def plot(self, df_class=None, subclass=True, labels="short",
              figsize=(8, 5), quad_only=True,
-             ax=None, **kw):
+             ax=None, color=None, symbol=SAME, colors=None, symbols=None, size=None,
+             alpha=None, scatter_kw=None, legend=True, **kw):
 
         """
-        Plot pyroxene compositions on the DHZ quadrilateral.
+        Plot pyroxene compositions on the DHZ quadrilateral, and Na-pyroxenes on the
+        Jd-Aeg-Quad ternary.
 
         Parameters:
             df_class: Output of `.classify()`. If None, will call `.classify(subclass)`.
             subclass: Whether to color by Submineral (if False, colors by Mineral).
             figsize: Default (8,5)
+            color (str|bool|None): Column to color points by, from the classified output or the
+                input DataFrame (e.g. "TiO2", "Volcano"). Numeric columns get a colorbar.
+                Defaults to "Submineral" (or "Mineral", see subclass); False draws one color.
+            symbol (str|None): Column to shape points by; "same" (default) follows the colors,
+                None draws circles.
+            colors (dict|str|None): {category: color} choices, or one color for all points.
+            symbols (dict|str|None): {category: symbol} choices ("o", "^", "open circle", "star"),
+                or one symbol for all points.
+            size (float|None): Marker size. alpha (float|None): Marker opacity.
+            scatter_kw (dict|None): Extra keyword arguments for the points' ax.scatter.
+            legend (bool): Draw the legend, or the colorbar for a numeric color.
             **kw: Passed to the field-boundary `tax.line(…)` calls (e.g. ls=':', lw=0.5).
 
         Returns:
-            fig: matplotlib.figure.Figure
-            tax: ternary.TernaryAxesSubplot
+            (fig, tax) for one diagram, a list of two for both, or None with no pyroxenes.
         """
 
         import ternary
-        import matplotlib.pyplot as plt
 
         # get classification if needed
         if df_class is None:
@@ -2727,6 +2784,9 @@ class PyroxeneClassifier(BaseMineralCalculator):
 
         non_sodic_px = df_class.loc[(df_class["Mineral"] == 'Orthopyroxene') | (df_class["Mineral"] == 'Clinopyroxene')]
         sodic_px = df_class.loc[(df_class["Mineral"] == "Na-Pyroxene")]
+        default_color = "Submineral" if subclass else "Mineral"
+        style = dict(color=color, symbol=symbol, colors=colors, symbols=symbols, size=size,
+                     alpha=alpha, scatter_kw=scatter_kw, legend=legend, default_size=20, default_alpha=0.8)
 
         figs = []
 
@@ -2797,22 +2857,9 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 tax.line(xs, ys, color="k", **kw, zorder=0)
 
             # scatter points
-            if subclass and "Submineral" in non_sodic_px:
-                cmap = plt.get_cmap("tab10")
-                for i, g in enumerate(non_sodic_px["Submineral"].unique()):
-                    mask = non_sodic_px["Submineral"] == g
-                    mask_indices = np.where(mask)[0]
-                    if len(mask_indices) > 0:  # Only plot if there are points
-                        tax.scatter([pts[j] for j in mask_indices],
-                                    marker='o', label=g, color=cmap(i),
-                                    edgecolor='k', s=20, alpha=0.8)
-                if quad_only: 
-                    tax.legend(loc='upper left', bbox_to_anchor=(1.015,1.01))
-                else: 
-                    tax.legend(loc='upper left', bbox_to_anchor=(0.99,1))
-
-            else:
-                tax.scatter(pts, marker='o', color='C0', edgecolor='k', s=20, alpha=0.8)
+            xs, ys = ternary_xy(tax, pts)
+            style_points(tax.get_axes(), xs, ys, plot_columns(non_sodic_px, self.metadata, self.comps),
+                         default_color, fig=fig, **style)
 
             # draw & filter ticks so they only appear where the quadrilateral lives
             ax = tax.get_axes()
@@ -2848,6 +2895,7 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 ax.text(0.25, 0.02, label_set["Enstatite"], ha='center', va='center', zorder=lab_z)
                 ax.text(0.75, 0.02, label_set["Ferrosilite"], ha='center', va='center', zorder=lab_z)
             tax.clear_matplotlib_ticks()
+            finish_ternary(tax)
             ax.axis("off")
             figs.append((fig, tax))
 
@@ -2902,29 +2950,10 @@ class PyroxeneClassifier(BaseMineralCalculator):
             tax_sod.ticks(axis='b', multiple=0.2, linewidth=1,
                           tick_formats="%.1f", offset=0.01) #, fontsize=10)
 
-            # Scatter: color by Submineral if present
-            if subclass and "Submineral" in sodic_px.columns:
-                cmap = plt.get_cmap("tab10")
-                subs = sodic_px["Submineral"].fillna(np.nan)
-                
-                for i, g in enumerate(subs.unique()):
-                    # Create mask for this submineral group
-                    mask = subs == g
-                    # Get the points for this group
-                    group_pts = [pt for pt, m in zip(pts_sodic, mask) if m]
-                    
-                    # plot if there are points
-                    if len(group_pts) > 0:
-                        tax_sod.scatter(group_pts, marker='o', label=str(g), color=cmap(i),
-                                         edgecolor='k', s=20, alpha=0.85)
-                # Only add legend if there are any points plotted
-                if len(pts_sodic) > 0:
-                    tax_sod.legend(loc='upper left',  bbox_to_anchor=(1.02,1)) #fontsize=10,
-            else:
-                # Fallback: plot all points without subclass coloring
-                if len(pts_sodic) > 0:
-                    tax_sod.scatter(pts_sodic, marker='o', color='C1',
-                                    edgecolor='k', s=22, alpha=0.85)
+            # Scatter
+            xs, ys = ternary_xy(tax_sod, pts_sodic)
+            style_points(tax_sod.get_axes(), xs, ys, plot_columns(sodic_px, self.metadata, self.comps),
+                         default_color, fig=fig_sod, **{**style, "default_alpha": 0.85})
 
             if label_set:
                 lab_z = 120
@@ -2935,6 +2964,7 @@ class PyroxeneClassifier(BaseMineralCalculator):
                 ax.text(0.7, 0.09, label_set["Aegirine"], ha='center', va='center', zorder=lab_z)
 
             tax_sod.clear_matplotlib_ticks()
+            finish_ternary(tax_sod)
             tax_sod.get_axes().axis("off")
             figs.append((fig_sod, tax_sod))
 

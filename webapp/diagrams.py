@@ -2,7 +2,6 @@
 classifier plots; the points are redrawn here so they can be colored by any column. // @author: Sarah Shi """
 
 import io
-import re
 import math
 import warnings
 from dataclasses import dataclass, replace
@@ -11,27 +10,20 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.collections import PathCollection
-from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.lines import Line2D
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.patches import Rectangle
 
 import ternary
 import mineralML as mm
 
-# Categorical slots in fixed order (validated for color-vision deficiency); markers are the
-# second cue, so identity never rests on color alone. A 9th category folds into "Other".
-PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
-MARKERS = ["o", "s", "^", "D", "v", "P", "X", "h"]
-OTHER_COLOR = "#9a9893"
-UNCLASSIFIED_COLOR = "#52514e"
-SEQUENTIAL = LinearSegmentedColormap.from_list(
-    "mineralML_blues", ["#86b6ef", "#3987e5", "#256abf", "#184f95", "#0d366b"]
-)
-# Labels the classifiers give to points outside every field; drawn as grey crosses.
-UNCLASSIFIED = {"Unclassified", "Unlabeled", "OOD", "Feldspar_Miscibility_Gap", "nan", "None", ""}
-RASTERIZE_ABOVE = 5000  # points; keeps PDFs and SVGs small while lines and text stay vector
+# Point styling (palette, symbols, color/symbol columns, legends) lives in mineralML.plotting,
+# shared with the package's own .plot() methods.
+from mineralML.plotting import (PALETTE, SYMBOL_ORDER, MAX_CATEGORIES, SAME,
+                                OXIDE_NAMES, category_slots, folds, is_continuous, slot_color,
+                                chem, pretty, scatter_points, add_legend)
+from mineralML import plotting as mmp
 
-OXIDE_NAMES = set(mm.OXIDES) | {"FeO", "Fe2O3", "Fe2O3t", "ZrO2"}
+LEGEND_COLUMN = 2.4  # inches beside every plot for its legend or colorbar
 
 
 @dataclass(frozen=True)
@@ -41,23 +33,23 @@ class Diagram:
     field_label: str = ""  # legend title for the classification field; "" if none
     ternary: bool = False
     label_choices: tuple = ()  # field-label options shown to the user
-    figsize: tuple = (8.0, 6.0)  # default size, in inches, matching the package plots
+    figsize: tuple = (8.0, 6.0)  # default plot size, in inches; the legend column is added beside it
 
 
 DIAGRAMS = {
     "tas": Diagram("TAS (total alkali–silica)", ("Glass",), "TAS field",
-                   label_choices=("Volcanic names", "Plutonic names", "None"), figsize=(9.0, 6.0)),
+                   label_choices=("Volcanic names", "Plutonic names", "None"), figsize=(7.0, 5.5)),
     "feldspar": Diagram("Feldspar ternary (An–Ab–Or)", ("Plagioclase", "Alkali_Feldspar"),
-                        "Feldspar", ternary=True, label_choices=("Short", "Full", "None"), figsize=(8.0, 7.0)),
+                        "Feldspar", ternary=True, label_choices=("Short", "Full", "None"), figsize=(6.5, 6.0)),
     "pyroxene": Diagram("Pyroxene quadrilateral (En–Wo–Fs)", ("Clinopyroxene", "Orthopyroxene", "Na-Pyroxene"),
-                        "Pyroxene", ternary=True, label_choices=("Short", "Full", "None"), figsize=(9.0, 5.0)),
-    "napyroxene": Diagram("Na-pyroxene ternary (Jd–Aeg–Quad)", ("Clinopyroxene", "Orthopyroxene", "Na-Pyroxene"),
-                          "Na-pyroxene", ternary=True, label_choices=("Short", "Full", "None"), figsize=(8.0, 7.0)),
-    "amphibole": Diagram("Calcic amphibole (Si vs Mg#)", ("Amphibole",), "Amphibole", figsize=(10.0, 6.0)),
-    "fetioxide": Diagram("Fe–Ti oxide ternary (FeO–Fe₂O₃–TiO₂)", ("Oxide",), "Oxide", ternary=True, figsize=(8.0, 8.0)),
-    "spinel": Diagram("Spinel (Fe²⁺# vs Fe³⁺#)", ("Oxide",), "Spinel", figsize=(9.0, 6.0)),
-    "ternary": Diagram("Custom ternary", (), ternary=True, figsize=(8.0, 7.0)),
-    "xy": Diagram("Custom x–y (Harker)", (), figsize=(10.0, 7.0)),
+                        "Pyroxene", ternary=True, label_choices=("Short", "Full", "None"), figsize=(8.0, 4.5)),
+    "napyroxene": Diagram("Na-pyroxene ternary (Jd–Aeg–Quad)", ("Na-Pyroxene",),
+                          "Na-pyroxene", ternary=True, label_choices=("Short", "Full", "None"), figsize=(6.5, 6.0)),
+    "amphibole": Diagram("Calcic amphibole (Si vs Mg#)", ("Amphibole",), "Amphibole", figsize=(8.0, 5.5)),
+    "fetioxide": Diagram("Fe–Ti oxide ternary (FeO–Fe₂O₃–TiO₂)", ("Oxide",), "Oxide", ternary=True, figsize=(7.5, 7.5)),  # long corner labels need the room
+    "spinel": Diagram("Spinel (Fe²⁺# vs Fe³⁺#)", ("Oxide",), "Spinel", figsize=(7.0, 5.5)),
+    "ternary": Diagram("Custom ternary", (), ternary=True, figsize=(6.5, 6.0)),
+    "xy": Diagram("Custom x–y (Harker)", (), figsize=(8.5, 6.5)),
 }
 CLASSIFICATION = [k for k, d in DIAGRAMS.items() if d.field_label]
 
@@ -67,6 +59,11 @@ class Style:
     hue: str | None = "Field"  # column to color by; None for a single color
     categories: tuple = ()  # colored categories in slot order (see category_slots)
     hue_label: str = ""
+    symbol: str | None = SAME  # column to shape by; SAME follows the colors, None draws circles
+    symbol_categories: tuple = ()  # shaped categories in slot order, when symbol is a column
+    symbol_label: str = ""
+    colors: tuple = ()  # user choices, ((category, "#rrggbb"), ...), overriding slot colors
+    symbols: tuple = ()  # user choices, ((category, SYMBOLS name), ...), overriding slot symbols
     labels: str = "Short"  # field labels, from Diagram.label_choices
     quad_only: bool = True  # pyroxene: zoom to the quadrilateral
     size: float = 30
@@ -76,18 +73,6 @@ class Style:
     title: str = ""
     logx: bool = False
     logy: bool = False
-
-
-def chem(label):
-    """Subscripts oxide formulas for matplotlib, e.g. 'Na2O+K2O' -> Na$_2$O+K$_2$O."""
-    terms = [t.strip() for t in str(label).split("+")]
-    if not all(t in OXIDE_NAMES for t in terms):
-        return str(label)
-    return " + ".join(re.sub(r"(?<=[A-Za-z])(\d+)", r"$\\mathregular{_{\1}}$", t) for t in terms)
-
-
-def pretty(category):
-    return str(category).replace("_", " ")
 
 
 # %% ----------------------------------------------------------------
@@ -236,8 +221,9 @@ def plotted_table(data, names, style):
     coords = {f"c{i}": n for i, n in enumerate(names)}
     meta = [c for c in ["Sample Name", "SampleID", "Sample", "Sample ID", "Mineral", "Predict_Mineral",
                         "Submineral", "Prediction_Score"] if c in data.columns]
-    if style.hue and style.hue not in meta + ["Field"] and style.hue in data.columns:
-        meta.append(style.hue)
+    for col in (style.hue, style.symbol):
+        if col and col not in meta + ["Field"] and col in data.columns:
+            meta.append(col)
     out = data[meta + (["Field"] if (data["Field"] != "Unclassified").any() else []) + list(coords)]
     return out.rename(columns={**coords, "Field": style.hue_label or "Field"})
 
@@ -245,83 +231,21 @@ def plotted_table(data, names, style):
 # %% ----------------------------------------------------------------
 # coloring
 
-def category_slots(series):
-    """
-    Colored categories for a column, most frequent first. Computed on the full column so a
-    filter never repaints the survivors. Beyond 8 categories, the 7 most frequent keep
-    their slots and the rest fold into "Other".
-    """
-    counts = series.astype(str).value_counts()
-    counts = counts[~counts.index.isin(UNCLASSIFIED)]
-    cats = list(counts.index)
-    return tuple(cats if len(cats) <= len(PALETTE) else cats[: len(PALETTE) - 1])
+def color_limit(style):
+    return mmp.color_limit(style.symbol)
 
 
-def folds(series):
-    """Whether some categories in series are grouped as "Other"."""
-    return len(set(series.astype(str)) - UNCLASSIFIED) > len(PALETTE)
+def _scatter(ax, x, y, data, style):
+    """Draws points colored and shaped per style; returns legend entries for _legend."""
+    return scatter_points(ax, x, y, data, color=style.hue, symbol=style.symbol, colors=dict(style.colors),
+                          symbols=dict(style.symbols), size=style.size, alpha=style.alpha,
+                          categories=style.categories, symbol_categories=style.symbol_categories)
 
 
-def is_continuous(series):
-    return pd.api.types.is_numeric_dtype(series) and series.nunique() > len(PALETTE)
+def _legend(fig, ax, entries, style, panel=None):
+    add_legend(fig, ax, entries, color_label=style.hue_label, color_column=style.hue,
+               symbol_label=style.symbol_label or style.symbol, panel=panel)
 
-
-def _scatter(ax, x, y, data, style, legend=True):
-    """Draws points colored by style.hue; returns legend handles (or the colorbar mappable)."""
-    n = len(data)
-    kw = dict(s=style.size, alpha=style.alpha, edgecolors="white",
-              linewidths=0.4 if n <= 2000 else 0, rasterized=n > RASTERIZE_ABOVE, zorder=20)
-    x, y = np.asarray(x, float), np.asarray(y, float)
-
-    if style.hue is None or style.hue not in data.columns:
-        ax.scatter(x, y, color=PALETTE[0], marker="o", **kw)
-        return []
-
-    hue = data[style.hue]
-    if is_continuous(hue):
-        vals = pd.to_numeric(hue, errors="coerce").to_numpy(float)
-        ok = np.isfinite(vals)
-        if (~ok).any():
-            ax.scatter(x[~ok], y[~ok], color=OTHER_COLOR, marker="o", **{**kw, "zorder": 15})
-        return ax.scatter(x[ok], y[ok], c=vals[ok], cmap=SEQUENTIAL, marker="o", **kw)
-
-    labels = hue.astype(str).to_numpy()
-    cats = [c for c in style.categories if c not in UNCLASSIFIED] or list(category_slots(hue))
-    handles = []
-    unclassified = np.isin(labels, list(UNCLASSIFIED))
-    other = ~np.isin(labels, cats) & ~unclassified
-    if other.any():
-        ax.scatter(x[other], y[other], color=OTHER_COLOR, marker="o", **{**kw, "zorder": 15})
-    for i, cat in enumerate(cats):
-        m = labels == cat
-        if not m.any():
-            continue
-        ax.scatter(x[m], y[m], color=PALETTE[i], marker=MARKERS[i], **kw)
-        handles.append(Line2D([], [], ls="", marker=MARKERS[i], color=PALETTE[i], mec="white",
-                              mew=0.4, ms=math.sqrt(style.size) * 1.1, label=pretty(cat)))
-    if other.any():
-        handles.append(Line2D([], [], ls="", marker="o", color=OTHER_COLOR, mec="white",
-                              ms=math.sqrt(style.size) * 1.1, label="Other"))
-    if unclassified.any():
-        ax.scatter(x[unclassified], y[unclassified], color=UNCLASSIFIED_COLOR, marker="x",
-                   s=style.size * 0.7, alpha=style.alpha, linewidths=0.8,
-                   rasterized=n > RASTERIZE_ABOVE, zorder=18)
-        handles.append(Line2D([], [], ls="", marker="x", color=UNCLASSIFIED_COLOR,
-                              ms=math.sqrt(style.size) * 0.9, label="Unclassified"))
-    return handles
-
-
-def _legend(fig, ax, handles, style):
-    if isinstance(handles, PathCollection):
-        cb = fig.colorbar(handles, ax=ax, shrink=0.7, pad=0.03)
-        cb.set_label(pretty(style.hue_label or style.hue))
-        cb.outline.set_linewidth(0.5)
-        return
-    if not handles:
-        return
-    ax.legend(handles=handles, title=pretty(style.hue_label or style.hue), loc="upper left",
-              bbox_to_anchor=(1.02, 1), frameon=False, fontsize=10, title_fontsize=10,
-              alignment="left", ncols=1 if len(handles) <= 20 else 2)
 
 
 # %% ----------------------------------------------------------------
@@ -371,7 +295,7 @@ def _draw_tas(data, names, style):
 
 
 def _draw_feldspar(data, names, style):
-    fig, tax = mm.FeldsparClassifier(_one(data)).plot(labels=_labels_arg(style))
+    fig, tax = mm.FeldsparClassifier(_one(data)).plot(labels=_labels_arg(style), legend=False)
     _strip_points(tax.get_axes())
     ax, handles = _ternary_scatter(tax, data, style)
     return fig, ax, handles
@@ -380,7 +304,7 @@ def _draw_feldspar(data, names, style):
 def _draw_pyroxene(data, names, style):
     one = _one(data)
     pc = mm.PyroxeneClassifier(one)
-    fig, tax = pc.plot(df_class=pc.classify(), labels=_labels_arg(style), quad_only=style.quad_only)
+    fig, tax = pc.plot(df_class=pc.classify(), labels=_labels_arg(style), quad_only=style.quad_only, legend=False)
     _strip_points(tax.get_axes())
     ax, handles = _ternary_scatter(tax, data, style)
     return fig, ax, handles
@@ -389,7 +313,7 @@ def _draw_pyroxene(data, names, style):
 def _draw_napyroxene(data, names, style):
     one = _one(data)
     pc = mm.PyroxeneClassifier(one)
-    fig, tax = pc.plot(df_class=pc.classify(), labels=_labels_arg(style))
+    fig, tax = pc.plot(df_class=pc.classify(), labels=_labels_arg(style), legend=False)
     _strip_points(tax.get_axes())
     ax, handles = _ternary_scatter(tax, data, style)
     return fig, ax, handles
@@ -397,13 +321,13 @@ def _draw_napyroxene(data, names, style):
 
 def _draw_amphibole(data, names, style):
     ac = mm.AmphiboleClassifier(_one(data))
-    fig, ax = ac.plot(df_class=ac.classify())
+    fig, ax = ac.plot(df_class=ac.classify(), legend=False)
     _strip_points(ax)
     return fig, ax, _scatter(ax, data["c0"], data["c1"], data, style)
 
 
 def _draw_fetioxide(data, names, style):
-    figs = mm.OxideClassifier(_one(data)).plot()
+    figs = mm.OxideClassifier(_one(data)).plot(legend=False)
     if figs["spinel"][0] is not None:
         plt.close(figs["spinel"][0])
     fig, tax = figs["ternary"]
@@ -414,7 +338,7 @@ def _draw_fetioxide(data, names, style):
 
 def _draw_spinel(data, names, style):
     oc = mm.OxideClassifier(_one(data))
-    fig, ax = oc.plot_spinel(df=oc.classify())
+    fig, ax = oc.plot_spinel(df=oc.classify(), legend=False)
     _strip_points(ax)
     ax.set_xlabel("Fe$\\mathregular{^{2+}}$ / (Fe$\\mathregular{^{2+}}$ + Mg)")
     ax.set_ylabel("Fe$\\mathregular{^{3+}}$ / (Fe$\\mathregular{^{3+}}$ + Al)")
@@ -475,12 +399,24 @@ def make_figure(key, data, names, style):
     """Builds the matplotlib figure for diagram `key` from prepared data. Caller closes it."""
     hue = data.get(style.hue) if style.hue else None
     if hue is not None and not style.categories and not is_continuous(hue):
-        style = replace(style, categories=category_slots(hue))  # same slots in every panel
+        style = replace(style, categories=category_slots(hue, color_limit(style)))  # same slots in every panel
+    shape = data.get(style.symbol) if style.symbol not in (SAME, None) else None
+    if shape is not None and not style.symbol_categories:
+        style = replace(style, symbol_categories=category_slots(shape, MAX_CATEGORIES))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         fig, ax, handles = DRAW[key](data, names, style)
-    fig.set_size_inches(style.width, style.height)
-    _legend(fig, ax, handles, style)
+    # The legend or colorbar gets a fixed column on the right, kept even when empty, so the plot
+    # is the same size (and the image the same width) whatever the points are colored by.
+    fig.set_size_inches(style.width + LEGEND_COLUMN, style.height)
+    f = style.width / (style.width + LEGEND_COLUMN)
+    for a in list(fig.axes):
+        p = a.get_position(original=True)
+        a.set_position([p.x0 * f, p.y0, p.width * f, p.height])
+    panel = fig.add_axes([f + 0.01, 0.12, 1 - f - 0.01, 0.76])
+    panel.axis("off")
+    panel.add_patch(Rectangle((0, 0), 1, 1, transform=panel.transAxes, alpha=0))  # holds the column in tight crops
+    _legend(fig, ax, handles, style, panel=panel)
     if style.title:
         fig.suptitle(style.title, fontsize=14)
     return fig

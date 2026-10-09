@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 
 from .constants import OXIDE_MASSES, OXYGEN_NUMBERS, CATION_NUMBERS, OXIDE_TO_CATION_MAP, CATION_TO_OXIDE_MAP, VALENCES
 
+__all__ = ["SolidSolutionGenerator"]
+
 # %%
 
 

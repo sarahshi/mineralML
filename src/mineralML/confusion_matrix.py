@@ -3,14 +3,17 @@
 __author__ = "Sarah Shi"
 
 import re
+import warnings
+
 import numpy as np
 import pandas as pd
-import warnings
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
 
-import matplotlib
 from matplotlib import pyplot as plt
+
+__all__ = ["MINERAL_LABELS", "PARENT_LABELS", "LABEL_ALIASES", "harmonize_labels",
+           "confusion_matrix_df", "pp_matrix", "insert_totals", "config_cell_text_and_colors"]
 
 # %%
 

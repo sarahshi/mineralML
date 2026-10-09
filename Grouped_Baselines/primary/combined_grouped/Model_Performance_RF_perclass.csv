@@ -1,0 +1,136 @@
+dataset,model,mineral,precision,recall,f1,support,empirical
+GEOROC,Random Forest (tuned),Amphibole,91.83831365049706,95.39203347940138,93.5814479301471,65951,False
+GEOROC,Random Forest (tuned),Apatite,96.96223948319619,98.03281237850867,97.49458707083204,12861,False
+GEOROC,Random Forest (tuned),Biotite,94.77566072526122,96.89175603217159,95.82202705221948,23872,False
+GEOROC,Random Forest (tuned),Carbonate,81.37051792828686,96.15819209039547,88.14846784635304,5310,True
+GEOROC,Random Forest (tuned),Clinopyroxene,98.07116209143048,97.66167802465301,97.86599172623795,180343,False
+GEOROC,Random Forest (tuned),Feldspar,99.72764359105237,98.85445472662948,99.28912940172432,258916,False
+GEOROC,Random Forest (tuned),Garnet,96.9694494363666,98.925,97.93746390561834,48000,False
+GEOROC,Random Forest (tuned),Glass,92.1803106919958,92.54499302522353,92.36229188300943,43729,False
+GEOROC,Random Forest (tuned),Kalsilite,82.78145695364239,91.91176470588235,87.10801393728222,136,False
+GEOROC,Random Forest (tuned),Leucite,82.56794751640113,94.12393162393163,87.96804792810784,936,False
+GEOROC,Random Forest (tuned),Muscovite,85.24653312788905,99.68468468468468,91.90199335548172,2220,False
+GEOROC,Random Forest (tuned),Nepheline,85.77310155535224,96.74922600619195,90.93113482056256,1938,False
+GEOROC,Random Forest (tuned),Olivine,99.79506454191397,94.97784522003035,97.32688396316975,247125,False
+GEOROC,Random Forest (tuned),Orthopyroxene,97.73714726337174,93.80345833629829,95.72990951474924,70265,False
+GEOROC,Random Forest (tuned),Rhombohedral_Oxides,66.33038149684266,89.36770036246476,76.14472301456237,19864,False
+GEOROC,Random Forest (tuned),SiO2_Polymorph,84.19117647058823,89.453125,86.74242424242425,256,True
+GEOROC,Random Forest (tuned),Spinel_Group,98.23228594821684,90.0473700399877,93.96192016844483,81275,False
+GEOROC,Random Forest (tuned),Titanite,97.26413196539932,98.01337928238395,97.6373182552504,4933,False
+GEOROC,Random Forest (tuned),Zircon,100.0,96.74681753889675,98.34651329978433,1414,True
+Held-out validation,Random Forest (tuned),Alkali_Feldspar,100.0,100.0,100.0,1253,False
+Held-out validation,Random Forest (tuned),Amphibole,99.77645305514157,99.47994056463597,99.62797619047619,1346,False
+Held-out validation,Random Forest (tuned),Apatite,100.0,100.0,100.0,357,False
+Held-out validation,Random Forest (tuned),Biotite,100.0,100.0,100.0,577,False
+Held-out validation,Random Forest (tuned),Carbonate,100.0,100.0,100.0,206,True
+Held-out validation,Random Forest (tuned),Chlorite,99.61089494163424,100.0,99.80506822612085,256,False
+Held-out validation,Random Forest (tuned),Clinopyroxene,99.2089925062448,99.916142557652,99.5613118863589,2385,False
+Held-out validation,Random Forest (tuned),Epidote,100.0,100.0,100.0,209,False
+Held-out validation,Random Forest (tuned),Garnet,100.0,99.8589562764457,99.92942836979535,709,False
+Held-out validation,Random Forest (tuned),Glass,99.9450247388675,99.9450247388675,99.9450247388675,1819,False
+Held-out validation,Random Forest (tuned),Kalsilite,100.0,100.0,100.0,312,False
+Held-out validation,Random Forest (tuned),Leucite,100.0,100.0,100.0,335,False
+Held-out validation,Random Forest (tuned),Melilite,100.0,100.0,100.0,243,False
+Held-out validation,Random Forest (tuned),Muscovite,100.0,100.0,100.0,209,False
+Held-out validation,Random Forest (tuned),Nepheline,100.0,100.0,100.0,194,False
+Held-out validation,Random Forest (tuned),Olivine,100.0,99.50436161776368,99.7515651396204,5044,False
+Held-out validation,Random Forest (tuned),Orthopyroxene,100.0,98.84444444444445,99.4188645507376,1125,False
+Held-out validation,Random Forest (tuned),Plagioclase,100.0,100.0,100.0,3790,False
+Held-out validation,Random Forest (tuned),Rhombohedral_Oxides,100.0,100.0,100.0,711,False
+Held-out validation,Random Forest (tuned),Rutile,100.0,100.0,100.0,348,False
+Held-out validation,Random Forest (tuned),Serpentine,95.47101449275362,100.0,97.68303985171455,527,False
+Held-out validation,Random Forest (tuned),SiO2_Polymorph,100.0,100.0,100.0,308,True
+Held-out validation,Random Forest (tuned),Spinel_Group,100.0,100.0,100.0,1003,False
+Held-out validation,Random Forest (tuned),Titanite,100.0,100.0,100.0,1598,False
+Held-out validation,Random Forest (tuned),Tourmaline,100.0,100.0,100.0,227,False
+Held-out validation,Random Forest (tuned),Zircon,100.0,100.0,100.0,305,True
+GEOROC,Random Forest (untuned),Amphibole,90.68084861063069,95.40113114281816,92.98112092215614,65951,False
+GEOROC,Random Forest (untuned),Apatite,94.77207762900557,97.96283337221055,96.34104377748041,12861,False
+GEOROC,Random Forest (untuned),Biotite,94.67694566813509,97.23106568364611,95.93700917582872,23872,False
+GEOROC,Random Forest (untuned),Carbonate,81.37051792828686,96.15819209039547,88.14846784635304,5310,True
+GEOROC,Random Forest (untuned),Clinopyroxene,98.01533101045297,97.48922885834216,97.75157206478407,180343,False
+GEOROC,Random Forest (untuned),Feldspar,99.7164686106962,98.75094625283876,99.2313588512104,258916,False
+GEOROC,Random Forest (untuned),Garnet,96.76670130187641,98.95,97.8461728623961,48000,False
+GEOROC,Random Forest (untuned),Glass,91.79677762922341,92.63646550344166,92.21471010038927,43729,False
+GEOROC,Random Forest (untuned),Kalsilite,89.92805755395683,91.91176470588235,90.9090909090909,136,False
+GEOROC,Random Forest (untuned),Leucite,84.79923518164436,94.76495726495726,89.50554994954591,936,False
+GEOROC,Random Forest (untuned),Muscovite,85.31225905936776,99.68468468468468,91.94017449106772,2220,False
+GEOROC,Random Forest (untuned),Nepheline,91.67070217917676,97.67801857585138,94.57906570072446,1938,False
+GEOROC,Random Forest (untuned),Olivine,99.77731758671183,93.19494183105715,96.37386572151306,247125,False
+GEOROC,Random Forest (untuned),Orthopyroxene,97.72562083585706,91.8494271685761,94.69645280804079,70265,False
+GEOROC,Random Forest (untuned),Rhombohedral_Oxides,67.49035041247257,89.78554168344745,77.05767984445885,19864,False
+GEOROC,Random Forest (untuned),SiO2_Polymorph,84.19117647058823,89.453125,86.74242424242425,256,True
+GEOROC,Random Forest (untuned),Spinel_Group,98.35014118596209,89.99446324207936,93.98695749943784,81275,False
+GEOROC,Random Forest (untuned),Titanite,98.09020723283219,97.87147780255422,97.98072044647387,4933,False
+GEOROC,Random Forest (untuned),Zircon,100.0,96.74681753889675,98.34651329978433,1414,True
+Held-out validation,Random Forest (untuned),Alkali_Feldspar,100.0,100.0,100.0,1253,False
+Held-out validation,Random Forest (untuned),Amphibole,99.625468164794,98.81129271916791,99.21671018276761,1346,False
+Held-out validation,Random Forest (untuned),Apatite,100.0,100.0,100.0,357,False
+Held-out validation,Random Forest (untuned),Biotite,100.0,100.0,100.0,577,False
+Held-out validation,Random Forest (untuned),Carbonate,100.0,100.0,100.0,206,True
+Held-out validation,Random Forest (untuned),Chlorite,100.0,100.0,100.0,256,False
+Held-out validation,Random Forest (untuned),Clinopyroxene,98.92116182572614,99.958071278826,99.43691345151198,2385,False
+Held-out validation,Random Forest (untuned),Epidote,100.0,100.0,100.0,209,False
+Held-out validation,Random Forest (untuned),Garnet,99.85915492957747,100.0,99.92952783650459,709,False
+Held-out validation,Random Forest (untuned),Glass,99.94496422674739,99.83507421660252,99.8899889988999,1819,False
+Held-out validation,Random Forest (untuned),Kalsilite,100.0,100.0,100.0,312,False
+Held-out validation,Random Forest (untuned),Leucite,100.0,100.0,100.0,335,False
+Held-out validation,Random Forest (untuned),Melilite,100.0,100.0,100.0,243,False
+Held-out validation,Random Forest (untuned),Muscovite,100.0,100.0,100.0,209,False
+Held-out validation,Random Forest (untuned),Nepheline,100.0,100.0,100.0,194,False
+Held-out validation,Random Forest (untuned),Olivine,100.0,99.48453608247422,99.74160206718346,5044,False
+Held-out validation,Random Forest (untuned),Orthopyroxene,100.0,98.84444444444445,99.4188645507376,1125,False
+Held-out validation,Random Forest (untuned),Plagioclase,100.0,100.0,100.0,3790,False
+Held-out validation,Random Forest (untuned),Rhombohedral_Oxides,100.0,100.0,100.0,711,False
+Held-out validation,Random Forest (untuned),Rutile,100.0,100.0,100.0,348,False
+Held-out validation,Random Forest (untuned),Serpentine,95.29837251356238,100.0,97.5925925925926,527,False
+Held-out validation,Random Forest (untuned),SiO2_Polymorph,100.0,100.0,100.0,308,True
+Held-out validation,Random Forest (untuned),Spinel_Group,100.0,100.0,100.0,1003,False
+Held-out validation,Random Forest (untuned),Titanite,100.0,100.0,100.0,1598,False
+Held-out validation,Random Forest (untuned),Tourmaline,100.0,100.0,100.0,227,False
+Held-out validation,Random Forest (untuned),Zircon,100.0,100.0,100.0,305,True
+GEOROC,Gaussian Naive Bayes,Amphibole,71.15322319403951,93.25408257645827,80.71817149756869,65951,False
+GEOROC,Gaussian Naive Bayes,Apatite,99.746233148295,97.79954902418163,98.7632994385772,12861,False
+GEOROC,Gaussian Naive Bayes,Biotite,94.86430625449317,88.44252680965148,91.54092958723552,23872,False
+GEOROC,Gaussian Naive Bayes,Carbonate,81.37051792828686,96.15819209039547,88.14846784635304,5310,True
+GEOROC,Gaussian Naive Bayes,Clinopyroxene,97.31748339462357,94.64742185723871,95.9638835322625,180343,False
+GEOROC,Gaussian Naive Bayes,Feldspar,98.58157201520157,92.07117366250058,95.21521449554953,258916,False
+GEOROC,Gaussian Naive Bayes,Garnet,88.44747745552036,98.28541666666666,93.10729334214864,48000,False
+GEOROC,Gaussian Naive Bayes,Glass,69.79241774505711,84.11351734546868,76.28667129864878,43729,False
+GEOROC,Gaussian Naive Bayes,Kalsilite,100.0,16.176470588235293,27.848101265822784,136,False
+GEOROC,Gaussian Naive Bayes,Leucite,98.55699855699855,72.97008547008546,83.85512584407611,936,False
+GEOROC,Gaussian Naive Bayes,Muscovite,91.6264796142043,94.14414414414415,92.86825149966674,2220,False
+GEOROC,Gaussian Naive Bayes,Nepheline,98.00342270393611,88.64809081527348,93.09130316987266,1938,False
+GEOROC,Gaussian Naive Bayes,Olivine,98.72480129859684,54.63591299949419,70.34291251615055,247125,False
+GEOROC,Gaussian Naive Bayes,Orthopyroxene,89.57778304715941,91.39827794776916,90.47887403316473,70265,False
+GEOROC,Gaussian Naive Bayes,Rhombohedral_Oxides,71.35025622690978,60.27990334273057,65.34956066146374,19864,False
+GEOROC,Gaussian Naive Bayes,SiO2_Polymorph,84.19117647058823,89.453125,86.74242424242425,256,True
+GEOROC,Gaussian Naive Bayes,Spinel_Group,90.9161068306322,88.41710243002153,89.64919284413284,81275,False
+GEOROC,Gaussian Naive Bayes,Titanite,99.55281090289608,94.76991688627609,97.10250285595596,4933,False
+GEOROC,Gaussian Naive Bayes,Zircon,100.0,96.74681753889675,98.34651329978433,1414,True
+Held-out validation,Gaussian Naive Bayes,Alkali_Feldspar,76.84275184275184,99.84038308060654,86.84484553974315,1253,False
+Held-out validation,Gaussian Naive Bayes,Amphibole,90.82503556187767,94.87369985141159,92.80523255813954,1346,False
+Held-out validation,Gaussian Naive Bayes,Apatite,100.0,100.0,100.0,357,False
+Held-out validation,Gaussian Naive Bayes,Biotite,100.0,99.13344887348353,99.56483899042647,577,False
+Held-out validation,Gaussian Naive Bayes,Carbonate,100.0,100.0,100.0,206,True
+Held-out validation,Gaussian Naive Bayes,Chlorite,100.0,98.828125,99.41060903732809,256,False
+Held-out validation,Gaussian Naive Bayes,Clinopyroxene,97.28583545377438,96.18448637316563,96.73202614379085,2385,False
+Held-out validation,Gaussian Naive Bayes,Epidote,100.0,98.08612440191388,99.03381642512076,209,False
+Held-out validation,Gaussian Naive Bayes,Garnet,98.05555555555556,99.5768688293371,98.81035689293212,709,False
+Held-out validation,Gaussian Naive Bayes,Glass,98.3402489626556,78.17482133040133,87.10566615620215,1819,False
+Held-out validation,Gaussian Naive Bayes,Kalsilite,100.0,99.03846153846155,99.51690821256038,312,False
+Held-out validation,Gaussian Naive Bayes,Leucite,100.0,96.11940298507463,98.02130898021308,335,False
+Held-out validation,Gaussian Naive Bayes,Melilite,100.0,100.0,100.0,243,False
+Held-out validation,Gaussian Naive Bayes,Muscovite,100.0,99.52153110047847,99.76019184652279,209,False
+Held-out validation,Gaussian Naive Bayes,Nepheline,100.0,98.96907216494846,99.48186528497409,194,False
+Held-out validation,Gaussian Naive Bayes,Olivine,95.58730158730158,59.694686756542424,73.49279960947035,5044,False
+Held-out validation,Gaussian Naive Bayes,Orthopyroxene,97.45158002038737,84.97777777777777,90.78822412155746,1125,False
+Held-out validation,Gaussian Naive Bayes,Plagioclase,100.0,99.86807387862797,99.93399339933994,3790,False
+Held-out validation,Gaussian Naive Bayes,Rhombohedral_Oxides,100.0,99.43741209563994,99.71791255289139,711,False
+Held-out validation,Gaussian Naive Bayes,Rutile,100.0,100.0,100.0,348,False
+Held-out validation,Gaussian Naive Bayes,Serpentine,20.366757705813498,99.05123339658444,33.78640776699029,527,False
+Held-out validation,Gaussian Naive Bayes,SiO2_Polymorph,100.0,100.0,100.0,308,True
+Held-out validation,Gaussian Naive Bayes,Spinel_Group,99.9000999000999,99.70089730807578,99.8003992015968,1003,False
+Held-out validation,Gaussian Naive Bayes,Titanite,100.0,99.87484355444305,99.93738259236068,1598,False
+Held-out validation,Gaussian Naive Bayes,Tourmaline,100.0,100.0,100.0,227,False
+Held-out validation,Gaussian Naive Bayes,Zircon,100.0,100.0,100.0,305,True
