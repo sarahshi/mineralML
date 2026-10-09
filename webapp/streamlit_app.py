@@ -607,7 +607,7 @@ with st.sidebar:
 # %% ----------------------------------------------------------------
 # main
 
-intro = st.container(width=900)  # intro and help text keep a readable line length on the wide page
+intro = st.container()  # intro and help text span the full page width
 intro.title("mineralML")
 intro.markdown(
     "Probabilistic classification of common igneous minerals from oxide compositions, "
