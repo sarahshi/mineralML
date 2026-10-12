@@ -6,7 +6,7 @@ name: Keep web app awake
 
 on:
   schedule:
-    - cron: "17 */4 * * *"
+    - cron: "17 */2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install playwright && playwright install --with-deps chromium
+      # Reuse the browser's cookies from the last successful run, so Streamlit's analytics show one
+      # returning viewer instead of a new anonymous viewer every run.
+      - uses: actions/cache@v6
+        with:
+          path: browser-state.json
+          key: browser-state-${{ github.run_id }}
+          restore-keys: browser-state-
       - name: Visit app
         shell: python
         run: |
@@ -30,6 +37,7 @@ jobs:
           from playwright.sync_api import sync_playwright
 
           url = os.environ["APP_URL"]
+          state = "browser-state.json"
 
           def app_rendered(page):
               # The app renders inside an iframe, so look for Streamlit's root element in every frame.
@@ -42,7 +50,9 @@ jobs:
               return False
 
           with sync_playwright() as p:
-              page = p.chromium.launch().new_page()
+              context = p.chromium.launch().new_context(
+                  storage_state=state if os.path.exists(state) else None)
+              page = context.new_page()
               page.goto(url, wait_until="domcontentloaded", timeout=120_000)
               page.wait_for_timeout(10_000)
 
@@ -57,6 +67,7 @@ jobs:
                   if app_rendered(page):
                       print("App rendered")
                       page.wait_for_timeout(15_000)  # stay connected long enough to count as a visit
+                      context.storage_state(path=state)
                       sys.exit(0)
                   page.wait_for_timeout(5_000)
               page.screenshot(path="app.png", full_page=True)
