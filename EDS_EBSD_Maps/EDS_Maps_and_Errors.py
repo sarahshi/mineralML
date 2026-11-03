@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 from scipy.optimize import curve_fit
 
-sys.path.append('../src')
+sys.path.append('../../src')
 import mineralML as mm
 
 import matplotlib as mpl
@@ -41,7 +41,7 @@ mpl.rcParams['image.composite_image'] = False
 
 # %% 
 
-sorted_df=pd.read_excel('MH0811b_EDS_SpotAnalysesforUncertainties.xlsx')
+sorted_df=pd.read_excel('../../EDS_EBSD_Maps/MH0811b_EDS_PointAnalysesforUncertainties.xlsx')
 
 def extract_time(sample_name):
     # Match number followed by either 's' or 'ms'
@@ -326,7 +326,7 @@ mh_eds_keep = [
     "Oxide", "Glass",
 ]
 
-map_dirs = [root for root, _, files in os.walk("MH0811b_Maps_25mm_20.5nA") if "Ignore" not in root.split(os.sep) and any(f.lower().endswith(".csv") for f in files)]
+map_dirs = [root for root, _, files in os.walk("../../EDS_EBSD_Maps/MH0811b_Maps_25mm_20.5nA") if "Ignore" not in root.split(os.sep) and any(f.lower().endswith(".csv") for f in files)]
 
 # %%
 # %%
@@ -518,6 +518,152 @@ cbar.set_label('Prediction Score', fontsize=14)
 plt.show()
 
 # %%
+
+
+
+# %% 
+
+
+
+
+fig, axs = plt.subplots(
+    nrows=3, ncols=2,
+    figsize=(11, 15),
+    # constrained_layout=True,
+)
+
+# ── Top row: error plots ──
+ax1, ax2 = axs[0]
+
+frame_times = {
+    "t=1 ms":  1e-3,
+    "t=50 ms": 50e-3,
+}
+
+frame_style = {
+    "t=1 ms":  dict(marker="*", color="k", mfc="yellow", ms=15),
+    "t=50 ms": dict(marker="*", color="k", mfc="white",  ms=15),
+}
+
+plots = [
+    (ax1, "MgO",  "MgO_err",  r"MgO % Error"),
+    (ax2, "SiO2", "SiO2_err", r"$\mathregular{SiO_2}$ % Error"),
+]
+
+for ax, oxide, err_col, ylabel in plots:
+    y_curve = predict_percent_error(model_25mm, oxide, t_test)
+    ax.plot(df_tilted_20nA_25mm["Total_time"],
+            df_tilted_20nA_25mm[err_col],
+            "ok", alpha=0.1, label='Error Data')
+    ax.plot(t_test, y_curve, "-k", label='Error Model')
+
+    for label, t in frame_times.items():
+        y = predict_percent_error(model_25mm, oxide, t)
+        ax.plot(t, y, **frame_style[label], label=label)
+
+    ax.set_xlabel("Total Acquisition Time (s)")
+    ax.set_ylabel(ylabel)
+
+ax1.legend(loc="best", fontsize=10)
+ax1.set_ylim([-1, 60])
+ax2.set_ylim([-1, 32.5])
+
+ax1.set_xscale("log")
+ax2.set_xscale("log")
+ax1.set_xlim([0.0005, 10])
+ax2.set_xlim([0.0005, 10])
+
+ax1.annotate("A. 16 wt.% MgO", xy=(0.03, 0.935), xycoords="axes fraction", fontsize=14)
+ax2.annotate(r"B. 54 wt.% $\mathregular{SiO_2}$", xy=(0.03, 0.935), xycoords="axes fraction", fontsize=14)
+ax2.yaxis.set_tick_params(which='both', labelbottom=True)
+
+
+map_axs = axs[1]
+# Wrap the zip in enumerate to track the index 'i'
+for i, (ax, (lab, res)) in enumerate(zip(map_axs, maps)):
+    if res is None:
+        ax.set_axis_off()
+        ax.set_title(f"{lab} (missing)")
+        continue
+
+# Variables to hold our stolen legend data
+stolen_handles = []
+stolen_labels = []
+legend_title = "Phases"
+
+for i, (ax, (lab, res)) in enumerate(zip(map_axs, maps)):
+    if res is None:
+        ax.set_axis_off()
+        ax.set_title(f"{lab} (missing)")
+        continue
+        
+    # Only tell plot_phase_map to draw the legend on the FIRST plot
+    is_first_plot = (i == 0)
+    
+    mm.plot_phase_map(
+        res['mineral_map'][:, :-1],
+        min_frac=0.0001,
+        title=None,
+        phase_colors=mh_cols_eds,
+        scalebar_um=20, pixel_size_um=5.0,
+        scalebar_loc='upper right',
+        scalebar_col='black',
+        ax=ax,
+        legend_on=is_first_plot,
+    )
+    
+    # If this is the first plot, grab the legend and remove it from the plot
+    if is_first_plot:
+        leg = ax.get_legend()
+        if leg is not None:
+            # Extract the handles (colors), labels (text), and title
+            stolen_handles = leg.legend_handles
+            stolen_labels = [text.get_text() for text in leg.texts]
+            leg.remove() 
+
+
+if stolen_handles:
+    map_axs[1].legend(
+        handles=stolen_handles, 
+        labels=stolen_labels,
+        loc="upper center", 
+        bbox_to_anchor=(-0.05, -0.03),
+        frameon=False,
+        ncols=5,        
+        # title=legend_title, 
+        fontsize=10
+    )
+
+map_axs[0].annotate("C. Phase Map at t=1ms", xy=(0.03, 0.92), xycoords="axes fraction", fontsize=14, bbox=dict(boxstyle="round,pad=0.1", fc="white", lw=0, alpha=0.75), zorder=10)
+map_axs[1].annotate("D. Phase Map at t=50ms", xy=(0.03, 0.92), xycoords="axes fraction", fontsize=14, bbox=dict(boxstyle="round,pad=0.1", fc="white", lw=0, alpha=0.75), zorder=10)
+
+# Probability Map 
+map_axs = axs[2]
+cmap='inferno'
+
+for ax, (lab, res) in zip(map_axs, maps):
+    if res is None:
+        ax.set_axis_off()
+        continue
+    pred_score_map = res['pred_score_map'][:, :-1]
+    ax.imshow(pred_score_map, origin='upper', interpolation='none', cmap=cmap)
+    ax.set_axis_off() 
+
+# Titles for the bottom row
+map_axs[0].annotate("E. Prediction Score at t=1ms", xy=(0.03, 0.92), xycoords="axes fraction", fontsize=14, bbox=dict(boxstyle="round,pad=0.1", fc="white", lw=0, alpha=0.75))
+map_axs[1].annotate("F. Prediction Score at t=50ms", xy=(0.03, 0.92), xycoords="axes fraction", fontsize=14, bbox=dict(boxstyle="round,pad=0.1", fc="white", lw=0, alpha=0.75))
+norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
+sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+sm.set_array([]) 
+
+cax = fig.add_axes([0.92, 0.125, 0.012, 0.195])
+cbar = fig.colorbar(sm, cax=cax, orientation='vertical')
+cbar.set_label('Prediction Score', fontsize=14)
+plt.savefig('../../texfigs/EDS_phase_withuncertainty_map_quals.svg', pad_inches=0.025, bbox_inches='tight', transparent=False, dpi=300)
+plt.show()
+
+
+
 # %%
 # %% 
 # --- Differential timing maps --- 
@@ -620,7 +766,7 @@ handles = [mpatches.Patch(color=mh_cols_eds[p], label=p)
            for p in mh_eds_keep_lim if p in mh_cols_eds]
 fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, -0.03), ncol=8, frameon=True, fontsize=10)
 plt.tight_layout()
-# plt.savefig('texfigs/MH0811_v0030_eds_varytime.pdf', bbox_inches='tight', pad_inches=0.025)
+plt.savefig('../../texfigs/MH0811_v0030_eds_varytime.svg', bbox_inches='tight', pad_inches=0.025)
 # plt.savefig('texfigs/MH0811_v0030_eds_varytime.png', bbox_inches='tight', pad_inches=0.025, dpi=300)
 plt.show()
 

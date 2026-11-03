@@ -8,14 +8,18 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib import cm
+import matplotlib.colors as mcolors
 
-sys.path.append('../src')
+from skimage.segmentation import find_boundaries
+from skimage.morphology import remove_small_objects
+from scipy.ndimage import distance_transform_edt
+
+sys.path.append('../../src')
 import mineralML as mm
 
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
-plt.style.use('../style.mplstyle')
+plt.style.use('../../style.mplstyle')
 
 # %% 
 # Configurations & Dictionaries
@@ -24,19 +28,20 @@ plt.style.use('../style.mplstyle')
 MASTER_PRIORITY = [
     "Plagioclase", "Feldspar_Miscibility_Gap", "Alkali_Feldspar", 
     "Clinopyroxene", "Orthopyroxene", "Amphibole",
-    "SiO2_Polymorph", "Oxide", "Apatite", "Zircon", 
-    "Epidote", "Titanite", "Unindexed", "Glass"
+    "SiO2_Polymorph", 
+    "Oxide", # "Rhombohedral_Oxides", "Spinel_Group", 
+    "Apatite", "Zircon", "Epidote", "Titanite", "Unindexed", "Glass"
 ]
 
 BII_PRIORITY = [
     "Plagioclase", "Feldspar_Miscibility_Gap", "SiO2_Polymorph", "Titanite", "Amphibole",
-    "Clinopyroxene", "Alkali_Feldspar", "Oxide",
+    "Clinopyroxene", "Alkali_Feldspar", "Oxide", # "Rhombohedral_Oxides", "Spinel_Group", 
     "Epidote", "Zircon", "Apatite", "Unindexed", "Glass", "Vesicles"
 ]
 
 # --- MH0811b Configs ---
-mh_file_path = "EBSD_CTF/MH0811b_EBSD_EDS.ctf"
-mh_file_path_bad = "EBSD_CTF/MH0811b_EBSD_EDS_noisy.ctf"
+mh_file_path = "../../Maps/EBSD_CTF/MH0811b_EBSD_EDS__single_frame_EBSDonly_denoised_filled.ctf"
+mh_file_path_bad = "../../Maps/EBSD_CTF/MH0811b_px1_wildspikes_6neighbours.ctf"
 
 
 mh_merge_rules = {
@@ -49,8 +54,9 @@ mh_merge_rules = {
 mh_base_cols = {
     "Plagioclase": "#66C4C4", "Clinopyroxene": "#E57A7A", 
     "Orthopyroxene": "#931d1d", "Alkali_Feldspar": "#FEF7C2", 
-    "Oxide": "#2E2DCE", "Glass": "#F9C300",
-    "Apatite": "#5B6768", "SiO2_Polymorph": "#CEC6CD",
+    "Oxide": "#2E2DCE", "Glass": "#F9C300", # "Spinel_Group": "#2E2DCE", "Rhombohedral_Oxides": "#6FB2E4", 
+    "Apatite": "#000000", #"Rhombohedral_Oxides": "#6FB2E4", 
+    "SiO2_Polymorph": "#A8A5A5", 
 }
 mh_cols_ebsd = {**mh_base_cols, "Unindexed": "white"}
 mh_cols_eds  = {**mh_base_cols, "Feldspar_Miscibility_Gap": "#003d36", "Amphibole": "#5E2910",
@@ -62,7 +68,7 @@ mh_eds_keep = [
 ]
 
 # --- Bii Configs ---
-bii_file_path = "EBSD_CTF/Bii_EBSD_EDS.ctf"
+bii_file_path = "../../Maps/EBSD_CTF/Bii_epidote_wildspikes_6neighbours.ctf"
 
 bii_merge_rules = {
     "Anorthite": "Plagioclase", "Hornblende": "Amphibole", "Orthoclase": "Alkali_Feldspar",
@@ -72,20 +78,21 @@ bii_merge_rules = {
     "Quartz-new": "SiO2_Polymorph", 
 }
 
-bii_cols  = {**mh_base_cols, "Amphibole": '#5E2910',
+bii_cols  = {**mh_base_cols, "Amphibole": '#6f3013',
              "Zircon": "cyan", "Epidote": "magenta", 
-             "Titanite": "#bb730c", "Unindexed": "white",
+             "Titanite": "#E1D6DF", "Unindexed": "white", ##d7ad83 bb730c
              "Feldspar_Miscibility_Gap": "#003d36", 
              "Vesicles": "white" # Handled here for EDS plotting
              }
 
 bii_eds_keep = [
     "Plagioclase", "Feldspar_Miscibility_Gap", "SiO2_Polymorph", "Titanite", "Amphibole",
-    "Clinopyroxene", "Alkali_Feldspar", "Oxide", "Epidote", "Zircon", "Apatite", 
-    "Unindexed", "Glass", "Vesicles"
+    "Alkali_Feldspar", "Oxide", #"Rhombohedral_Oxides", "Spinel_Group", 
+    "Epidote", "Zircon", "Apatite", "Unindexed", "Glass", "Vesicles"
 ]
 
-map_dirs = [root for root, _, files in os.walk(".") if "Ignore" not in root.split(os.sep) and any(f.lower().endswith(".csv") for f in files)]
+map_dirs = [root for root, _, files in os.walk("../../Maps") if "Ignore" not in root.split(os.sep) and any(f.lower().endswith(".csv") for f in files)]
+
 
 # %%
 
@@ -224,9 +231,9 @@ plot_phase_proportions(mh_ebsd_phase_map, mh_cols_ebsd, title="MH0811b EBSD Prop
 pred_score_threshold=0.5
 # EDS
 mh0811 = mm.run_map(
-    next((s for s in map_dirs if 'MH0811b' in s), None),
-    units='element_wt%', pred_score_threshold=pred_score_threshold, 
-    renormalize=False, epoxy_threshold=None,
+    next((s for s in map_dirs if 'MH0811b_quant' in s), None),
+    units='element_wt%', pred_score_threshold=pred_score_threshold,
+    renormalize=True, total_threshold=None,
     phases=mh_eds_keep, remove_islands_flag=False, 
     fill_holes_flag=True, phase_colors=mh_cols_eds
 )
@@ -238,22 +245,38 @@ plot_phase_proportions(mh_eds_vals_raw, mh_cols_eds, title="MH0811b EDS Proporti
 # %%
 
 # --- Plot MH0811b Composite ---
+
 fig = plt.figure(figsize=(16, 10))
 gs = fig.add_gridspec(nrows=2, ncols=2, height_ratios=[4, 1], hspace=0.33, wspace=0.025)
 ax_ebsd, ax_comp, ax_bar = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, :])
 
 # Draw Maps
-mh_fig, phase_map, _, _, _ = mm.plot_ctf_phases(mh_file_path, rename_dict=mh_merge_rules, phase_colors=mh_cols_ebsd, ax=ax_ebsd, title="A. EBSD Phase Map", scalebar_um=100, legend_on=False)
-_, phase_map_eds, comp_map = mm.plot_component_composite(mh0811, ax=ax_comp, fill_missing=True, 
+mh_comp_fig, phase_map, _, _, _ = mm.plot_ctf_phases(mh_file_path, rename_dict=mh_merge_rules, phase_colors=mh_cols_ebsd, ax=ax_ebsd, title="A. EBSD Phase Map", scalebar_um=100, legend_on=False)
+
+# Suppress Alkali Feldspar Or zoning in this composite only: drop the
+# component map so it's drawn as a flat categorical phase instead
+mh0811_no_or_zoning = {**mh0811, "component_maps": {k: v for k, v in mh0811["component_maps"].items() if k != "Feldspar.Or"}}
+
+_, phase_map_eds, comp_map = mm.plot_component_composite(mh0811_no_or_zoning, ax=ax_comp, fill_holes_flag=True,
                                                          title="B. mineralML-Generated EDS Phase Map",
-                                                         phases=mh_eds_keep, phase_colors=mh_cols_eds, 
-                                                         max_hole_size=5, min_speck_size=5,
+                                                         phases=mh_eds_keep, phase_colors=mh_cols_eds,
+                                                         hole_size=5,
                                                          scalebar_um=100, pixel_size_um=2.0, limits_mode='std',
                                                          cbar_hgap=0.02, cbar_vgap=-0.07, cbar_height=0.04, legend_on=False)
+# mm.plot_phase_map(mh0811['mineral_map'], ax=ax_comp,
+#                                                          title="B. mineralML-Generated EDS Phase Map",
+#                                                          phases=mh_eds_keep, phase_colors=mh_cols_eds, 
+#                                                          scalebar_um=100, pixel_size_um=2.0, 
+#                                                          legend_on=False)
+
 
 # Get Sorted Proportions
 ord_phases_ebsd, ord_props_ebsd = sort_phases_priority(*get_proportions(phase_map), priority_list=MASTER_PRIORITY)
-ord_phases_eds, ord_props_eds = sort_phases_priority(*get_proportions(mh0811["mineral_map"], valid_phases=mh_eds_keep), priority_list=MASTER_PRIORITY)
+# run_map's mineral_map sets phases outside mh_eds_keep to None (since v0.0.3.13), so use the
+# unfiltered predictions to count them as Vesicles, as the March figure did
+mh_eds_labels = mh0811["df_pred"]["Predict_Mineral"].to_numpy(dtype=object).reshape(mh0811["mineral_map"].shape)
+ord_phases_eds, ord_props_eds = sort_phases_priority(*get_proportions(mh_eds_labels, valid_phases=mh_eds_keep), priority_list=MASTER_PRIORITY)
+# ord_phases_eds, ord_props_eds = sort_phases_priority(*get_proportions(get_proportions(phase_map), valid_phases=mh_eds_keep), priority_list=MASTER_PRIORITY)
 
 # Draw Stacked Bars
 y_ebsd, y_eds, bar_h = 1.2, 0.00, 0.4
@@ -303,158 +326,219 @@ for s in ["top", "right", "left"]:
 plt.tight_layout()
 fig.canvas.draw()
 ax_bar.set_position([ax_ebsd.get_position().x0, ax_bar.get_position().y0, ax_comp.get_position().x1 - ax_ebsd.get_position().x0, ax_bar.get_position().height])
-# plt.savefig('texfigs/MH0811_v0030_f.pdf', bbox_inches='tight', pad_inches=0.025)
+plt.savefig('../../texfigs/MH0811_v0030_fnew1.pdf', bbox_inches='tight', pad_inches=0.025)
 plt.show()
 
 # %%
 # %% 
 
-# --- Plot MH0811b low count ---
+# mh0811_bad = mm.run_map(
+#     next((s for s in map_dirs if 'MH0811b_px1' in s), None),
+#     units='oxide_wt%', min_frac=0.005, pred_score_threshold=0,
+#     remove_islands_flag=False, 
+#     fill_holes_flag=True, phase_colors=mh_cols_eds
+# )
 
-mh0811_lowct = mm.run_map(
-    next((s for s in map_dirs if 'MountHood_MH0811b_lowcount' in s), None),
-    units='oxide_wt%', min_frac=0.005, pred_score_threshold=0,
-    remove_islands_flag=False, 
-    fill_holes_flag=True, phase_colors=mh_cols_eds
-)
+# # %% 
 
-# %% 
+# # --- Plot MH0811b BAD ---
 
-# --- Plot MH0811b low count ---
+# fig = plt.figure(figsize=(16, 10))
+# gs = fig.add_gridspec(nrows=2, ncols=2, height_ratios=[4, 1], hspace=-0.05, wspace=0.025)
+# ax_ebsd, ax_comp, ax_bar = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, :])
 
-fig = plt.figure(figsize=(16, 10))
-gs = fig.add_gridspec(nrows=2, ncols=2, height_ratios=[4, 1], hspace=-0.05, wspace=0.025)
-ax_ebsd, ax_comp, ax_bar = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, :])
+# # Color dictionaries
+# mh_merge_rules_new = {**mh_merge_rules, "Forsterite": "Olivine", "Hornblende": "Amphibole", "Tridymite": "SiO2_Polymorph"}
+# mh_cols_ebsd_new = {**mh_cols_ebsd, "Olivine": "#666633", "Biotite": "tab:brown"}
+# mh_cols_all = {**mh_cols_ebsd_new, **mh_cols_eds}
 
-# Color dictionaries
-mh_merge_rules_new = {**mh_merge_rules, "Forsterite": "Olivine", "Hornblende": "Amphibole", "Tridymite": "SiO2_Polymorph"}
-mh_cols_ebsd_new = {**mh_cols_ebsd, "Olivine": "#666633", "Biotite": "tab:brown"}
-mh_cols_all = {**mh_cols_ebsd_new, **mh_cols_eds}
+# from matplotlib import cm
 
-bad_phases = set(pd.unique(mh0811_lowct['mineral_map'].ravel()))
-bad_phases.discard(None)
-bad_phases -= {p for p in bad_phases if str(p) in ('nan', 'NaN', 'None', 'Unknown')}
-missing = sorted(bad_phases - set(mh_cols_all.keys()))
-print("Phases without colors:", missing)
+# bad_phases = set(pd.unique(mh0811_bad['mineral_map'].ravel()))
+# bad_phases.discard(None)
+# bad_phases -= {p for p in bad_phases if str(p) in ('nan', 'NaN', 'None', 'Unknown')}
+# missing = sorted(bad_phases - set(mh_cols_all.keys()))
+# print("Phases without colors:", missing)
 
-# Auto-assign tab20 colors to anything missing
-tab20 = cm.get_cmap('tab20', max(len(missing), 1))
-for i, phase in enumerate(missing):
-    mh_cols_all[phase] = tab20(i)
+# # Auto-assign tab20 colors to anything missing
+# tab20 = cm.get_cmap('tab20', max(len(missing), 1))
+# for i, phase in enumerate(missing):
+#     mh_cols_all[phase] = tab20(i)
 
 
-# Draw Maps
-fig, phase_map, _, _, _ = mm.plot_ctf_phases(
-    mh_file_path_bad, rename_dict=mh_merge_rules_new, phase_colors=mh_cols_ebsd_new,
-    ax=ax_ebsd, title="A. EBSD Phase Map", scalebar_um=100, legend_on=False
-)
+# # Draw Maps
+# mh_bad_fig, phase_map, _, _, _ = mm.plot_ctf_phases(
+#     mh_file_path_bad, rename_dict=mh_merge_rules_new, phase_colors=mh_cols_ebsd_new,
+#     ax=ax_ebsd, title="A. EBSD Phase Map", scalebar_um=100, legend_on=False
+# )
 
-_, _, phase_map_eds = mm.plot_phase_map(
-    mh0811_lowct['mineral_map'], ax=ax_comp, min_frac=0.005,
-    title="B. mineralML-Generated EDS Phase Map",
-    phase_colors=mh_cols_all,
-    scalebar_um=100, pixel_size_um=2.0,
-    bg_color=(1, 1, 1),
-    legend_on=False
-)
+# _, _, phase_map_eds = mm.plot_phase_map(
+#     mh0811_bad['mineral_map'], ax=ax_comp, min_frac=0.005,
+#     title="B. mineralML-Generated EDS Phase Map",
+#     phase_colors=mh_cols_all,
+#     scalebar_um=100, pixel_size_um=2.0,
+#     bg_color=(1, 1, 1),
+#     legend_on=False
+# )
 
-# Get Sorted Proportions
-ord_phases_ebsd, ord_props_ebsd = sort_phases_priority(
-    *get_proportions(phase_map), priority_list=MASTER_PRIORITY
-)
-ord_phases_eds, ord_props_eds = sort_phases_priority(
-    *get_proportions(phase_map_eds), priority_list=MASTER_PRIORITY
-)
+# # Get Sorted Proportions
+# ord_phases_ebsd, ord_props_ebsd = sort_phases_priority(
+#     *get_proportions(phase_map), priority_list=MASTER_PRIORITY
+# )
+# ord_phases_eds, ord_props_eds = sort_phases_priority(
+#     *get_proportions(phase_map_eds), priority_list=MASTER_PRIORITY
+# )
 
-# Draw Stacked Bars
-y_ebsd, y_eds, bar_h = 1.2, 0.00, 0.4
-outlines = []
+# # Draw Stacked Bars
+# y_ebsd, y_eds, bar_h = 1.2, 0.00, 0.4
+# outlines = []
 
-for is_eds, y_val, phases, props in [
-    (False, y_ebsd, ord_phases_ebsd, ord_props_ebsd),
-    (True,  y_eds,  ord_phases_eds,  ord_props_eds),
-]:
-    left = 0.0
-    for p, prop in zip(phases, props):
-        st = get_bar_style(
-            p, color_dict=mh_cols_all,
-            base_plag_col=mh_cols_all.get("Plagioclase", "#66C4C4"),
-            is_eds=is_eds
-        )
-        prop_pct = prop * 100
-        ax_bar.barh(
-            y=y_val, width=prop_pct, left=left, height=bar_h,
-            color=st["facecolor"], edgecolor=st["edgecolor"],
-            linewidth=st["linewidth"], zorder=2
-        )
-        if is_eds and p in ["Feldspar_Miscibility_Gap", "Unindexed"] and prop > 0:
-            outlines.append((left, prop_pct))
-        left += prop_pct
+# for is_eds, y_val, phases, props in [
+#     (False, y_ebsd, ord_phases_ebsd, ord_props_ebsd),
+#     (True,  y_eds,  ord_phases_eds,  ord_props_eds),
+# ]:
+#     left = 0.0
+#     for p, prop in zip(phases, props):
+#         st = get_bar_style(
+#             p, color_dict=mh_cols_all,
+#             base_plag_col=mh_cols_all.get("Plagioclase", "#66C4C4"),
+#             is_eds=is_eds
+#         )
+#         prop_pct = prop * 100
+#         ax_bar.barh(
+#             y=y_val, width=prop_pct, left=left, height=bar_h,
+#             color=st["facecolor"], edgecolor=st["edgecolor"],
+#             linewidth=st["linewidth"], zorder=2
+#         )
+#         if is_eds and p in ["Feldspar_Miscibility_Gap", "Unindexed"] and prop > 0:
+#             outlines.append((left, prop_pct))
+#         left += prop_pct
 
-# Redraw thick outlines on EDS row
-for left, prop in outlines:
-    ax_bar.barh(
-        y=y_eds, width=prop, left=left, height=bar_h,
-        color="none", edgecolor="#003d36", linewidth=1.2, zorder=6
-    )
+# # Redraw thick outlines on EDS row
+# for left, prop in outlines:
+#     ax_bar.barh(
+#         y=y_eds, width=prop, left=left, height=bar_h,
+#         color="none", edgecolor="#003d36", linewidth=1.2, zorder=6
+#     )
 
-# Annotations
-annotate_stacked_bar_prop_staggered(
-    ax_bar, y_ebsd, ord_phases_ebsd, ord_props_ebsd, dy_out=0.30,
-    force_outside={"Rhombohedral_Oxides", "SiO2_Polymorph"},
-    force_dx={"Rhombohedral_Oxides": -3, "SiO2_Polymorph": -2},
-    phase_colors=mh_cols_all
-)
-annotate_stacked_bar_prop_staggered(
-    ax_bar, y_eds, ord_phases_eds, ord_props_eds, dy_out=0.3,
-    force_outside={"Rhombohedral_Oxides", "SiO2_Polymorph"},
-    force_dx={"Rhombohedral_Oxides": -1.75},
-    phase_colors=mh_cols_all
-)
+# # Annotations
+# annotate_stacked_bar_prop_staggered(
+#     ax_bar, y_ebsd, ord_phases_ebsd, ord_props_ebsd, dy_out=0.30,
+#     force_outside={"Rhombohedral_Oxides", "SiO2_Polymorph"},
+#     force_dx={"Rhombohedral_Oxides": -3, "SiO2_Polymorph": -2},
+#     phase_colors=mh_cols_all
+# )
+# annotate_stacked_bar_prop_staggered(
+#     ax_bar, y_eds, ord_phases_eds, ord_props_eds, dy_out=0.3,
+#     force_outside={"Rhombohedral_Oxides", "SiO2_Polymorph"},
+#     force_dx={"Rhombohedral_Oxides": -1.75},
+#     phase_colors=mh_cols_all
+# )
 
-# Unified Legend
-all_phases = list(dict.fromkeys(ord_phases_ebsd + ord_phases_eds))
-legend_phases = [p for p in MASTER_PRIORITY if p in all_phases] + sorted(
-    [p for p in all_phases if p not in MASTER_PRIORITY]
-)
+# # Unified Legend
+# all_phases = list(dict.fromkeys(ord_phases_ebsd + ord_phases_eds))
+# legend_phases = [p for p in MASTER_PRIORITY if p in all_phases] + sorted(
+#     [p for p in all_phases if p not in MASTER_PRIORITY]
+# )
 
-ncol = 8
-handles = [
-    mpatches.Patch(**get_bar_style(
-        p, color_dict=mh_cols_all,
-        base_plag_col=mh_cols_all.get("Plagioclase", "#66C4C4"),
-        is_eds=(p not in mh_cols_ebsd_new or p in ["Feldspar_Miscibility_Gap", "Unindexed"])
-    ))
-    for p in legend_phases
-]
-h_ord, l_ord = order_row_major(handles, legend_phases, ncol=ncol)
+# ncol = 8
+# handles = [
+#     mpatches.Patch(**get_bar_style(
+#         p, color_dict=mh_cols_all,
+#         base_plag_col=mh_cols_all.get("Plagioclase", "#66C4C4"),
+#         is_eds=(p not in mh_cols_ebsd_new or p in ["Feldspar_Miscibility_Gap", "Unindexed"])
+#     ))
+#     for p in legend_phases
+# ]
+# h_ord, l_ord = order_row_major(handles, legend_phases, ncol=ncol)
 
-ax_bar.legend(
-    h_ord, l_ord, loc="upper center", bbox_to_anchor=(0.5, -0.4),
-    frameon=True, ncol=ncol, prop={"size": 10}
-)
+# ax_bar.legend(
+#     h_ord, l_ord, loc="upper center", bbox_to_anchor=(0.5, -0.4),
+#     frameon=True, ncol=ncol, prop={"size": 10}
+# )
 
-# Axes Styling
-ax_bar.set_title("C. Phase Abundances")
-ax_bar.set(
-    xlim=(0, 100), ylim=(-0.75, 1.45),
-    yticks=[y_ebsd, y_eds], yticklabels=["EBSD", "EDS"],
-    xlabel="Modal Phase Proportion (%)"
-)
-ax_bar.xaxis.label.set_size(14)
-ax_bar.tick_params(axis="both", labelsize=14)
-for s in ["top", "right", "left"]:
-    ax_bar.spines[s].set_visible(False)
+# # Axes Styling
+# ax_bar.set_title("C. Phase Abundances")
+# ax_bar.set(
+#     xlim=(0, 100), ylim=(-0.75, 1.45),
+#     yticks=[y_ebsd, y_eds], yticklabels=["EBSD", "EDS"],
+#     xlabel="Modal Phase Proportion (%)"
+# )
+# ax_bar.xaxis.label.set_size(14)
+# ax_bar.tick_params(axis="both", labelsize=14)
+# for s in ["top", "right", "left"]:
+#     ax_bar.spines[s].set_visible(False)
 
-plt.tight_layout()
-fig.canvas.draw()
-ax_bar.set_position([
-    ax_ebsd.get_position().x0, ax_bar.get_position().y0,
-    ax_comp.get_position().x1 - ax_ebsd.get_position().x0,
-    ax_bar.get_position().height
-])
-# plt.savefig('texfigs/MH0811_v0030_lowcount.pdf', bbox_inches='tight', pad_inches=0.025)
-plt.show()
+# plt.tight_layout()
+# fig.canvas.draw()
+# ax_bar.set_position([
+#     ax_ebsd.get_position().x0, ax_bar.get_position().y0,
+#     ax_comp.get_position().x1 - ax_ebsd.get_position().x0,
+#     ax_bar.get_position().height
+# ])
+# plt.savefig('../../texfigs/MH0811_v0030_bad.pdf', bbox_inches='tight', pad_inches=0.025)
+# plt.show()
+
+
+
+# %%
+# %%
+
+# mh_pred = mh0811['df_pred']
+# mh_pred = mh_pred[mh_pred.Prediction_Score > pred_score_threshold]
+
+# overlay = {'MH Glass': mh_pred[mh_pred.Predict_Mineral == "Glass"]}
+
+# min_df = pd.read_csv('Training_Data/min_df_v4_synth.csv', dtype={'Mineral': 'category'})
+# # To see through your data better:
+# mm.plot_harker(
+#     df_train=min_df, 
+#     train_minerals=["Glass", "Plagioclase", "Alkali_Feldspar"],
+#     overlay_datasets=overlay,
+#     train_kws={"alpha": 0.1, "s": 15, "zorder":40},
+#     new_kws={"alpha": 0.5, "s": 5},
+# )
+# mh_gl = mh_pred[mh_pred.Predict_Mineral == "Glass"]
+# plt.hist(mh_gl.Prediction_Score, bins=50)
+
+# # %%
+
+# mh_pred = mh0811['df_pred']
+# mh_pred = mh_pred[mh_pred.Prediction_Score > pred_score_threshold]
+
+# overlay = {'MH Alkali_Feldspar': mh_pred[mh_pred.Predict_Mineral == "Alkali_Feldspar"]}
+
+# min_df = pd.read_csv('Training_Data/min_df_v4_synth.csv', dtype={'Mineral': 'category'})
+# # To see through your data better:
+# mm.plot_harker(
+#     df_train=min_df, 
+#     train_minerals=["Glass", "Plagioclase", "Alkali_Feldspar"],
+#     overlay_datasets=overlay,
+#     train_kws={"alpha": 0.1, "s": 15},
+#     new_kws={"alpha": 0.5, "s": 5},
+# )
+
+# mh_kf = mh_pred[mh_pred.Predict_Mineral == "Alkali_Feldspar"]
+# plt.hist(mh_kf.Prediction_Score, bins=50)
+
+# # %% 
+
+# mh_pred = mh0811['df_pred']
+# mh_pred = mh_pred[mh_pred.Prediction_Score > pred_score_threshold]
+
+# overlay = {'MH SiO2_Polymorph': mh_pred[mh_pred.Predict_Mineral == "SiO2_Polymorph"]}
+
+# min_df = pd.read_csv('Training_Data/min_df_v4_synth.csv', dtype={'Mineral': 'category'})
+# # To see through your data better:
+# mm.plot_harker(
+#     df_train=min_df, 
+#     train_minerals=["Glass", "SiO2_Polymorph"],
+#     overlay_datasets=overlay,
+#     train_kws={"alpha": 0.1, "s": 15, "zorder":40},
+#     new_kws={"alpha": 0.5, "s": 5},
+# )
+# mh_qz = mh_pred[mh_pred.Predict_Mineral == "SiO2_Polymorph"]
+# plt.hist(mh_qz.Prediction_Score, bins=50)
 
 # %% 
 # %%
@@ -470,13 +554,14 @@ pred_score_threshold=0.5
 bii = mm.run_map(
     next((s for s in map_dirs if 'Bii' in s), None),
     units='element_wt%', pred_score_threshold=pred_score_threshold,
-    renormalize=False, epoxy_threshold=None,
+    renormalize=True, total_threshold=None,
     phases=bii_eds_keep, remove_islands_flag=False, 
     fill_holes_flag=True, phase_colors=bii_cols
 )
 
 bii_eds_vals_clean = bii["mineral_map"].ravel()[~pd.isna(bii["mineral_map"].ravel())]
 plot_phase_proportions(bii_eds_vals_clean, bii_cols, title="Bii EDS Proportions")
+
 
 # %% 
 # --- Plot Bii Composite ---
@@ -486,17 +571,24 @@ gs = fig.add_gridspec(nrows=2, ncols=2, height_ratios=[4, 1], hspace=-0.05, wspa
 ax_ebsd, ax_comp, ax_bar = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, :])
 
 # Draw Maps
-bii_fig, phase_map_bii, _, _, _ = mm.plot_ctf_phases(bii_file_path, rename_dict=bii_merge_rules, phase_colors=bii_cols, 
-                                            ax=ax_ebsd, title="A. EBSD Phase Map", 
+bii_map_fig, phase_map_bii, _, _, _ = mm.plot_ctf_phases(bii_file_path, rename_dict=bii_merge_rules, phase_colors=bii_cols,
+                                            ax=ax_ebsd, title="A. EBSD Phase Map",
                                             scalebar_um=100, scalebar_loc="lower right", legend_on=False)
-_, phase_map_eds_bii, comp_map_bii = mm.plot_component_composite(bii, ax=ax_comp, fill_missing=True, 
+
+# Suppress Alkali Feldspar Or zoning in this composite only: drop the
+# component map so it's drawn as a flat categorical phase instead
+bii_no_or_zoning = {**bii, "component_maps": {k: v for k, v in bii["component_maps"].items() if k != "Feldspar.Or"}}
+
+_, phase_map_eds_bii, comp_map_bii = mm.plot_component_composite(bii_no_or_zoning, ax=ax_comp, fill_holes_flag=True,
                                                                  title="B. mineralML-Generated EDS Phase Map", 
                                                                  phases=bii_eds_keep, phase_colors=bii_cols, 
-                                                                 max_hole_size=20, min_speck_size=8,
+                                                                 hole_size=20, # min_speck_size=8,
                                                                  scalebar_um=100, pixel_size_um=3.0, 
                                                                  cbar_hgap=0.02, cbar_vgap=-0.09, cbar_height=0.06,
                                                                  scalebar_loc="lower right", limits_mode='std',
-                                                                 legend_on=False)
+                                                                 legend_on=False,
+)
+
 
 # Get Sorted Proportions
 ord_phases_ebsd_bii, ord_props_ebsd_bii = sort_phases_priority(*get_proportions(phase_map_bii), priority_list=BII_PRIORITY)
@@ -525,6 +617,7 @@ for left, prop in outlines:
 annotate_stacked_bar_prop_staggered(ax_bar, y_ebsd, ord_phases_ebsd_bii, ord_props_ebsd_bii, dy_out=0.25, min_inside=0.03,
                                     force_outside={"Epidote", "Oxide", "Zircon",  "Apatite"},
                                     force_dx={"Epidote": -1.6, "Oxide": -2, "Zircon": -1.6, "Apatite": 0,},
+                                            #   "Spinel_Group": -1.8, "Rhombohedral_Oxides":-2.5,},
                                     phase_colors=bii_cols)
 annotate_stacked_bar_prop_staggered(ax_bar, y_eds, ord_phases_eds_bii, ord_props_eds_bii, dy_out=0.25, min_inside=0.02,
                                     force_outside={"Clinopyroxene", "Epidote", "Zircon", "Oxide",
@@ -555,8 +648,10 @@ for s in ["top", "right", "left"]:
 plt.tight_layout()
 fig.canvas.draw()
 ax_bar.set_position([ax_ebsd.get_position().x0, ax_bar.get_position().y0, ax_comp.get_position().x1 - ax_ebsd.get_position().x0, ax_bar.get_position().height])
-# os.makedirs('texfigs', exist_ok=True)
-# plt.savefig('texfigs/Bii_v0030.pdf', bbox_inches='tight', pad_inches=0.025)
+os.makedirs('../../texfigs', exist_ok=True)
+plt.savefig('../../texfigs/Bii_v0030_fnew1.pdf', bbox_inches='tight', pad_inches=0.025)
 plt.show()
+
+# %% 
 
 # %%
