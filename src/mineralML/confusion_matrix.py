@@ -12,7 +12,7 @@ from sklearn.metrics import confusion_matrix
 
 from matplotlib import pyplot as plt
 
-__all__ = ["MINERAL_LABELS", "PARENT_LABELS", "LABEL_ALIASES", "harmonize_labels",
+__all__ = ["MINERAL_LABELS", "PARENT_LABELS", "LABEL_ALIASES", "UNKNOWN_LABEL", "harmonize_labels",
            "confusion_matrix_df", "pp_matrix", "insert_totals", "config_cell_text_and_colors"]
 
 # %%
@@ -48,6 +48,10 @@ MINERAL_LABELS = [
     "Tourmaline",
     "Zircon",
 ]
+
+# Label given by harmonize_labels to analyses that predict_class_prob could not
+# classify (no non-zero oxides, or a total below 50 wt%), which it returns as NaN.
+UNKNOWN_LABEL = "Unknown"
 
 # Parent groups: when either array uses the parent label, its children are
 # merged into the parent so both arrays are compared at the same level.
@@ -85,6 +89,9 @@ LABEL_ALIASES = {
     "Carbonate": [
         "Calcite", "Aragonite", "Dolomite", "Ankerite", "Magnesite", "Siderite",
         "Rhodochrosite", "Strontianite", "Witherite",
+        "Alstonite", "Barytocalcite", "Breunnerite", "Gregoryite", "Kutnahorite",
+        "Magnesiosiderite", "Norsethite", "Nyerereite", "Olekminskite",
+        "Pirssonite", "Shortite",
     ],
     "Clinopyroxene": [
         "Augite", "Diopside", "Hedenbergite", "Pigeonite",   # Submineral
@@ -196,7 +203,11 @@ def harmonize_labels(given_min, pred_min=None, pred_submineral=None):
     label in both arrays.
 
     Labels that do not match MINERAL_LABELS after mapping are returned
-    unchanged and trigger a UserWarning. NaN values are kept.
+    unchanged and trigger a UserWarning. NaN predictions, which mark analyses
+    predict_class_prob could not classify (no non-zero oxides, or a total below
+    50 wt%), are returned as "Unknown", so they count as misclassifications
+    rather than silently dropping out; filter them out explicitly to score only
+    classified analyses. NaN given labels are kept, as they cannot be scored.
 
     Parameters:
         given_min (array-like): The given (e.g., published) mineral labels.
@@ -223,10 +234,11 @@ def harmonize_labels(given_min, pred_min=None, pred_submineral=None):
     given = pd.Series(given_min)
     pred = pd.Series(pred_min) if pred_min is not None else pd.Series(dtype=object)
     pred = _resolve_oxide(pred, pred_submineral)
+    pred = pred.astype(object).where(pred.notna(), UNKNOWN_LABEL)
 
     given, pred = _harmonize(given, pred)
 
-    known = set(MINERAL_LABELS) | set(PARENT_LABELS)
+    known = set(MINERAL_LABELS) | set(PARENT_LABELS) | {UNKNOWN_LABEL}
     labels = pd.concat([given, pred]).dropna()
     unrecognized = sorted(set(labels) - known, key=str)
     if unrecognized:
@@ -262,9 +274,15 @@ def confusion_matrix_df(given_min, pred_min, pred_submineral=None):
     all merges are applied will trigger a UserWarning and the corresponding
     rows will be excluded from the confusion matrix.
 
+    pred_min must not contain NaN: predict_class_prob returns NaN for analyses
+    it could not classify, so run harmonize_labels first, which labels them
+    "Unknown". They then appear as an "Unknown" column. Rows whose given label
+    is NaN cannot be scored and are excluded with a UserWarning.
+
     Parameters:
         given_min (array-like): The true class labels.
-        pred_min (array-like): The predicted class labels.
+        pred_min (array-like): The predicted class labels, e.g. the output of
+            harmonize_labels.
         pred_submineral (array-like, optional): The predicted 'Submineral'
             column. Where pred_min is "Oxide", the oxide group in
             pred_submineral is used instead.
@@ -282,17 +300,23 @@ def confusion_matrix_df(given_min, pred_min, pred_submineral=None):
     given = pd.Series(given_min)
     pred = _resolve_oxide(pd.Series(pred_min), pred_submineral)
 
-    given_nans = given.isna().sum()
-    pred_nans = pred.isna().sum()
-    if given_nans > 0 or pred_nans > 0:
+    pred_nans = int(pred.isna().sum())
+    if pred_nans > 0:
+        raise ValueError(
+            f"{pred_nans} NaN(s) in pred_min: these are analyses predict_class_prob "
+            f"could not classify. Run mm.harmonize_labels(given, pred, submineral) "
+            f"first, which labels them '{UNKNOWN_LABEL}'."
+        )
+
+    given_nans = int(given.isna().sum())
+    if given_nans > 0:
         warnings.warn(
-            f"Missing data detected: {given_nans} NaN(s) in given_min, "
-            f"{pred_nans} NaN(s) in pred_min. "
-            f"These rows will be excluded from the confusion matrix.",
+            f"Missing data detected: {given_nans} NaN(s) in given_min. "
+            f"These rows cannot be scored and will be excluded from the confusion matrix.",
             UserWarning,
             stacklevel=2,
         )
-        mask = given.notna() & pred.notna()
+        mask = given.notna()
         given = given[mask]
         pred = pred[mask]
 
@@ -327,7 +351,11 @@ def confusion_matrix_df(given_min, pred_min, pred_submineral=None):
                     insert_pos = i
                     break
             active_minerals.insert(insert_pos, parent)
- 
+
+    # Unclassified analyses (from harmonize_labels) get their own last column
+    if UNKNOWN_LABEL in all_labels:
+        active_minerals.append(UNKNOWN_LABEL)
+
     # --- Warn and drop labels not in active_minerals ---
     active_set = set(active_minerals)
     post_merge_labels = set(given) | set(pred)

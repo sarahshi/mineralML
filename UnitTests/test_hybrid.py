@@ -386,6 +386,24 @@ class TestConvertFeToFeot(unittest.TestCase):
         expected = 8.0 + 2.0 / fe_conv
         self.assertAlmostEqual(out["FeOt"].iloc[0], expected, places=4)
 
+    def test_feo_and_fe2o3_kept_together(self):
+        df = pd.DataFrame({"FeO": [8.0, "bdl"], "Fe2O3": [2.0, 1.0], "SiO2": [50.0, 50.0]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out = mm.convert_fe_to_feot(df)
+        self.assertEqual(out["FeO"].iloc[0], 8.0)
+        self.assertEqual(out["Fe2O3"].iloc[0], 2.0)
+        self.assertTrue(np.isnan(out["FeO"].iloc[1]))  # text coerced to NaN
+
+    def test_prep_df_renormalize_scales_kept_split(self):
+        df = pd.DataFrame({"SiO2": [45.0], "FeO": [8.0], "Fe2O3": [2.0], "MgO": [40.0]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out = mm.prep_df(df, convert_fe=True, renormalize=True, verbose=False)
+        ratio = out["FeOt"].iloc[0] / mm.convert_fe_to_feot(df)["FeOt"].iloc[0]
+        self.assertAlmostEqual(out["FeO"].iloc[0], 8.0 * ratio)
+        self.assertAlmostEqual(out["Fe2O3"].iloc[0], 2.0 * ratio)
+
     def test_does_not_mutate_input(self):
         df = pd.DataFrame({"FeO": [10.0], "SiO2": [50.0]})
         original_cols = list(df.columns)
@@ -1633,6 +1651,15 @@ class TestBalanceBranches(unittest.TestCase):
         self.assertEqual(counts["Apatite"], 4)            # oversampled up to n
         self.assertEqual(counts["Titanite"], 4)           # >= 1000 rows: capped
         self.assertNotIn("TAS", out.columns)
+
+    def test_oversampling_uses_every_row(self):
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(rng.uniform(0, 50, size=(15, len(OXIDES))), columns=OXIDES)
+        df["Mineral"] = "Apatite"
+        with mock.patch.dict("sys.modules", _fake_pyrolite()):
+            out = mm.balance(df, n=20)
+        self.assertEqual(len(out), 20)
+        self.assertEqual(set(out["SiO2"]), set(df["SiO2"]))  # all 15 used before any repeat
 
     def test_missing_pyrolite_raises(self):
         blocked = {k: None for k in _fake_pyrolite()}

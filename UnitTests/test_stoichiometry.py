@@ -426,6 +426,163 @@ class TestGlassCalculator(unittest.TestCase):
         # Basaltic glass should have higher MgNo than rhyolitic
         self.assertGreater(float(res["MgNo"].iloc[0]), float(res["MgNo"].iloc[1]))
 
+    def _fe_split(self):
+        # Zhang basalt (Fe3+/FeT = 0.15) and Behrens andesite (0.25), with FeOt
+        # split into FeO and Fe2O3
+        df = pd.DataFrame([
+            {"SiO2": 50.6, "TiO2": 1.88, "Al2O3": 13.9, "MnO": 0.23, "MgO": 6.56,
+             "CaO": 11.4, "Na2O": 2.64, "K2O": 0.17, "P2O5": 0.21},
+            {"SiO2": 57.21, "TiO2": 0.84, "Al2O3": 17.5, "MnO": 0.11, "MgO": 4.27,
+             "CaO": 7.59, "Na2O": 3.31, "K2O": 1.6, "P2O5": 0.0},
+        ])
+        feot = pd.Series([12.5, 7.58])
+        fe3_fet = pd.Series([0.15, 0.25])
+        df["Fe2O3"] = feot * fe3_fet * 1.11134
+        df["FeO"] = feot * (1 - fe3_fet)
+        return df, feot
+
+    def test_nbo_t_value(self):
+        df, _ = self._fe_split()
+        res = mm.GlassCalculator(df).calculate_components()
+        np.testing.assert_allclose(res["NBO_T"], [0.81805, 0.34583], atol=1e-4)
+
+    def test_nbo_t_requires_fe_split(self):
+        with self.assertWarnsRegex(UserWarning, "NBO_T is NaN"):
+            res = mm.GlassCalculator(self.df).calculate_components()
+        self.assertTrue(res["NBO_T"].isna().all())
+        self.assertFalse(res["MgNo"].isna().any())
+
+    def test_fe3_fet_splits_total_fe(self):
+        df, feot = self._fe_split()
+        df_t = df.drop(columns=["FeO", "Fe2O3"]).assign(FeOt=feot)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no unsplit-Fe warning
+            res = mm.GlassCalculator(df_t).calculate_components(fe3_fet=[0.15, 0.25])
+        np.testing.assert_allclose(res["NBO_T"], [0.81805, 0.34583], atol=1e-3)
+        np.testing.assert_allclose(res["Fe3_FeT"], [0.15, 0.25])
+
+    def test_reported_split_wins_over_feot_and_fe3_fet(self):
+        df, feot = self._fe_split()
+        res = mm.GlassClassifier(df.assign(FeOt=feot)).calculate_components(fe3_fet=0.5)
+        np.testing.assert_allclose(res["NBO_T"], [0.81805, 0.34583], atol=1e-4)
+
+    def test_fe3_fet_out_of_range_raises(self):
+        with self.assertRaises(ValueError):
+            mm.GlassCalculator(self.df).calculate_components(fe3_fet=1.5)
+
+    def test_fe_free_glass_needs_no_split(self):
+        df = pd.DataFrame([{"SiO2": 75.0, "Al2O3": 13.0, "FeOt": 0.0, "MgO": 0.0,
+                            "CaO": 1.0, "Na2O": 4.0, "K2O": 5.0}])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            res = mm.GlassCalculator(df).calculate_components()
+        self.assertTrue(np.isfinite(res["NBO_T"].iloc[0]))
+
+    def test_mgno_uses_total_fe_with_fe_split(self):
+        df, feot = self._fe_split()
+        res = mm.GlassCalculator(df).calculate_components()
+        df_t = df.drop(columns=["FeO", "Fe2O3"]).assign(FeOt=feot)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res_t = mm.GlassCalculator(df_t).calculate_components()
+        np.testing.assert_allclose(res["MgNo"], res_t["MgNo"], atol=1e-4)
+
+
+class TestGlassNBOTFeForms(unittest.TestCase):
+    """NBO/T across the ways Fe can be reported."""
+
+    NBO_T = [0.81805, 0.34583]  # Fe3+/FeT = 0.15, 0.25
+
+    def setUp(self):
+        self.df = pd.DataFrame([
+            {"SiO2": 50.6, "TiO2": 1.88, "Al2O3": 13.9, "MnO": 0.23, "MgO": 6.56,
+             "CaO": 11.4, "Na2O": 2.64, "K2O": 0.17, "P2O5": 0.21},
+            {"SiO2": 57.21, "TiO2": 0.84, "Al2O3": 17.5, "MnO": 0.11, "MgO": 4.27,
+             "CaO": 7.59, "Na2O": 3.31, "K2O": 1.6, "P2O5": 0.0},
+        ])
+        self.feot = pd.Series([12.5, 7.58])
+        self.fe3_fet = pd.Series([0.15, 0.25])
+        self.split = {"FeO": self.feot * (1 - self.fe3_fet),
+                      "Fe2O3": self.feot * self.fe3_fet * 1.11134}
+
+    def _run(self, fe, **kw):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            res = mm.GlassCalculator(self.df.assign(**fe)).calculate_components(**kw)
+        return res, [str(w.message) for w in caught if "NBO_T is NaN" in str(w.message)]
+
+    def test_nbo_t_by_hand(self):
+        # T = Si + Al + Fe3+ cations; O = oxygen atoms; NBO/T = (2O - 4T) / T
+        masses = {"SiO2": 60.08, "TiO2": 79.866, "Al2O3": 101.96, "FeO": 71.844, "Fe2O3": 159.69,
+                  "MnO": 70.9374, "MgO": 40.3044, "CaO": 56.0774, "Na2O": 61.9789, "K2O": 94.196,
+                  "P2O5": 141.9445}
+        n_oxygen = {"SiO2": 2, "TiO2": 2, "Al2O3": 3, "FeO": 1, "Fe2O3": 3, "MnO": 1, "MgO": 1,
+                    "CaO": 1, "Na2O": 1, "K2O": 1, "P2O5": 5}
+        df = self.df.assign(**self.split)
+        mol = {ox: df[ox] / m for ox, m in masses.items()}
+        T = mol["SiO2"] + 2*mol["Al2O3"] + 2*mol["Fe2O3"]
+        O = sum(mol[ox] * n for ox, n in n_oxygen.items())
+        res, _ = self._run(self.split)
+        np.testing.assert_allclose(res["NBO_T"], (2*O - 4*T) / T, rtol=1e-10)
+        np.testing.assert_allclose(res["NBO_T"], self.NBO_T, atol=1e-4)
+
+    def test_split_with_or_without_feot(self):
+        for fe in (self.split, dict(self.split, FeOt=self.feot), dict(self.split, FeOt=99.0)):
+            res, msgs = self._run(fe)
+            np.testing.assert_allclose(res["NBO_T"], self.NBO_T, atol=1e-4)
+            self.assertEqual(msgs, [])
+
+    def test_totals_with_fe3_fet(self):
+        for fe in ({"FeOt": self.feot}, {"Fe2O3t": self.feot * 1.11134}, {"FeO": self.feot},
+                   {"Fe2O3": self.feot * 1.11134}):
+            res, msgs = self._run(fe, fe3_fet=self.fe3_fet.tolist())
+            np.testing.assert_allclose(res["NBO_T"], self.NBO_T, atol=1e-3, err_msg=str(list(fe)))
+            self.assertEqual(msgs, [])
+
+    def test_totals_without_fe3_fet_are_nan(self):
+        for fe in ({"FeOt": self.feot}, {"Fe2O3t": self.feot * 1.11134}, {"FeO": self.feot},
+                   {"Fe2O3": self.feot * 1.11134}, {"FeO": self.feot, "Fe2O3": 0.0},
+                   {"FeOt": self.feot, "FeO": np.nan, "Fe2O3": 1.0}):
+            res, msgs = self._run(fe)
+            self.assertTrue(res["NBO_T"].isna().all(), list(fe))
+            self.assertTrue(np.isfinite(res["MgNo"]).all(), list(fe))
+            self.assertEqual(len(msgs), 1, list(fe))
+
+    def test_mixed_rows(self):
+        fe = {"FeOt": self.feot, "FeO": [self.split["FeO"][0], np.nan],
+              "Fe2O3": [self.split["Fe2O3"][0], np.nan]}
+        res, msgs = self._run(fe)
+        self.assertAlmostEqual(res["NBO_T"][0], self.NBO_T[0], places=4)
+        self.assertTrue(np.isnan(res["NBO_T"][1]))
+        self.assertIn("1 row(s)", msgs[0])
+        res, _ = self._run(fe, fe3_fet=0.25)
+        np.testing.assert_allclose(res["NBO_T"], self.NBO_T, atol=1e-3)
+
+    def test_fe3_fet_bounds(self):
+        lo, _ = self._run({"FeOt": self.feot}, fe3_fet=0)
+        hi, _ = self._run({"FeOt": self.feot}, fe3_fet=1)
+        # Fe3+ joins T, polymerizing the melt
+        self.assertTrue((hi["NBO_T"] < self.NBO_T).all() and (lo["NBO_T"] > self.NBO_T).all())
+        with self.assertRaisesRegex(ValueError, "3 values"):
+            self._run({"FeOt": self.feot}, fe3_fet=[0.1, 0.2, 0.3])
+
+    def test_h2o_ignored(self):
+        res, _ = self._run(dict(self.split, H2O=4.0))
+        np.testing.assert_allclose(res["NBO_T"], self.NBO_T, atol=1e-4)
+
+    def test_append_stoichiometry_glass_feo_only_beside_split(self):
+        # Glass with FeO only, olivine with FeO + Fe2O3, through prep_df(convert_fe=True)
+        df = pd.concat([self.df.assign(FeO=self.feot),
+                        pd.DataFrame([{"SiO2": 40.5, "MgO": 49.0, "FeO": 10.0, "Fe2O3": 0.3}])],
+                       ignore_index=True)
+        df["Predict_Mineral"] = ["Glass", "Glass", "Olivine"]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out = mm.append_stoichiometry(mm.prep_df(df, convert_fe=True, verbose=False))
+        self.assertIn("NBO_T", out.columns)
+        self.assertTrue(np.isfinite(out.loc[:1, "MgNo"]).all())
+        self.assertTrue(np.isfinite(out.loc[2, "Fo"]))
+
 
 class TestKalsilite(unittest.TestCase):
     def test_kalsilite(self):
@@ -765,6 +922,19 @@ class test_append_stoichiometry(unittest.TestCase):
     def test_missing_mineral_column_raises(self):
         with self.assertRaises(ValueError):
             mm.append_stoichiometry(self.df.drop(columns="Predict_Mineral"))
+
+    def test_fe_split_kept_for_glass_only(self):
+        # FeO and Fe2O3 beside FeOt, as from prep_df(convert_fe=True)
+        df = pd.DataFrame({
+            "SiO2": [40.2, 50.6], "Al2O3": [0.0, 13.9], "FeOt": [12.1, 12.5],
+            "FeO": [11.0, 10.625], "Fe2O3": [1.2, 2.0838], "MgO": [47.5, 6.56],
+            "CaO": [0.2, 11.4], "Na2O": [0.0, 2.64], "K2O": [0.0, 0.17],
+            "TiO2": [0.0, 1.88], "MnO": [0.0, 0.23], "P2O5": [0.0, 0.21],
+            "Predict_Mineral": ["Olivine", "Glass"],
+        })
+        out = mm.append_stoichiometry(df)
+        self.assertTrue(np.isfinite(out.loc[0, "Fo"]))
+        self.assertAlmostEqual(out.loc[1, "NBO_T"], 0.8181, places=3)
 
 
 

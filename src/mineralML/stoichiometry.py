@@ -50,6 +50,12 @@ class BaseMineralCalculator:
     # run without. If absent, they raise one warning and are treated as 0.
     # Empty for oxides, phosphates and carbonates.
     EXPECTED_OXIDES = ()
+
+    # If True, Fe columns are resolved row by row in calculate_components:
+    # FeO + Fe2O3 may be given alongside FeOt or Fe2O3t, and FeO or Fe2O3
+    # alone is total Fe. For calculations that need the Fe2+/Fe3+ split
+    # (e.g., NBO/T for glass).
+    ACCEPTS_FE_SPLIT = False
     
     def __init__(self, comps):
         """Initialize with mineral compositions."""
@@ -80,11 +86,11 @@ class BaseMineralCalculator:
         _FeO = 'FeO' in self.oxide_cols and self.comps['FeO'].notna().any()
         _Fe2O3 = 'Fe2O3' in self.oxide_cols and self.comps['Fe2O3'].notna().any()
 
-        if _FeOt and (_FeO or _Fe2O3):
+        if _FeOt and (_FeO or _Fe2O3) and not self.ACCEPTS_FE_SPLIT:
             raise ValueError("Mixing 'FeOt' with 'FeO' and 'Fe2O3'. Provide only 'FeOt', 'Fe2O3t', or both 'FeO' and 'Fe2O3'.")
-        if _Fe2O3t and (_FeO or _Fe2O3):
+        if _Fe2O3t and (_FeO or _Fe2O3) and not self.ACCEPTS_FE_SPLIT:
             raise ValueError("Mixing 'Fe2O3t' with 'FeO' and 'Fe2O3'. Provide only 'Fe2O3t', 'FeOt', or both 'FeO' and 'Fe2O3'.")
-        if (_FeO != _Fe2O3):
+        if (_FeO != _Fe2O3) and not self.ACCEPTS_FE_SPLIT:
             raise ValueError("If using 'FeO' and 'Fe2O3', both must be provided.")
 
         self._fill_missing_expected()
@@ -1577,22 +1583,80 @@ class GlassCalculator(BaseMineralCalculator):
     """Glass-specific calculations."""
     OXYGEN_BASIS = 0
     MINERAL_SUFFIX = "_Gl"
+    ACCEPTS_FE_SPLIT = True
 
-    def calculate_components(self):
-        """Return complete glass composition with Mg numbers."""
+    def calculate_components(self, fe3_fet=None):
+        """
+        Return complete glass composition with Mg numbers and NBO/T.
+
+        NBO/T needs the Fe2+/Fe3+ split, since Fe3+ is a network former. Rows
+        with both FeO > 0 and Fe2O3 > 0 use that split, even if FeOt or Fe2O3t
+        is also given. Other rows are taken as total Fe (FeOt, else Fe2O3t,
+        else FeO or Fe2O3 alone), split with fe3_fet, or get NaN NBO/T (with a
+        warning) if fe3_fet is not given. NBO/T is anhydrous (H2O is ignored).
+
+        Parameters:
+            fe3_fet (float|array-like|None): Fe3+/total Fe (molar, 0-1) used to
+                split total Fe, as one value or one value per row. Ignored for
+                rows that report FeO and Fe2O3.
+
+        Returns:
+            pd.DataFrame: Compositions, moles, MgNo, Fe3_FeT, T, O and NBO_T.
+        """
         comps = self.comps
         base = self.calculate_moles() # includes self.comps, moles
-        
-        # Directly grab the MgO and FeOt columns
-        Mg = base.get("MgO_mols", pd.Series(0, index=base.index))
-        # Safely handle either FeOt or FeO depending on what the user provided
-        Fe = base.get("FeOt_mols", base.get("FeO_mols", pd.Series(0, index=base.index)))
+
+        # Oxides not provided come back as NaN columns; treat them as 0
+        mols = base.rename(columns=lambda c: c.replace("_mols", ""))
+        mols = mols.reindex(columns=list(self.OXIDE_MASSES), fill_value=0).fillna(0)
+        Si, Al, Mg = mols["SiO2"], mols["Al2O3"], mols["MgO"]
+
+        # Total Fe as FeO-equivalent moles, from the split where reported,
+        # otherwise from the total (FeOt, else Fe2O3t)
+        split = (mols["FeO"] > 0) & (mols["Fe2O3"] > 0)
+        split_fet = mols["FeO"] + 2*mols["Fe2O3"]
+        total_fet = mols["FeOt"].where(mols["FeOt"] > 0, 2*mols["Fe2O3t"])
+        Fet = split_fet.where(split | (total_fet == 0), total_fet)
+
+        # Fe3+/FeT: reported split, else fe3_fet, else NaN. Fe-free rows need none.
+        fe3_ratio = (2*mols["Fe2O3"] / split_fet).where(split)
+        if fe3_fet is not None:
+            given = np.asarray(fe3_fet, dtype=float)
+            if given.ndim > 0 and given.size != len(mols):
+                raise ValueError(f"fe3_fet has {given.size} values but there are {len(mols)} rows.")
+            given = pd.Series(np.broadcast_to(given, len(mols)), index=mols.index)
+            if ((given < 0) | (given > 1)).any():
+                raise ValueError("fe3_fet must be between 0 and 1.")
+            fe3_ratio = fe3_ratio.fillna(given)
+        fe3_ratio = fe3_ratio.mask(Fet == 0, 0.0)
+
+        unsplit = fe3_ratio.isna()
+        if unsplit.any():
+            warnings.warn(
+                f"{type(self).__name__}: {int(unsplit.sum())} row(s) have no Fe2+/Fe3+ "
+                "split (FeO > 0 and Fe2O3 > 0), so NBO_T is NaN. Provide FeO and Fe2O3, "
+                "or pass fe3_fet (Fe3+/total Fe) to split total Fe.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        Fe3 = fe3_ratio * Fet / 2  # moles Fe2O3
+        Fe2 = (1 - fe3_ratio) * Fet  # moles FeO
 
         # Compute site assignments
         sites = pd.DataFrame(index=base.index)
-        
+
         # Calculate MgNo safely (fillna(0) prevents errors if Mg+Fe is 0)
-        sites["MgNo"] = (Mg / (Mg + Fe)).fillna(0)
+        sites["MgNo"] = (Mg / (Mg + Fet)).fillna(0)
+        sites["Fe3_FeT"] = fe3_ratio
+
+        # Oxygens from the non-Fe oxides, plus Fe2+ (FeO) and Fe3+ (Fe2O3)
+        oxygen_numbers = pd.Series(self.OXYGEN_NUMBERS).drop(["FeOt", "Fe2O3t", "FeO", "Fe2O3"])
+        sites["T"] = Si + 2*Al + 2*Fe3
+        sites["O"] = mols[oxygen_numbers.index].mul(oxygen_numbers).sum(axis=1) + Fe2 + 3*Fe3
+        sites["NBO_T"] = ((2*sites["O"]) - (4*sites["T"])) / sites["T"]
+        # NBO/T = 0 represents a fully polymerized melt and NBO/T = 4
+        # is a fully depolymerized melt consisting of isolated tetrahedra
 
         return pd.concat([comps, base, sites], axis=1)
 
@@ -1600,7 +1664,7 @@ class GlassCalculator(BaseMineralCalculator):
 class GlassClassifier(GlassCalculator):
     """General glass calculations with built-in TAS classification and plotting."""
 
-    def calculate_components(self, subclass=True, which_name="volcanic"):
+    def calculate_components(self, subclass=True, which_name="volcanic", fe3_fet=None):
         """
         Calculates base components and optionally appends TAS classification.
 
@@ -1608,12 +1672,14 @@ class GlassClassifier(GlassCalculator):
             subclass (bool): If True, adds a 'TAS' column with rock names.
             which_name (str): 'volcanic' or 'intrusive' — selects which rock
                 name variant to use.
+            fe3_fet (float|array-like|None): Fe3+/total Fe used to split total
+                Fe for NBO/T. See GlassCalculator.calculate_components.
 
         Returns:
             comps (pd.DataFrame): Component dataframe with optional 'TAS' column.
         """
 
-        comps = super().calculate_components()
+        comps = super().calculate_components(fe3_fet=fe3_fet)
         comps["Mineral"] = "Glass"
 
         if not subclass:
@@ -1668,7 +1734,10 @@ class GlassClassifier(GlassCalculator):
         """
         
         if df_class is None:
-            df_class = self.calculate_components(subclass=subclass, which_name=which_name)
+            # TAS needs no NBO/T, so skip the warning about unsplit Fe
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message=".*so NBO_T is NaN")
+                df_class = self.calculate_components(subclass=subclass, which_name=which_name)
 
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
@@ -3473,6 +3542,11 @@ def append_stoichiometry(df, mineral_col="Predict_Mineral", submineral_col="Subm
         calculator = MINERAL_CALCULATORS.get(mineral)
         if calculator is None:
             continue
+        # prep_df(convert_fe=True) keeps FeO and Fe2O3 beside FeOt; only
+        # calculators that use the Fe2+/Fe3+ split (glass) get them
+        has_total = any(c in group.columns and group[c].notna().any() for c in ("FeOt", "Fe2O3t"))
+        if has_total and not calculator.ACCEPTS_FE_SPLIT:
+            group = group.drop(columns=["FeO", "Fe2O3"], errors="ignore")
         try:
             out = calculator(group).calculate_components()
         except Exception as e:

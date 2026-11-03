@@ -56,17 +56,32 @@ class TestConfusionMatrixDf(unittest.TestCase):
  
     # --- NaN handling ---
  
-    def test_nan_warning_and_exclusion(self):
+    def test_nan_given_warns_and_excluded(self):
         given = ["Olivine", None, "Garnet"]
-        pred  = ["Olivine", "Garnet", None]
+        pred  = ["Olivine", "Garnet", "Garnet"]
         with self.assertWarns(UserWarning) as ctx:
             cm = mm.confusion_matrix_df(given, pred)
- 
+
         self.assertIn("NaN", str(ctx.warning))
- 
-        # Only the first row survives (both non-NaN)
+
+        # The row with no given label cannot be scored
         self.assertEqual(cm.loc["Olivine", "Olivine"], 1)
-        self.assertEqual(cm.values.sum(), 1)
+        self.assertEqual(cm.loc["Garnet", "Garnet"], 1)
+        self.assertEqual(cm.values.sum(), 2)
+
+    def test_nan_pred_raises_and_points_to_harmonize(self):
+        given = ["Olivine", "Garnet"]
+        pred  = ["Olivine", None]
+        with self.assertRaises(ValueError) as ctx:
+            mm.confusion_matrix_df(given, pred)
+        self.assertIn("harmonize_labels", str(ctx.exception))
+
+    def test_unknown_after_harmonize_is_a_column(self):
+        g, p = mm.harmonize_labels(["Olivine", "Garnet"], ["Olivine", None])
+        cm = mm.confusion_matrix_df(g, p)
+        self.assertEqual(cm.columns[-1], "Unknown")
+        self.assertEqual(cm.loc["Garnet", "Unknown"], 1)
+        self.assertEqual(cm.loc["Olivine", "Olivine"], 1)
  
     def test_no_nan_no_warning(self):
         given = ["Olivine", "Olivine"]
@@ -344,6 +359,29 @@ class TestHarmonizeLabels(unittest.TestCase):
         self.assertEqual(list(out.index), [10, 11])
         self.assertEqual(out.loc[10], "Rhombohedral_Oxides")
         self.assertTrue(pd.isna(out.loc[11]))
+
+    def test_nan_prediction_becomes_unknown(self):
+        # predict_class_prob returns NaN for analyses it could not classify;
+        # a NaN given label stays NaN, as it cannot be scored
+        g, p = mm.harmonize_labels(["Olivine", None], [None, "Oxide"], [None, "Spinel_Group"])
+        self.assertEqual(list(p), ["Unknown", "Spinel_Group"])
+        self.assertTrue(pd.isna(g.iloc[1]))
+
+    def test_unknown_does_not_warn(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            mm.harmonize_labels(["Olivine"], [None])
+        self.assertFalse([x for x in w if "Unrecognized" in str(x.message)])
+
+    def test_new_carbonate_aliases(self):
+        out = mm.harmonize_labels(["Norsethite", "Nyerereite", "Kutnahorite", "Shortite"])
+        self.assertEqual(set(out), {"Carbonate"})
+
+    def test_plot_latent_space_raises_on_nan(self):
+        df = pd.DataFrame({"SiO2": [50.0, 40.0], "Predict_Mineral": ["Olivine", None]})
+        with self.assertRaises(ValueError) as ctx:
+            mm.plot_latent_space(df)
+        self.assertIn("harmonize_labels", str(ctx.exception))
  
     def test_georoc_mineral_names(self):
         # GEOROC MINERAL column spellings, matched ignoring case and punctuation

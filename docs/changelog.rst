@@ -3,6 +3,20 @@ Changelog
 =========
 
 
+Version 0.0.3.24
+================
+``GlassCalculator`` and ``GlassClassifier`` now return ``NBO_T``, the ratio of non-bridging oxygens to tetrahedral cations (0 for a fully polymerized melt, 4 for isolated tetrahedra), along with ``T``, ``O`` and ``Fe3_FeT``. T counts Si, Al and Fe3+, so NBO/T needs the Fe2+/Fe3+ split. Rows with FeO > 0 and Fe2O3 > 0 use that split, even if FeOt is also given. Rows with only total Fe (FeOt, Fe2O3t, or FeO or Fe2O3 alone) get ``NBO_T`` = NaN with a warning, unless you pass ``fe3_fet``, the molar Fe3+/total Fe, as one value or one per row. NBO/T is anhydrous: H2O is ignored. For example:
+
+.. code-block:: python
+
+    mm.GlassCalculator(df).calculate_components(fe3_fet=0.15)
+    mm.GlassClassifier(df).calculate_components(fe3_fet=df["Fe3_FeT_XANES"])
+
+``convert_fe_to_feot`` (and ``prep_df(convert_fe=True)``) now keeps the FeO and Fe2O3 columns beside the new FeOt when both are present, so the split reaches ``GlassCalculator``. FeO or Fe2O3 alone is still treated as total Fe and removed. With ``renormalize=True``, the kept FeO and Fe2O3 are scaled with the other oxides. ``append_stoichiometry`` passes FeO and Fe2O3 only to the glass calculator; other minerals use FeOt as before. Previously, stoichiometry was skipped for every mineral when FeOt, FeO and Fe2O3 were all present.
+
+``GlassCalculator`` Mg# now uses total Fe when FeO and Fe2O3 are given. Previously it returned 0 for these inputs.
+
+
 Version 0.0.3.23
 ================
 Every classification plot (``GlassClassifier.plot`` for TAS, ``FeldsparClassifier.plot``, ``PyroxeneClassifier.plot``, ``AmphiboleClassifier.plot``, ``OxideClassifier.plot`` and ``OxideClassifier.plot_spinel``) now takes the same point options: ``color`` (any column, from the classified output or your input DataFrame; numeric columns such as ``TiO2`` get a colorbar), ``symbol`` (a second column for marker shapes), ``colors`` and ``symbols`` (your choices per category), ``size``, ``alpha``, ``scatter_kw`` and ``legend``. With no arguments, each plot colors by the same column as before. Up to 24 categories are told apart: past the 8 colorblind-safe colors, categories reuse the colors with open and then extra symbols. The shared code is in the new ``mineralML.plotting`` module, which the web app also uses. For example:
@@ -17,6 +31,7 @@ Points now use the colorblind-safe palette from the web app rather than matplotl
 
 Fixed ``OxideClassifier.plot`` drawing every analysis as Unclassified on the Fe-Ti oxide ternary: it read a ``Submineral`` column that ``classify()`` does not produce. It now colors by ``Suboxide``.
 
+Thanks to Alex Bearden for proposing some modifications to the plotting code! 
 
 Version 0.0.3.22
 ================
