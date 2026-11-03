@@ -2436,9 +2436,14 @@ def plot_latent_space(
             Defaults to {"s": 10, "alpha": 0.10, "marker": "x"}.
         new_kws (dict|None): Keyword arguments for the foreground (new data) scatter.
         max_points (int): Maximum number of points to plot per layer.
-        filename (str|None): Path to save the figure. If None, displays interactively.
+        filename (str|None): Path to save the figure. If None, the figure is left
+            open and returned so it can be annotated before display.
         seed (int|None): If provided, calls same_seeds(seed) to make predictions fully
             reproducible. If None (default), results are non-deterministic.
+
+    Returns:
+        fig (matplotlib.figure.Figure): The latent space figure.
+        ax (matplotlib.axes.Axes): The latent space axes, for adding to the plot.
         """
 
     # predict_class_prob leaves NaN for analyses it could not classify; checked
@@ -2641,8 +2646,8 @@ def plot_latent_space(
     if filename:
         fig.savefig(filename, dpi=300, bbox_inches="tight")
         plt.close(fig)
-    else:
-        plt.show()
+
+    return fig, ax
 
 
 # %%

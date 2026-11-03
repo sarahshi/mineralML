@@ -1372,7 +1372,9 @@ class TestPlotLatentSpace(unittest.TestCase):
         df = pd.DataFrame(np.random.rand(N, len(oxides)), columns=oxides)
         df["Predict_Mineral"] = "C0"
 
-        mm.plot_latent_space(df, label_column="Predict_Mineral")
+        fig, ax = mm.plot_latent_space(df, label_column="Predict_Mineral")
+        self.assertIsInstance(fig, plt.Figure)
+        self.assertIs(ax, fig.axes[0])
         plt.close("all")
 
 
@@ -1798,7 +1800,14 @@ class TestPlotLatentSpaceBranches(unittest.TestCase):
         mm.plot_latent_space(df, label_column="label_id",
                              ref_kws={"color": "grey"},
                              new_kws={"color": {"Olivine": "blue"}})
-        self.assertEqual(len(plt.get_fignums()), 1)        # drawn, left open by plt.show()
+        self.assertEqual(len(plt.get_fignums()), 1)        # drawn and left open
+
+    def test_returns_figure_without_showing(self):
+        # Callers annotate the returned figure; showing it inside displays it twice
+        with patch("mineralML.hybrid.plt.show") as show:
+            fig, _ = mm.plot_latent_space(self.pred)
+        show.assert_not_called()
+        self.assertIn(fig.number, plt.get_fignums())
 
     def test_missing_label_column_raises(self):
         with self.assertRaises(KeyError):

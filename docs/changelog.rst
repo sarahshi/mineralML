@@ -16,6 +16,13 @@ Version 0.0.3.24
 
 ``GlassCalculator`` Mg# now uses total Fe when FeO and Fe2O3 are given. Previously it returned 0 for these inputs.
 
+``plot_latent_space`` now returns ``fig, ax``, like the other mineralML plots, and no longer calls ``plt.show()``. The figure stays open, so you can draw on it before it is displayed, and a notebook shows it once. Code that used ``fig = mm.plot_latent_space(df)`` needs ``fig, ax = mm.plot_latent_space(df)``. For example:
+
+.. code-block:: python
+
+    fig, ax = mm.plot_latent_space(df)
+    ax.text(-1.4, 0.2, "Amphibole")
+
 mineralML now requires Python 3.10 or later. Python 3.9 reached end of life in October 2025, and current releases of torch, scikit-learn, NumPy and SciPy no longer support it. Earlier mineralML releases still install on Python 3.9.
 
 
