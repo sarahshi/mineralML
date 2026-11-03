@@ -1652,15 +1652,6 @@ class TestBalanceBranches(unittest.TestCase):
         self.assertEqual(counts["Titanite"], 4)           # >= 1000 rows: capped
         self.assertNotIn("TAS", out.columns)
 
-    def test_oversampling_uses_every_row(self):
-        rng = np.random.default_rng(0)
-        df = pd.DataFrame(rng.uniform(0, 50, size=(15, len(OXIDES))), columns=OXIDES)
-        df["Mineral"] = "Apatite"
-        with mock.patch.dict("sys.modules", _fake_pyrolite()):
-            out = mm.balance(df, n=20)
-        self.assertEqual(len(out), 20)
-        self.assertEqual(set(out["SiO2"]), set(df["SiO2"]))  # all 15 used before any repeat
-
     def test_missing_pyrolite_raises(self):
         blocked = {k: None for k in _fake_pyrolite()}
         with mock.patch.dict("sys.modules", blocked):

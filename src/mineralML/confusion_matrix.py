@@ -534,15 +534,12 @@ def insert_totals(df_cm):
 
     """
 
-    # Check if 'sum_row' and 'sum_col' already exist and remove them if they do
-    if "sum_row" in df_cm.columns:
-        df_cm.drop("sum_row", axis=1, inplace=True)
-    if "sum_col" in df_cm.index:
-        df_cm.drop("sum_col", axis=0, inplace=True)
+    # Sum without any existing 'sum_row' and 'sum_col', which are overwritten below
+    counts = df_cm.drop(columns="sum_row", index="sum_col", errors="ignore")
 
     # Calculate the sum of each column to create 'sum_row'
-    sum_col = df_cm.sum(axis=0).astype(int)  # sum columns
-    sum_lin = df_cm.sum(axis=1).astype(int)  # sum rows
+    sum_col = counts.sum(axis=0).astype(int)  # sum columns
+    sum_lin = counts.sum(axis=1).astype(int)  # sum rows
 
     # Add 'sum_row' and 'sum_col' to the dataframe
     df_cm["sum_row"] = sum_lin

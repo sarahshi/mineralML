@@ -114,9 +114,12 @@ def convert_fe_to_feot(df):
 
     Returns:
         df (pd.DataFrame): Array of oxide compositions with Fe as FeOt. The
-            FeO, Fe2O3, and Fe2O3t columns are removed.
+            Fe2O3t column is removed. FeO and Fe2O3 are kept when both are
+            present (for calculations needing the Fe2+/Fe3+ split, e.g.,
+            NBO/T for glass) and removed otherwise.
     """
     df = df.copy()
+    input_cols = set(df.columns)
 
     fe_cols = ["FeO", "FeOt", "Fe2O3", "Fe2O3t"]
     for col in fe_cols:
@@ -186,7 +189,11 @@ def convert_fe_to_feot(df):
         )
 
     df["FeOt"] = feot
-    df.drop(columns=["FeO", "Fe2O3", "Fe2O3t"], inplace=True)
+    # FeO or Fe2O3 alone is total Fe, but together they carry the Fe2+/Fe3+ split
+    keep_split = all(c in input_cols for c in ("FeO", "Fe2O3"))
+    if keep_split:
+        df[["FeO", "Fe2O3"]] = fe[["FeO", "Fe2O3"]]
+    df = df.drop(columns=["Fe2O3t"] if keep_split else ["FeO", "Fe2O3", "Fe2O3t"])
 
     return df
 
@@ -206,6 +213,7 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
         renormalize (bool): If True, renormalizes the oxide columns to 100 wt%.
         convert_fe (bool): If True, automatically converts FeO, Fe2O3, and
             Fe2O3t columns to FeOt row by row using ``convert_fe_to_feot()``.
+            FeO and Fe2O3 are kept beside FeOt when both are present.
             If False (the default), raises a ValueError when these columns are
             present without a corresponding FeOt column, and warns when rows
             have Fe only in these columns.
@@ -316,8 +324,11 @@ def prep_df(df, renormalize=False, convert_fe=False, drop_empty_rows=False,
         totals = df[oxides_plus_zr].sum(axis=1)
         renorm_mask = totals > 0
         n_renormed = renorm_mask.sum()
-        df.loc[renorm_mask, oxides_plus_zr] = (
-            df.loc[renorm_mask, oxides_plus_zr]
+        # FeO and Fe2O3 kept by convert_fe are already counted in FeOt, so
+        # they are scaled with the oxides but not added to the total
+        scaled = oxides_plus_zr + [c for c in ("FeO", "Fe2O3") if c in df.columns]
+        df.loc[renorm_mask, scaled] = (
+            df.loc[renorm_mask, scaled]
             .div(totals[renorm_mask], axis=0)
             .mul(100.0)
         )
@@ -2429,7 +2440,16 @@ def plot_latent_space(
         seed (int|None): If provided, calls same_seeds(seed) to make predictions fully
             reproducible. If None (default), results are non-deterministic.
         """
- 
+
+    # predict_class_prob leaves NaN for analyses it could not classify; checked
+    # before the model loads so the error is immediate
+    if label_column in df.columns and df[label_column].isna().any():
+        raise ValueError(
+            f"{int(df[label_column].isna().sum())} NaN(s) in '{label_column}': these "
+            f"are analyses predict_class_prob could not classify. Run "
+            f"mm.harmonize_labels on '{label_column}' first, which labels them 'Unknown'."
+        )
+
     # Load Training Background
     latent_path = os.path.join(
         os.path.dirname(__file__), "nnwr_latent_data_v0030.npz"
@@ -2505,13 +2525,20 @@ def plot_latent_space(
         if unmapped_mask.any():
             unmapped_labels = set(np.array(labels_new)[unmapped_mask])
             empirical_skipped = unmapped_labels & empirical_labels
-            other_unmapped = unmapped_labels - empirical_labels
+            # "Unknown" is harmonize_labels' label for unclassifiable analyses
+            unknown_skipped = unmapped_labels & {"Unknown"}
+            other_unmapped = unmapped_labels - empirical_labels - unknown_skipped
 
             parts = []
             if empirical_skipped:
                 parts.append(
                     f"  Empirical labels not in neural network classes (expected): "
                     f"{empirical_skipped}"
+                )
+            if unknown_skipped:
+                parts.append(
+                    f"  Analyses predict_class_prob could not classify (expected): "
+                    f"{int((np.array(labels_new) == 'Unknown').sum())}"
                 )
             if other_unmapped:
                 parts.append(

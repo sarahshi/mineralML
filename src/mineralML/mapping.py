@@ -380,7 +380,7 @@ def _ensure_columns(df, expected=OXIDES):
     """
     out = df.copy()
     if "FeO" in out.columns:
-        out.rename(columns={"FeO": "FeOt"}, inplace=True)
+        out = out.rename(columns={"FeO": "FeOt"})
 
     # Reindex aligns columns and fills missing ones with NaN
     return out.reindex(columns=expected)

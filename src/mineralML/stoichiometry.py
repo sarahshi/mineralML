@@ -1060,7 +1060,7 @@ class EpidoteCalculator(BaseMineralCalculator):
         mask_convert = self.comps["FeOt"].notna() & self.comps["Fe2O3t"].isna()
         conversion_factor = self.OXIDE_MASSES["Fe2O3t"] / (2 * self.OXIDE_MASSES["FeOt"])
         self.comps.loc[mask_convert, "Fe2O3t"] = self.comps.loc[mask_convert, "FeOt"] * conversion_factor
-        self.comps.drop(columns="FeOt", inplace=True)
+        self.comps = self.comps.drop(columns="FeOt")
 
         base = self.calculate_all()  # includes self.comps, moles, oxygens, and cations
         cat_suffix = f"_cat_{self.OXYGEN_BASIS}ox"
