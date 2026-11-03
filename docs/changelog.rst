@@ -16,6 +16,8 @@ Version 0.0.3.24
 
 ``GlassCalculator`` Mg# now uses total Fe when FeO and Fe2O3 are given. Previously it returned 0 for these inputs.
 
+mineralML now requires Python 3.10 or later. Python 3.9 reached end of life in October 2025, and current releases of torch, scikit-learn, NumPy and SciPy no longer support it. Earlier mineralML releases still install on Python 3.9.
+
 
 Version 0.0.3.23
 ================
