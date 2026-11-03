@@ -13,7 +13,6 @@ mm.same_seeds(42)
 import matplotlib.pyplot as plt
 %matplotlib inline
 %config InlineBackend.figure_format = 'retina'
-# plt.style.use('../style.mplstyle')
 
 plt.rcParams.update({
     'xtick.major.size': 4,
@@ -84,60 +83,66 @@ dtypes = {'SiO2': float, 'TiO2': float, 'Al2O3': float, 'FeOt': float, 'Fe2O3t':
 
 # %%
 
-amp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Amphibole.xlsx', dtype=dtypes)) # 1 
-ap_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Apatite.xlsx', dtype=dtypes)) # 2
-bt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Biotite.xlsx', dtype=dtypes)) # 3
-cal_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Calcite.xlsx', dtype=dtypes)) # 4
-chl_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Chlorite.xlsx', dtype=dtypes)) # 5
-cpx_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Clinopyroxene.xlsx', dtype=dtypes)) # 6
-ep_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Epidote.xlsx', dtype=dtypes)) # 7
-gt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Garnet.xlsx', dtype=dtypes)) # 8
-hem_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Hematite.xlsx', dtype=dtypes)) # 9
-ilm_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Ilmenite.xlsx', dtype=dtypes)) # 10
-ks_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Kalsilite.xlsx', dtype=dtypes)) # 11
-ksp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/AlkaliFeldspar.xlsx', dtype=dtypes)) # 12
-lc_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Leucite.xlsx', dtype=dtypes)) # 13
-mt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Magnetite.xlsx', dtype=dtypes)) # 14
-ml_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Melilite.xlsx', dtype=dtypes)) # 15
-ms_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Muscovite.xlsx', dtype=dtypes)) # 16
-ne_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Nepheline.xlsx', dtype=dtypes)) # 17
-ol_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Olivine.xlsx', dtype=dtypes)) # 18
-opx_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Orthopyroxene.xlsx', dtype=dtypes)) # 19
-pl_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Plagioclase.xlsx', dtype=dtypes)) # 20
-qz_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Quartz.xlsx', dtype=dtypes)) # 21
-rt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Rutile.xlsx', dtype=dtypes)) # 22
-srp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Serpentine.xlsx', dtype=dtypes)) # 23
-sp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Spinel.xlsx', dtype=dtypes)) # 24
-tit_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Titanite.xlsx', dtype=dtypes)) # 25
-trm_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Tourmaline.xlsx', dtype=dtypes)) # 26
-zr_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Zircon.xlsx', dtype=dtypes)) # 27
-gl_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Glass_withMI.xlsx', dtype=dtypes)) # 28
+# amp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Amphibole.xlsx', dtype=dtypes)) # 1 
+# ap_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Apatite.xlsx', dtype=dtypes)) # 2
+# bt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Biotite.xlsx', dtype=dtypes)) # 3
+# cal_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Calcite.xlsx', dtype=dtypes)) # 4
+# chl_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Chlorite.xlsx', dtype=dtypes)) # 5
+# cpx_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Clinopyroxene.xlsx', dtype=dtypes)) # 6
+# ep_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Epidote.xlsx', dtype=dtypes)) # 7
+# gt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Garnet.xlsx', dtype=dtypes)) # 8
+# hem_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Hematite.xlsx', dtype=dtypes)) # 9
+# ilm_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Ilmenite.xlsx', dtype=dtypes)) # 10
+# ks_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Kalsilite.xlsx', dtype=dtypes)) # 11
+# ksp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/AlkaliFeldspar.xlsx', dtype=dtypes)) # 12
+# lc_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Leucite.xlsx', dtype=dtypes)) # 13
+# mt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Magnetite.xlsx', dtype=dtypes)) # 14
+# ml_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Melilite.xlsx', dtype=dtypes)) # 15
+# ms_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Muscovite.xlsx', dtype=dtypes)) # 16
+# ne_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Nepheline.xlsx', dtype=dtypes)) # 17
+# ol_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Olivine.xlsx', dtype=dtypes)) # 18
+# opx_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Orthopyroxene.xlsx', dtype=dtypes)) # 19
+# pl_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Plagioclase.xlsx', dtype=dtypes)) # 20
+# qz_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Quartz.xlsx', dtype=dtypes)) # 21
+# rt_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Rutile.xlsx', dtype=dtypes)) # 22
+# srp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Serpentine.xlsx', dtype=dtypes)) # 23
+# sp_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Spinel.xlsx', dtype=dtypes)) # 24
+# tit_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Titanite.xlsx', dtype=dtypes)) # 25
+# trm_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Tourmaline.xlsx', dtype=dtypes)) # 26
+# zr_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Zircon.xlsx', dtype=dtypes)) # 27
+# gl_df = Fe_Conversion(pd.read_excel('../Training_Data/Mineral/Glass_withMI.xlsx', dtype=dtypes)) # 28
 
-cal_df['Mineral'] = 'Carbonate'
-qz_df['Mineral'] = 'SiO2_Polymorph'
+# cal_df['Mineral'] = 'Carbonate'
+# qz_df['Mineral'] = 'SiO2_Polymorph'
 
-min_df_all = pd.concat([amp_df, ap_df, bt_df, cal_df, chl_df, cpx_df, ep_df, gt_df, hem_df,                        
-                        ilm_df, ks_df, ksp_df, lc_df, mt_df, ml_df, ms_df, ne_df, ol_df, 
-                        opx_df, pl_df, qz_df, rt_df, srp_df, sp_df, tit_df, trm_df, zr_df, gl_df], axis = 0)
+# min_df_all = pd.concat([amp_df, ap_df, bt_df, cal_df, chl_df, cpx_df, ep_df, gt_df, hem_df,                        
+#                         ilm_df, ks_df, ksp_df, lc_df, mt_df, ml_df, ms_df, ne_df, ol_df, 
+#                         opx_df, pl_df, qz_df, rt_df, srp_df, sp_df, tit_df, trm_df, zr_df, gl_df], axis = 0)
 
-min_df_work = min_df_all[['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO',
-                          'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'B2O3', 'ZrO2', 'Total', 
-                          'Tectonic Setting', 'Mineral', 'Sample Type', 'Volcano', 'Source']]
+# min_df_work = min_df_all[['Sample Name', 'SiO2', 'TiO2', 'Al2O3', 'FeOt', 'MnO',
+#                           'MgO', 'CaO', 'Na2O', 'K2O', 'P2O5', 'Cr2O3', 'NiO', 'B2O3', 'ZrO2', 'Total', 
+#                           'Tectonic Setting', 'Mineral', 'Sample Type', 'Volcano', 'Source']]
 
-min_df = min_df_work.copy()
-min_df.rename(columns={"FeOt_F": "FeOt"}, inplace=True)
+# min_df = min_df_work.copy()
+# min_df.rename(columns={"FeOt_F": "FeOt"}, inplace=True)
 
-min_df.to_csv('../Training_Data/min_df_v4.csv', index=False)
+# min_df.to_csv('../Training_Data/min_df_v4.csv', index=False)
 constants = ['Sample Name', 'Total', 'Tectonic Setting', 'Mineral', 'Sample Type', 'Volcano', 'Source']
 source_const = ['Source']
 min_df = pd.read_csv('../Training_Data/min_df_v4.csv') 
 
 # %% 
 
-amp_meta = min_df.loc[min_df.Mineral == "Amphibole", source_const]
+amp_meta = min_df.loc[min_df.Mineral == "Amphibole"] #, source_const]
+# %%
+
+amps = min_df[min_df.Mineral=='Amphibole']
+amps = mm.prep_df(amps)
+pred_amps = mm.predict_class_prob(amps)
+
 amp_calc = mm.AmphiboleCalculator(min_df[min_df.Mineral=='Amphibole'])
 amp_comp = amp_calc.calculate_components()
-amp_comp['Source'] = amp_meta
+# amp_comp['Source'] = amp_meta
 
 display(amp_comp)
 
@@ -173,6 +178,7 @@ plt.scatter(amp_comp_filt['Si_T_leake'], amp_comp_filt['Mgno_leake'], s = 5, col
 plt.xlabel('Si (apfu)')
 plt.ylabel('Mg#')
 plt.tight_layout()
+
 
 # %% 
 

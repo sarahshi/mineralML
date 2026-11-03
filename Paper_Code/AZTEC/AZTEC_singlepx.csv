@@ -1,0 +1,97 @@
+﻿Bii_amph,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,46.9165,,61.4097,,,,4,,,
+Mg,EDS,K series,16.55,0.10976,9.8448,1.4004,8.4799,MgO,16.3233,2.3219,0.55,MgO,Yes,
+Al,EDS,K series,7.79,0.05595,5.0185,1.1948,3.895,Al2O3,9.4821,2.2575,0.25,Al2O3,Yes,
+Si,EDS,K series,41.96,0.33252,27.9929,2.1015,20.8719,SiO2,59.8848,4.4956,1.36,SiO2,Yes,
+Ca,EDS,K series,14.61,0.13053,10.2273,1.8549,5.3436,CaO,14.3098,2.5953,0.35,Wollastonite,Yes,
+Total,,,,,100,,100,,100,,2.51 (Cation sum),,,
+,,,,,,,,,,,,,,
+Bii_spinel,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,22.2685,,50,,,,4,,,
+Fe,EDS,K series,113.18,1.13184,77.7315,2.1917,50,FeO,100,2.8196,4,Fe,Yes,
+Total,,,,,100,,100,,100,,4.00 (Cation sum),,,
+,,,,,,,,,,,,,,
+Bii_plag,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,49.1196,,61.9461,,,,4,,,
+Na,EDS,K series,20.78,0.0877,6.9673,1.0983,6.1147,Na2O,9.3916,1.4805,0.39,Albite,Yes,
+Al,EDS,K series,27.37,0.19659,13.3449,1.4904,9.9791,Al2O3,25.2141,2.8161,0.64,Al2O3,Yes,
+Si,EDS,K series,57.71,0.45733,30.5683,1.9943,21.96,SiO2,65.3943,4.2665,1.42,SiO2,Yes,
+Total,,,,,100,,100,,100,,2.46 (Cation sum),,,
+,,,,,,,,,,,,,,
+Bii_titanite,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,40.6181,,62.2402,,,,4,,,
+Si,EDS,K series,27.11,0.21485,14.4006,1.5126,12.57,SiO2,30.807,3.2358,0.81,SiO2,Yes,
+Ca,EDS,K series,40.19,0.35906,21.71,1.9473,13.2793,CaO,30.3761,2.7246,0.85,Wollastonite,Yes,
+Ti,EDS,K series,33.8,0.33802,23.2713,2.4325,11.9105,TiO2,38.8169,4.0575,0.77,Ti,Yes,
+Total,,,,,100,,100,,100,,2.43 (Cation sum),,,
+,,,,,,,,,,,,,,
+Bii_epidote,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,42.2129,,60.2566,,,,4,,,
+Al,EDS,K series,24.87,0.17865,12.5512,1.4781,10.6234,Al2O3,23.7147,2.7929,0.71,Al2O3,Yes,
+Si,EDS,K series,34.71,0.27506,18.6948,1.747,15.2014,SiO2,39.9935,3.7374,1.01,SiO2,Yes,
+Ca,EDS,K series,34.89,0.3117,19.0534,2.03,10.8567,CaO,26.6591,2.8403,0.72,Wollastonite,Yes,
+Fe,EDS,K series,11.21,0.11209,7.4877,2.2693,3.0619,FeO,9.6327,2.9194,0.2,Fe,Yes,
+Total,,,,,100,,100,,100,,2.64 (Cation sum),,,
+,,,,,,,,,,,,,,
+Bii_kfeldspar,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,47.0234,,62.3558,,,,4,,,
+Al,EDS,K series,18.04,0.1296,7.5411,1.1519,5.9295,Al2O3,14.2484,2.1765,0.38,Al2O3,Yes,
+Si,EDS,K series,74.49,0.59026,33.1878,1.7979,25.0694,SiO2,70.9982,3.8462,1.61,SiO2,Yes,
+K,EDS,K series,26.02,0.22039,12.2477,1.5564,6.6452,K2O,14.7533,1.8748,0.43,KBr,Yes,
+Total,,,,,100,,100,,100,,2.41 (Cation sum),,,
+,,,,,,,,,,,,,,
+MH0811b_plag,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,47.6103,,61.613,,,,4,,,
+Na,EDS,K series,20.77,0.08221,4.6717,0.2491,4.2073,Na2O,6.2972,0.3358,0.27,Nepheline,No,4/10/26 23:09
+Al,EDS,K series,43.66,0.30105,14.3414,0.3534,11.0048,Al2O3,27.0971,0.6677,0.71,Al2O3,No,4/10/26 23:12
+Si,EDS,K series,110.26,0.57166,26.896,0.4541,19.8272,SiO2,57.5382,0.9714,1.29,Forsterite,No,4/29/26 17:01
+Ca,EDS,K series,17.45,0.14973,6.4806,0.316,3.3477,CaO,9.0675,0.4422,0.22,Diopside,No,4/25/26 16:52
+Total,,,,,100,,100,,100,,2.49 (Cation sum),,,
+,,,,,,,,,,,,,,
+MH0811b_opx,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,43.3646,,60.1747,,,,4,,,
+Mg,EDS,K series,44.13,0.25514,13.4709,0.3527,12.3012,MgO,22.3358,0.5848,0.82,Forsterite,No,4/29/26 17:01
+Al,EDS,K series,1.45,0.01002,0.5281,0.1537,0.4345,Al2O3,0.9978,0.2903,0.03,Al2O3,No,4/10/26 23:12
+Si,EDS,K series,103.31,0.53566,25.4688,0.4659,20.1321,SiO2,54.485,0.9966,1.34,Forsterite,No,4/29/26 17:01
+Ca,EDS,K series,2.32,0.01993,0.8487,0.17,0.4701,CaO,1.1875,0.2378,0.03,Diopside,No,4/25/26 16:52
+Fe,EDS,K series,38.8,0.35266,16.319,0.6561,6.4873,FeO,20.994,0.8441,0.43,Fayalite,No,4/10/26 23:09
+Total,,,,,100,,100,,100,,2.65 (Cation sum),,,
+,,,,,,,,,,,,,,
+MH0811b_cpx,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,42.4951,,59.9271,,,,4,,,
+Mg,EDS,K series,28.58,0.16526,8.3647,0.2773,7.7626,MgO,13.8693,0.4597,0.52,Forsterite,No,4/29/26 17:01
+Al,EDS,K series,2.93,0.02019,0.9956,0.1551,0.8325,Al2O3,1.881,0.293,0.06,Al2O3,No,4/10/26 23:12
+Si,EDS,K series,103.79,0.53814,24.1971,0.4326,19.4379,SiO2,51.7645,0.9255,1.3,Forsterite,No,4/29/26 17:01
+Ca,EDS,K series,42.06,0.36098,14.8822,0.4077,8.3775,CaO,20.8228,0.5704,0.56,Diopside,No,4/25/26 16:52
+Fe,EDS,K series,22.17,0.20155,9.0653,0.5258,3.6623,FeO,11.6623,0.6765,0.24,Fayalite,No,4/10/26 23:09
+Total,,,,,100,,100,,100,,2.67 (Cation sum),,,
+,,,,,,,,,,,,,,
+MH0811b_spinel,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,25.7023,,53.2304,,,,4,,,
+Mg,EDS,K series,2.26,0.01308,0.9365,0.1801,1.2764,MgO,1.5528,0.2986,0.1,Forsterite,No,4/29/26 17:01
+Al,EDS,K series,3.52,0.0243,1.5273,0.1953,1.8756,Al2O3,2.8857,0.3691,0.14,Al2O3,No,4/10/26 23:12
+Si,EDS,K series,1.79,0.00928,0.5062,0.17,0.5972,SiO2,1.0829,0.3637,0.04,Forsterite,No,4/29/26 17:01
+Ti,EDS,K series,17.82,0.1639,7.121,0.3878,4.9259,TiO2,11.8779,0.6469,0.37,TiO2,No,4/10/26 20:31
+Fe,EDS,K series,150.11,1.36454,64.2067,0.6846,38.0945,FeO,82.6006,0.8808,2.86,Fayalite,No,4/10/26 23:09
+Total,,,,,100,,100,,100,,3.51 (Cation sum),,,
+,,,,,,,,,,,,,,
+MH0811b_rhombox,,,,,,,,,,,,,,
+Element,Signal Type,Line,Apparent Concentration,k Ratio,Wt%,Wt% Sigma,Atomic %,Oxide,Oxide %,Oxide % Sigma,Number of Ions,Standard Name,Factory Standard,Standardization Date
+O,,K series,,,30.9607,,58.8638,,,,4,,,
+Mg,EDS,K series,2.69,0.01557,0.9788,0.1557,1.2247,MgO,1.623,0.2581,0.08,Forsterite,No,4/29/26 17:01
+Si,EDS,K series,3.29,0.01704,0.8294,0.1435,0.8983,SiO2,1.7744,0.3071,0.06,Forsterite,No,4/29/26 17:01
+Ti,EDS,K series,68.46,0.62973,26.5015,0.5693,16.8292,TiO2,44.2049,0.9497,1.14,TiO2,No,4/10/26 20:31
+Fe,EDS,K series,101.36,0.92137,40.7296,0.7102,22.184,FeO,52.3977,0.9136,1.51,Fayalite,No,4/10/26 23:09
+Total,,,,,100,,100,,100,,2.80 (Cation sum),,,
+,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,

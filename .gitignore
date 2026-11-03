@@ -13,12 +13,6 @@ style.mplstyle
 /Validation_Data/GEOROC_validationdata.csv
 /texfigs/
 /Training_Data/
-/Training_Data/mindf_old/
-/TrainingData/min_df_v2.csv
-/TrainingData/min_df_v2_clean_natural.csv
-/TrainingData/min_df_v2_clean_synth.csv
-/TrainingData/min_df_v2_merge_natural.csv
-/TrainingData/min_df_v2_merge_synth.csv
 /Validation_Data/
 /Hematite_Data/
 /mineralML_Cluster/
@@ -37,8 +31,6 @@ Validate_AE.py
 /Maps/
 Data_Plot/mindf_256_64_16_density.pdf
 unsupervised.py
-EBSD_v_EDS.py
-EDS_Maps_and_Errors.py
 Torres_Orozco.xlsx
 Train_test_output_for_Sarah.xlsx
 /oxide_minerals/
@@ -65,4 +57,7 @@ Train_Unsupervised.py
 validation.ipynb
 validation.py
 validation_samples.csv
-Figure_Code/Model_Performance/*.csv
+Paper_Code/Model_Performance/*.csv
+Paper_Code/Model_Performance/*.csv.gz
+Paper_Code/Model_Performance/*.npz
+Paper_Code/Model_Performance/*.json
