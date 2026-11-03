@@ -8,6 +8,7 @@
 [![Python 3.10](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-31022/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![DOI](https://zenodo.org/badge/567486761.svg)](https://doi.org/10.5281/zenodo.15741887)
+![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FSarahShi%2FmineralML&label=views&labelColor=%23d9e3f0&countColor=%23263759&style=flat)
 
 We present mineralML (mineral classification using Machine Learning) for probabilistic classification of common igneous minerals. mineralML provides functions for calculating stoichiometries and crystallographic sites based on this classification, along with functions for handling mapped EDS data. Utilizing this package allows for the identification of misclassified mineral phases and poor-quality data. We streamline data processing and cleaning to allow for the rapid transition to usable data, improving the utility of data curated in these databases and furthering computing and modeling capabilities. 
 

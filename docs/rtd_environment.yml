@@ -5,7 +5,7 @@ channels:
     - defaults
 dependencies:
     # Pin compatible versions
-    - python=3.9 # PyTorch on conda-forge has good 3.9 support
+    - python=3.12 # mineralML requires >=3.10
     - pip
     - pandoc
     
